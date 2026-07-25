@@ -103,7 +103,7 @@ jobs:
       run: npm ci
       working-directory: tauri-app
     - name: Build Tauri App (Windows)
-      run: npx tauri build --no-bundle
+      run: npx @tauri-apps/cli build --no-bundle
       working-directory: tauri-app
     - name: Build Inno Setup Installer
       shell: pwsh
@@ -186,7 +186,7 @@ jobs:
         echo "RUSTFLAGS=-C link-arg=-Wl,-rpath,$ORT_DIR/lib -L$ORT_DIR/lib" >> $GITHUB_ENV
 
     - name: Build Tauri App (macOS)
-      run: npx tauri build --bundles dmg --target ${{ matrix.target }}
+      run: npx @tauri-apps/cli build --bundles dmg --target ${{ matrix.target }}
       working-directory: tauri-app
     - name: Prepare Artifact
       run: |
@@ -237,7 +237,7 @@ jobs:
       run: npm ci
       working-directory: tauri-app
     - name: Build Tauri App (Linux)
-      run: npx tauri build --bundles deb,rpm,appimage
+      run: npx @tauri-apps/cli build --bundles deb,rpm,appimage
       working-directory: tauri-app
     - name: Prepare Artifacts
       run: |
