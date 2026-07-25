@@ -16,8 +16,7 @@ Shared protocol/audio code for the desktop side lives in Rust crates under `taur
 - `:composeApp` - Android application module.
   - Main activity: `composeApp/src/main/kotlin/com/lanrhyme/micyou/MainActivity.kt`
   - Android services: `composeApp/src/main/kotlin/com/lanrhyme/micyou/service/`
-  - Audio, network, settings, plugin host, and Compose UI code live under `composeApp/src/main/kotlin/com/lanrhyme/micyou/`
-- `:plugin-api` - Referenced by `settings.gradle.kts` and `composeApp`, but the `plugin-api/` directory is not present in this checkout. Restore it before expecting a full Gradle sync/build to succeed.
+  - Audio, network, settings, and Compose UI code live under `composeApp/src/main/kotlin/com/lanrhyme/micyou/`
 - `tauri-app` - Desktop application.
   - Vue frontend: `tauri-app/src/`
   - Rust/Tauri backend: `tauri-app/src-tauri/src/`
@@ -69,9 +68,8 @@ Use `npm install` in `tauri-app` only when dependencies need to be restored or u
 - Keep user-facing strings in resource/i18n files instead of hardcoding them.
 - Android package name: `com.lanrhyme.micyou`.
 - Tauri package/app version should stay in sync with `gradle.properties`; use `tauri-app/sync-version.js` via `npm run sync-version`.
-- Plugin API version is in `gradle.properties` as `pluginApiVersion`.
 - Prefer existing feature folders and shared components:
-  - Android: `audio`, `network`, `settings`, `ui`, `viewmodel`, `plugin`, `util`
+  - Android: `audio`, `network`, `settings`, `ui`, `viewmodel`, `util`, `theme`, `update`, `animation`
   - Desktop: `tauri-app/src/features`, `tauri-app/src/shared`, and `tauri-app/src-tauri/src/commands`
 
 ## AI Agent Guidelines
