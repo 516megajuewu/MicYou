@@ -135,15 +135,12 @@ jobs:
         path: ci-artifacts/MicYou-Win-${{ steps.version.outputs.version }}-installer.exe
         if-no-files-found: ignore
 
-  # ----------------- Tauri macOS 构建 (x64 + arm64) -----------------
+  # ----------------- Tauri macOS 构建 (arm64) -----------------
   build-tauri-macos:
     strategy:
       fail-fast: false
       matrix:
         include:
-          - arch: x64
-            runner: macos-13
-            target: x86_64-apple-darwin
           - arch: arm64
             runner: macos-latest
             target: aarch64-apple-darwin
@@ -170,20 +167,6 @@ jobs:
     - name: Install Frontend Dependencies
       run: npm ci --include=dev
       working-directory: tauri-app
-    - name: Install ONNX Runtime (macOS x64)
-      if: matrix.arch == 'x64'
-      run: |
-        brew install onnxruntime
-        SYS_PREFIX=$(brew --prefix onnxruntime)
-        ORT_DIR="$GITHUB_WORKSPACE/ort_system"
-        mkdir -p "$ORT_DIR/lib" "$ORT_DIR/include/onnxruntime"
-        cp -R "$SYS_PREFIX/lib/"* "$ORT_DIR/lib/"
-        cp -R "$SYS_PREFIX/include/"* "$ORT_DIR/include/" 2>/dev/null || true
-        cp -R "$SYS_PREFIX/include/"* "$ORT_DIR/include/onnxruntime/" 2>/dev/null || true
-        echo "ORT_STRATEGY=system" >> $GITHUB_ENV
-        echo "ORT_LIB_LOCATION=$ORT_DIR" >> $GITHUB_ENV
-        echo "DYLD_LIBRARY_PATH=$ORT_DIR/lib:$DYLD_LIBRARY_PATH" >> $GITHUB_ENV
-        echo "RUSTFLAGS=-C link-arg=-Wl,-rpath,$ORT_DIR/lib -L$ORT_DIR/lib" >> $GITHUB_ENV
 
     - name: Build Tauri App (macOS)
       run: npx @tauri-apps/cli build --bundles dmg --target ${{ matrix.target }}
