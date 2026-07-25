@@ -73,3 +73,7 @@ Use `npm install` in `tauri-app` only when dependencies need to be restored or u
 - Prefer existing feature folders and shared components:
   - Android: `audio`, `network`, `settings`, `ui`, `viewmodel`, `plugin`, `util`
   - Desktop: `tauri-app/src/features`, `tauri-app/src/shared`, and `tauri-app/src-tauri/src/commands`
+
+## AI Agent Guidelines
+
+- Language: ALWAYS use Chinese (中文) for code reviews, issue comments, pull request comments, and any other communication.
