@@ -79,7 +79,6 @@
       "appearance": "外观性部分",
       "audio": "音频性部分",
       "network": "网络",
-      "plugins": "插件项目部分",
       "about": "关于性部分"
     },
     "language": {
@@ -219,10 +218,6 @@
       "presetPodcast": "播客电台预设项",
       "presetVocalClarity": "人声清晰预设项",
       "presetWarmVocal": "温暖人声预设项"
-    },
-    "plugins": {
-      "underConstruction": "正在建设中",
-      "portedDesc": "此部分正在从 KMP 版本移植"
     },
     "webPort": {
       "title": "Web 端口",

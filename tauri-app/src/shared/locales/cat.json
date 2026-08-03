@@ -79,7 +79,6 @@
       "appearance": "外观设置喵~ ✨",
       "audio": "音频设置喵~ 🎵",
       "network": "网络设置喵~",
-      "plugins": "插件喵~ 🔌",
       "about": "关于喵~ (´,,•ω•,,)"
     },
     "language": {
@@ -219,10 +218,6 @@
       "presetPodcast": "播客电台喵~ 🎙️",
       "presetVocalClarity": "人声清晰喵~ (≧∇≦)",
       "presetWarmVocal": "温暖人声喵~ (´,,•ω•,,)"
-    },
-    "plugins": {
-      "underConstruction": "建设中喵~",
-      "portedDesc": "此部分正在从 KMP 版本移植喵~"
     },
     "webPort": {
       "title": "网页端口喵~",

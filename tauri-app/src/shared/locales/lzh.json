@@ -79,7 +79,6 @@
       "appearance": "外观",
       "audio": "音频",
       "network": "网络",
-      "plugins": "插件",
       "about": "关于"
     },
     "language": {
@@ -219,10 +218,6 @@
       "presetPodcast": "播客",
       "presetVocalClarity": "人声清晰",
       "presetWarmVocal": "温暖人声"
-    },
-    "plugins": {
-      "underConstruction": "营造中",
-      "portedDesc": "此部正从旧版移植。"
     },
     "webPort": {
       "title": "网页端口",

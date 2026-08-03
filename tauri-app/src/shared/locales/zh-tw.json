@@ -79,7 +79,6 @@
       "appearance": "外觀",
       "audio": "音訊",
       "network": "網路",
-      "plugins": "插件",
       "about": "關於"
     },
     "language": {
@@ -219,10 +218,6 @@
       "presetPodcast": "播客電台",
       "presetVocalClarity": "人聲清晰",
       "presetWarmVocal": "溫暖人聲"
-    },
-    "plugins": {
-      "underConstruction": "建構中",
-      "portedDesc": "此部分正在從 KMP 版本移植"
     },
     "webPort": {
       "title": "Web 連接埠",

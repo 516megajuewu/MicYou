@@ -81,7 +81,6 @@
       "appearance": "Appearance",
       "audio": "Audio",
       "network": "Network",
-      "plugins": "Plugins",
       "about": "About"
     },
     "language": {
@@ -221,10 +220,6 @@
       "presetPodcast": "Podcast",
       "presetVocalClarity": "Vocal Clarity",
       "presetWarmVocal": "Warm Vocal"
-    },
-    "plugins": {
-      "underConstruction": "Under Construction",
-      "portedDesc": "This section is being ported from the KMP version."
     },
     "webPort": {
       "title": "Web Port",

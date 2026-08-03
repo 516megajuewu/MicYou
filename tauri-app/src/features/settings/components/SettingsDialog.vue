@@ -620,15 +620,6 @@
             <EqualizerPanel :config="settings.equalizer" />
           </div>
 
-          <!-- NETWORK SECTION -->
-          
-          <!-- PLUGINS (TODO placeholder) -->
-          <div v-else-if="currentSection === 'plugins'" class="flex flex-col items-center justify-center py-12 text-center opacity-50" key="plugins">
-            <Construction class="w-16 h-16 mb-4 text-on-surface-variant" />
-            <h4 class="text-lg font-bold">{{ $t('settings.plugins.underConstruction') }}</h4>
-            <p class="text-sm">{{ $t('settings.plugins.portedDesc') }}</p>
-          </div>
-
           <!-- ABOUT -->
           <div v-else-if="currentSection === 'about'" class="space-y-4 pb-12" key="about">
             <div class="bg-surface-bright rounded-2xl overflow-hidden shadow-sm flex flex-col border border-border">
@@ -742,11 +733,9 @@ import {
   Settings as SettingsIcon, 
   X, 
   Mic, 
-  Puzzle, 
   Info,
   Download,
   Loader2,
-  Construction,
   User,
   Globe,
   Users,
@@ -849,7 +838,6 @@ const sections = computed(() => [
   { id: 'appearance', name: t('settings.categories.appearance'), icon: Palette },
   { id: 'audio', name: t('settings.categories.audio'), icon: Mic },
   { id: 'equalizer', name: t('settings.equalizer.title'), icon: SlidersHorizontal },
-  { id: 'plugins', name: t('settings.categories.plugins'), icon: Puzzle },
   { id: 'about', name: t('settings.categories.about'), icon: Info },
 ]);
 
