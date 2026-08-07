@@ -215,6 +215,7 @@ WASM 插件是 core wasm 模块（无需 WASI），在 `wasmi` 纯 Rust 解释�
 | `connected_devices` | `() -> i32` | -> 宿主分配 JSON 数组指针 |
 | `play_sound` | `(i32) -> i32` | WAV 路径指针 -> 结果码（需 audio.play） |
 | `plugin_dir` | `() -> i32` | -> 插件安装目录绝对路径字符串 |
+| `register_hotkey` | `(i32) -> i64` | 快捷键字符串指针 -> 句柄 id（0 = 失败） |
 
 ### 完整最小示例（WAT）
 
@@ -312,19 +313,23 @@ host->send_message(host->ctx,
 
 ## 高级示例（直接可跑的参考实现）
 
-`plugins/examples/` 下提供四个 Native 示例 + 一个 WASM 示例，覆盖插件系统的核心能力
+`plugins/examples/` 提供两个示例，覆盖核心能力
 
-### 音效板（native-soundpad）：UI 面板 + 音频播放
+### 音效板（native-soundpad）：按钮面板 + 专属设置页 + 快捷键 + 音频播放
 
-- manifest 声明 `"ui": { "route": "buttons" }`，前端在插件页渲染按钮网格
-- `init` 时若配置为空，自动生成三个正弦波 WAV（写入插件目录 `sounds/`）并持久化配置
-- 前端按钮点击 → 宿主 `plugin_trigger` → 插件 `handle_message` 收到 `ui:play`（payload `{"id":"x"}`）→ 查表 → `host.play_sound` 播放
-- 配置用相对路径（如 `sounds/beep.wav`），宿主自动解析到插件目录
-- 关键点：UI 动作经总线以 `ui:<action>` 主题投递，插件只处理自己关心的动作
+- `ui.route=buttons` 通用按钮网格：前端读取 `config.sounds` 渲染按钮
+- `ui.panels` 专属设置页：`panel.html`（自包含单文件 HTML）在设置对话框侧边栏动态渲染，通过 postMessage 桥调用宿主
+- `register_hotkey("ctrl+shift+s")`：全局快捷键，按下后收到 `hotkey:<id>` 消息并播放第一个音效
+- `play_sound`：音效混入虚拟麦克风输出流，对方与用户都能听到
+- `init` 时自动生成三个正弦波 WAV（写入插件目录 `sounds/`）并持久化配置
 
 ```json
 {
-  "ui": { "route": "buttons", "label": "Soundpad" },
+  "ui": {
+    "route": "buttons",
+    "label": "Soundpad",
+    "panels": [ { "id": "console", "label": "控制台", "entry": "panel.html" } ]
+  },
   "capabilities": ["config.read", "config.write", "audio.play"],
   "config": { "sounds": [ { "id": "beep", "label": "Beep", "file": "sounds/beep.wav" } ] }
 }
@@ -336,17 +341,54 @@ host->send_message(host->ctx,
 - 全程无分配、无 host 调用（配置经原子变量无锁读取），满足实时安全
 - 进 DSP 链的位置由 `dsp.insertAfter` 决定（默认 AEC 之后）
 
-### 系统信息（native-systeminfo）：调用宿主与系统 API
+## 编写插件专属设置页（ui.panels）
 
-- 宿主 API：`plugin_dir` / `audio_state` / `connected_devices`
-- 系统 API：直接读取 `/proc`（内核版本、主机名、内存）
-- Native 插件拥有完整进程权限，可调用任意系统接口；WASM 插件被沙箱限制
+插件可在设置对话框侧边栏拥有专属页面（渲染在「插件」之后）
 
-### 触发插件 UI 动作（宿主命令）
+1. manifest 声明 `ui.panels`，`entry` 是插件目录内的自包含 HTML 文件
+2. 宿主命令 `get_plugin_panel` 返回 HTML，前端用沙箱 iframe（`allow-scripts`，无 same-origin）渲染
+3. 面板内联脚本通过 postMessage 桥与宿主通信（见 `usePluginPanelBridge`）：
 
-前端通过 `plugin_trigger(pluginId, action, payload?)` 投递动作，插件在 `handle_message` 中按 `ui:<action>` 主题处理
+```js
+function call(api, args) {
+  return new Promise((resolve, reject) => {
+    const id = Math.random().toString(36).slice(2);
+    const onMsg = (e) => {
+      if (e.data && e.data.__micyou === 1 && e.data.id === id) {
+        window.removeEventListener('message', onMsg);
+        e.data.ok ? resolve(e.data.value) : reject(new Error(e.data.error));
+      }
+    };
+    window.addEventListener('message', onMsg);
+    window.parent.postMessage({ __micyou: 1, id, api, args: args || {} }, '*');
+  });
+}
+const cfg = await call('get_config', {});
+await call('play', { id: 'beep' });
+```
 
-## 调试与测试
+可用桥 API
+
+| api | 参数 | 说明 |
+| --- | --- | --- |
+| `get_config` | `{}` | 读取插件配置（JSON） |
+| `set_config` | `{key, value}` | 写插件配置 |
+| `play` | `{id}` | 触发插件播放（`ui:play` 消息） |
+| `trigger` | `{action, payload}` | 触发任意插件 UI 动作 |
+| `log` | `{level, message}` | 记入插件日志 |
+| `get_logs` | `{}` | 读取插件日志 |
+| `get_sync_status` | `{}` | 跨端同步状态 |
+
+面板安全：iframe 沙箱隔离，面板脚本只能经 postMessage 与宿主通信，无法访问宿主 DOM
+
+## 使用全局快捷键
+
+- 插件在 `init` 中调用 `register_hotkey("ctrl+shift+s")` 获取句柄
+- 按下快捷键 → 宿主经总线投递 `hotkey:<id>` 消息 → 插件 `handle_message` 处理
+- 快捷键在插件进程退出时自动注销
+- 同一快捷键被多个插件注册时，所有注册插件都会收到
+
+## 调试与测试## 调试与测试
 
 - 插件日志：GUI 插件管理面板「日志」标签；宿主日志 `target: "plugin"` 前缀
 - 配置：面板「配置」编辑器直接读写 JSON

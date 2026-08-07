@@ -40,6 +40,7 @@ typedef struct mpl_host_api {
 | `connected_devices` | `() -> i32` | 返回宿主分配的 JSON 数组指针 |
 | `play_sound` | `(path_ptr: i32) -> i32` | 排队播放 WAV（需 audio.play），返回结果码 |
 | `plugin_dir` | `() -> i32` | 返回插件安装目录绝对路径字符串 |
+| `register_hotkey` | `(shortcut_ptr: i32) -> i64` | 注册全局快捷键，返回句柄 id（0 = 失败） |
 
 ### 缓冲区契约（out / out_size）
 
@@ -61,8 +62,16 @@ typedef struct mpl_host_api {
 ### play_sound（音频播放）
 
 - 参数为 WAV 文件路径，相对路径解析到插件自己的安装目录（插件可自带或动态生成音效文件）
-- 排队即返回，播放异步进行，**非实时安全**，禁止在 process 中调用
+- 音效**混入虚拟麦克风输出流**（SoundMixer），对方与用户都能听到，等同于真实麦克风输入
+- 排队即返回，混音在输出设备线程完成，**非实时安全**，禁止在 process 中调用
 - 常见用法：ui 按钮面板（`ui.route=buttons`）点击 → `handle_message` 收到 `ui:play` → 查配置 → `play_sound`
+
+### register_hotkey（全局快捷键）
+
+- 参数为快捷键字符串（如 `ctrl+shift+p`），返回句柄 id
+- 按下时宿主经总线投递消息给插件：topic `hotkey:<id>`，payload `{"shortcut":"..."}`
+- 插件在 `handle_message` 中处理；进程退出自动注销
+- 快捷键格式由 global-hotkey 解析：修饰键 ctrl/alt/shift/super/cmd + 键名（字母、数字、f1-f12 等）
 
 ## Plugin API（插件向宿主实现的接口）
 
@@ -158,6 +167,7 @@ Native 的 `mpl_result_t` 数值与此保持一致（0-5 子集）
 | `audio.play` | play_sound | 播放 WAV 音效（异步，非实时） |
 | `device.list` | connected_devices | 已连接设备信息 |
 | `network.io` | 预留 | 出站网络 |
+| `register_hotkey` | 无需能力 | 全局快捷键（触发仅通知注册的插件） |
 | `fs.read` | 预留 | 沙箱内文件 |
 
 - 未知能力声明会被清单校验拒绝

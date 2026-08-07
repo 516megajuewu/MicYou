@@ -21,11 +21,8 @@ MicYou 插件系统允许第三方为桌面端与（未来）安卓端扩展能�
 
 | 示例 | 运行时 | 类型 | 位置 |
 | --- | --- | --- | --- |
-| native-gain | Native (cdylib) | DSP 增益节点 | `plugins/examples/native-gain/` |
-| native-noisegate | Native (cdylib) | 降噪引擎（RMS 噪声门） | `plugins/examples/native-noisegate/` |
-| native-soundpad | Native (cdylib) | 音效板（UI 按钮面板 + 音频播放） | `plugins/examples/native-soundpad/` |
-| native-systeminfo | Native (cdylib) | 宿主 + 系统 API 调用报告 | `plugins/examples/native-systeminfo/` |
-| wasm-counter | WASM | 事件计数 + 增益 | `plugins/examples/wasm-counter/` |
+| native-soundpad | Native (cdylib) | 音效板：按钮面板 + 专属设置页 + 全局快捷键 + 音频播放 | `plugins/examples/native-soundpad/` |
+| native-noisegate | Native (cdylib) | 降噪引擎（RMS 噪声门 DSP 节点） | `plugins/examples/native-noisegate/` |
 
 ## 代码结构
 
@@ -57,6 +54,8 @@ docs/plugins/                    # 本文档
 - [x] DSP 链路集成（合成链节点 `Plugins`）
 - [x] 跨端消息同步协议（protobuf `PluginMessage`）
 - [x] 前端插件管理界面
-- [x] 音效板面板（ui.route=buttons + play_sound 音频播放）
-- [x] 示例插件与文档（DSP / 降噪 / 音效板 / 系统信息 / WASM）
+- [x] 音效板面板（ui.route=buttons + 虚拟麦克风混音播放）
+- [x] 插件专属设置页（ui.panels + postMessage 桥，设置侧边栏动态渲染）
+- [x] 全局快捷键（register_hotkey，热键消息投递）
+- [x] 示例插件与文档（音效板 / 降噪引擎）
 - [ ] 安卓端运行时（协议已就绪，见 [架构与扩展](architecture-extensibility.md)）
