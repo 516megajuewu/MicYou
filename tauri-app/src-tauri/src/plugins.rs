@@ -8,6 +8,9 @@ use micyou_plugin::host::{
     AudioStateSnapshot, DeviceSnapshot, HostApi, MessageTarget, PluginLogLevel,
 };
 use micyou_plugin::manifest::{PluginKind, RuntimeKind};
+use std::sync::atomic::{AtomicU64, Ordering};
+use tauri::Manager;
+use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState, ShortcutWrapper};
 use micyou_plugin::{PluginError, PluginResult, PluginRuntime};
 use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex, RwLock};
@@ -101,6 +104,82 @@ pub struct PluginHost {
     /// WAV playback for the `audio.play` capability (soundpads etc).
     /// Effects are mixed into the virtual microphone output stream.
     pub sound: Arc<crate::sound_player::SoundPlayer>,
+    /// Global hotkey registry (plugin shortcut capability).
+    pub hotkeys: Arc<HotkeyService>,
+}
+
+/// Global hotkey registration for plugins.
+/// The tauri plugin must be initialized at startup; `init` stores the app
+/// handle, after which plugins can register shortcuts. Pressing a hotkey
+/// delivers a bus message to the owning plugin on topic `hotkey:<id>`.
+pub struct HotkeyService {
+    handle: Mutex<Option<tauri::AppHandle>>,
+    next_id: AtomicU64,
+    registered: Mutex<std::collections::HashMap<u64, String>>,
+}
+
+impl HotkeyService {
+    pub fn new() -> Arc<Self> {
+        Arc::new(Self {
+            handle: Mutex::new(None),
+            next_id: AtomicU64::new(1),
+            registered: Mutex::new(std::collections::HashMap::new()),
+        })
+    }
+
+    /// Store the app handle (called from the Tauri setup hook)
+    pub fn init(&self, app: &tauri::AppHandle) {
+        if let Ok(mut slot) = self.handle.lock() {
+            *slot = Some(app.clone());
+        }
+    }
+
+    /// Register a global hotkey for a plugin; returns the handle id
+    pub fn register(&self, plugin_id: &str, shortcut: &str) -> PluginResult<u64> {
+        let wrapper: ShortcutWrapper = shortcut
+            .try_into()
+            .map_err(|_| PluginError::Validation(format!("invalid hotkey: {shortcut}")))?;
+        let handle = self
+            .handle
+            .lock()
+            .map_err(lock_err)?
+            .clone()
+            .ok_or_else(|| PluginError::Runtime("hotkeys not initialized".into()))?;
+        let id = self.next_id.fetch_add(1, Ordering::Relaxed);
+        let pid = plugin_id.to_string();
+        let shortcut_text = shortcut.to_string();
+        let pid_closure = pid.clone();
+        handle
+            .global_shortcut()
+            .on_shortcut(wrapper, move |app, _sc, event| {
+                if event.state != ShortcutState::Pressed {
+                    return;
+                }
+                let Some(state) = app.try_state::<crate::server::ServerState>() else {
+                    return;
+                };
+                let msg = PluginMessage::new(
+                    "host",
+                    &pid_closure,
+                    &format!("hotkey:{id}"),
+                    serde_json::json!({ "shortcut": shortcut_text })
+                        .to_string()
+                        .into_bytes(),
+                );
+                state.plugins.bus.handle_incoming(&msg);
+            })
+            .map_err(|e| PluginError::Runtime(format!("hotkey register: {e}")))?;
+        self.registered
+            .lock()
+            .map_err(lock_err)?
+            .insert(id, pid.clone());
+        Ok(id)
+    }
+
+    /// Number of registered hotkeys (for sync status / debugging)
+    pub fn count(&self) -> usize {
+        self.registered.lock().map(|m| m.len()).unwrap_or(0)
+    }
 }
 
 /// Default chain position for the synthetic plugin node: right after AEC,
@@ -141,6 +220,7 @@ impl PluginHost {
         let bus = Arc::new(PluginBus::new(sync.clone(), dispatcher));
         let logs = Arc::new(PluginLogs::new());
         let sound = crate::sound_player::SoundPlayer::new(output);
+        let hotkeys = HotkeyService::new();
 
         Self {
             manager,
@@ -149,6 +229,7 @@ impl PluginHost {
             bus,
             logs,
             sound,
+            hotkeys,
         }
     }
 
@@ -184,6 +265,7 @@ impl PluginHost {
             self.manager.clone(),
             self.logs.clone(),
             self.sound.clone(),
+            self.hotkeys.clone(),
             id.to_string(),
         );
         let mut instance = match entry.manifest.runtime {
@@ -350,6 +432,7 @@ pub struct PluginHostApi {
     manager: Arc<Mutex<micyou_plugin::PluginManager>>,
     logs: Arc<PluginLogs>,
     sound: Arc<crate::sound_player::SoundPlayer>,
+    hotkeys: Arc<HotkeyService>,
     plugin_id: String,
 }
 
@@ -359,6 +442,7 @@ impl PluginHostApi {
         manager: Arc<Mutex<micyou_plugin::PluginManager>>,
         logs: Arc<PluginLogs>,
         sound: Arc<crate::sound_player::SoundPlayer>,
+        hotkeys: Arc<HotkeyService>,
         plugin_id: String,
     ) -> Arc<Self> {
         Arc::new(Self {
@@ -366,6 +450,7 @@ impl PluginHostApi {
             manager,
             logs,
             sound,
+            hotkeys,
             plugin_id,
         })
     }
@@ -432,6 +517,10 @@ impl HostApi for PluginHostApi {
             .and_then(|m| m.entry(&self.plugin_id).ok().flatten())
             .map(|e| e.dir.display().to_string())
             .unwrap_or_default()
+    }
+
+    fn register_hotkey(&self, shortcut: &str) -> PluginResult<u64> {
+        self.hotkeys.register(&self.plugin_id, shortcut)
     }
 
     fn play_sound(&self, path: &str) -> PluginResult<()> {

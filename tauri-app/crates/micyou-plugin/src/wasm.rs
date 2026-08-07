@@ -567,6 +567,26 @@ fn register_host_functions(linker: &mut Linker<WasmHostCtx>) {
         )
         .unwrap();
 
+    // register_hotkey(shortcut_ptr) -> i64 (handle id, 0 on failure)
+    linker
+        .func_wrap(
+            WASM_IMPORT_MODULE,
+            "register_hotkey",
+            |mut caller: wasmi::Caller<'_, WasmHostCtx>,
+             shortcut_ptr: i32|
+             -> Result<i64, wasmi::Error> {
+                let memory = export_memory(&caller)?;
+                let shortcut = read_str_from_memory(&mut caller, &memory, shortcut_ptr)?;
+                let id = caller
+                    .data()
+                    .host
+                    .register_hotkey(&shortcut)
+                    .map_err(|e| wasmi::Error::new(e.to_string()))?;
+                Ok(id as i64)
+            },
+        )
+        .unwrap();
+
     // plugin_dir() -> ptr (host-allocated absolute path string, or 0)
     linker
         .func_wrap(

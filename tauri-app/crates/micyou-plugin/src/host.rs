@@ -87,6 +87,11 @@ pub trait HostApi: Send + Sync {
     /// Absolute path of the plugin's install directory (read-only).
     fn plugin_dir(&self) -> String;
 
+    /// Register a global system hotkey (e.g. "ctrl+shift+p").
+    /// Returns a numeric handle; pressing the hotkey delivers a message to
+    /// the plugin on topic `hotkey:<handle>` with a JSON payload.
+    fn register_hotkey(&self, shortcut: &str) -> PluginResult<u64>;
+
     /// Live audio stream state (requires `audio.state` capability).
     fn audio_state(&self) -> AudioStateSnapshot;
 
