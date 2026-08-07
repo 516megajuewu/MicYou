@@ -124,17 +124,37 @@ fn default_api_version() -> u32 {
     HOST_API_VERSION
 }
 
-/// Optional UI registration: a Vue panel the frontend can lazy-load.
+/// Optional UI registration: buttons panel (`route=buttons`) or custom
+/// pages (`panels`), rendered by the frontend.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UiDescriptor {
-    /// Frontend route / component identifier (e.g. `plugin-panel`).
+    /// Frontend route / component identifier (e.g. `plugin-panel`,
+    /// `buttons` for the generic soundpad button grid).
     pub route: String,
     /// Display name of the panel.
     pub label: String,
     /// Relative path to a bundled JS entry (advanced; default: generic form).
     #[serde(default)]
     pub entry: Option<String>,
+    /// Custom pages shown in the settings sidebar; each is a self-contained
+    /// single-file HTML document inside the plugin directory that talks to
+    /// the host through the postMessage bridge (`get_plugin_panel`).
+    #[serde(default)]
+    pub panels: Vec<UiPanel>,
+}
+
+/// A plugin-authored settings page: id + label + HTML file name relative to
+/// the plugin directory. The HTML must be self-contained (inline CSS/JS).
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UiPanel {
+    /// Stable id used by the frontend routing (`panel:<pluginId>:<id>`).
+    pub id: String,
+    /// Sidebar entry label.
+    pub label: String,
+    /// HTML file name inside the plugin directory.
+    pub entry: String,
 }
 
 /// Optional DSP registration: where the node is inserted in the chain.

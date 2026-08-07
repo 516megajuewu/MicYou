@@ -181,6 +181,34 @@ pub fn open_plugins_dir(state: State<'_, ServerState>) -> Result<String, String>
     Ok(dir.display().to_string())
 }
 
+/// Read a plugin-authored settings page (self-contained HTML file inside
+/// the plugin directory, rendered by the frontend in a sandboxed iframe).
+#[tauri::command]
+pub fn get_plugin_panel(
+    state: State<'_, ServerState>,
+    pluginId: String,
+    panelId: String,
+) -> Result<String, String> {
+    let manager = state
+        .plugins
+        .manager
+        .lock()
+        .map_err(|_| "plugin manager lock poisoned".to_string())?;
+    let entry = manager
+        .entry(&pluginId)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| format!("unknown plugin {pluginId}"))?;
+    let panel = entry
+        .manifest
+        .ui
+        .as_ref()
+        .and_then(|u| u.panels.iter().find(|p| p.id == panelId))
+        .ok_or_else(|| format!("unknown panel {panelId}"))?;
+    let path = entry.dir.join(&panel.entry);
+    std::fs::read_to_string(&path)
+        .map_err(|e| format!("read {}: {e}", path.display()))
+}
+
 /// Deliver a UI action to a plugin instance (soundpad buttons etc).
 /// The plugin receives `{ action, payload }` through its message entry.
 #[tauri::command]

@@ -28,7 +28,7 @@ pub use error::{PluginError, PluginResult};
 pub use host::{AudioStateSnapshot, DeviceSnapshot, HostApi, MessageTarget, PluginLogLevel};
 pub use manager::{PluginEntry, PluginManager, PluginPersistedState, ScanReport};
 pub use manifest::{
-    capabilities, platforms, DspDescriptor, PluginKind, PluginManifest, RuntimeKind, UiDescriptor,
+    capabilities, platforms, DspDescriptor, PluginKind, PluginManifest, UiPanel, RuntimeKind, UiDescriptor,
     HOST_API_VERSION, KNOWN_CAPABILITIES, MANIFEST_FILE_NAME,
 };
 pub use plugin::{

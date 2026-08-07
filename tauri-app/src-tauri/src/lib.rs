@@ -96,6 +96,7 @@ pub fn run() {
         )
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             Some(vec!["--minimized"]),
@@ -111,6 +112,7 @@ pub fn run() {
             // enabled in a previous session.
             {
                 let state = app.state::<server::ServerState>();
+                state.plugins.hotkeys.init(app.handle());
                 let plugins = state.plugins.clone();
                 let report = plugins
                     .manager
@@ -231,6 +233,7 @@ pub fn run() {
             commands::plugins::open_plugins_dir,
             commands::plugins::import_plugin,
             commands::plugins::plugin_trigger,
+            commands::plugins::get_plugin_panel,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

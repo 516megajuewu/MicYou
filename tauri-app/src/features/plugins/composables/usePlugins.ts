@@ -13,7 +13,12 @@ export interface PluginView {
   kind: string; // dsp | utility | ui | bridge
   platforms: string[];
   capabilities: string[];
-  ui?: { route: string; label?: string; entry?: string | null } | null;
+  ui?: {
+    route: string;
+    label?: string;
+    entry?: string | null;
+    panels?: Array<{ id: string; label: string; entry: string }>;
+  } | null;
   enabled: boolean;
   loaded: boolean;
   dspNode: boolean;
