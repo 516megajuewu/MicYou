@@ -1,0 +1,20 @@
+{
+  "id": "dev.micyou.example.soundpad",
+  "name": "Example Soundpad",
+  "version": "1.0.0",
+  "author": "MicYou",
+  "description": "示例音效板：声明按钮面板（ui.route=buttons），启用时自动生成示例音效，点击按钮通过 audio.play 能力播放",
+  "runtime": "native",
+  "entry": "libmicyou_example_native_soundpad.so",
+  "platforms": ["linux", "windows", "macos"],
+  "apiVersion": 1,
+  "capabilities": ["config.read", "config.write", "audio.play"],
+  "kind": "utility",
+  "ui": {
+    "route": "buttons",
+    "label": "Soundpad"
+  },
+  "config": {
+    "sounds": []
+  }
+}

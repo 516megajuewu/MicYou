@@ -430,8 +430,29 @@ impl HostApi for PluginHostApi {
         AudioStateSnapshot::default()
     }
 
+    fn plugin_dir(&self) -> String {
+        self.manager
+            .lock()
+            .ok()
+            .and_then(|m| m.entry(&self.plugin_id).ok().flatten())
+            .map(|e| e.dir.display().to_string())
+            .unwrap_or_default()
+    }
+
     fn play_sound(&self, path: &str) -> PluginResult<()> {
-        self.sound.play_wav(path)
+        // Relative paths resolve against the plugin's own directory so a
+        // plugin can ship/generate sound files next to itself.
+        let full = if std::path::Path::new(path).is_absolute() {
+            path.to_string()
+        } else {
+            let manager = self.manager.lock().map_err(lock_err)?;
+            let Some(entry) = manager.entry(&self.plugin_id)? else {
+                return Err(PluginError::UnknownPlugin(self.plugin_id.clone()));
+            };
+            drop(manager);
+            entry.dir.join(path).display().to_string()
+        };
+        self.sound.play_wav(&full)
     }
 
     fn connected_devices(&self) -> Vec<DeviceSnapshot> {

@@ -67,6 +67,7 @@ impl HostApi for MockHost {
         AudioStateSnapshot::default()
     }
     fn play_sound(&self, _path: &str) -> PluginResult<()> { Ok(()) }
+    fn plugin_dir(&self) -> String { "/tmp/plugin-dir".to_string() }
     fn connected_devices(&self) -> Vec<DeviceSnapshot> {
         Vec::new()
     }

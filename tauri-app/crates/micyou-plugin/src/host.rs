@@ -84,6 +84,9 @@ pub trait HostApi: Send + Sync {
     /// Send a binary message to a local or remote plugin.
     fn send_message(&self, target: MessageTarget, payload: Vec<u8>) -> PluginResult<()>;
 
+    /// Absolute path of the plugin's install directory (read-only).
+    fn plugin_dir(&self) -> String;
+
     /// Live audio stream state (requires `audio.state` capability).
     fn audio_state(&self) -> AudioStateSnapshot;
 

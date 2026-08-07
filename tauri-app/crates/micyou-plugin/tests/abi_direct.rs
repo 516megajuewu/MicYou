@@ -22,6 +22,7 @@ impl HostApi for DirectHost {
     fn send_message(&self, _t: MessageTarget, _p: Vec<u8>) -> micyou_plugin::PluginResult<()> { Ok(()) }
     fn audio_state(&self) -> AudioStateSnapshot { AudioStateSnapshot::default() }
     fn play_sound(&self, _path: &str) -> PluginResult<()> { Ok(()) }
+    fn plugin_dir(&self) -> String { "/tmp/plugin-dir".to_string() }
     fn connected_devices(&self) -> Vec<DeviceSnapshot> { Vec::new() }
 }
 

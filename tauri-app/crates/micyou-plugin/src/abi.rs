@@ -96,6 +96,7 @@ pub struct mpl_host_api_t {
     /// fields here stays ABI-compatible for them.
     pub ctx: *mut c_void,
     pub play_sound: unsafe extern "C" fn(ctx: *mut c_void, path: *const c_char) -> mpl_result_t,
+    pub plugin_dir: unsafe extern "C" fn(ctx: *mut c_void, out: *mut c_char, out_size: *mut u32) -> mpl_result_t,
 }
 
 // The table travels inside `NativePlugin` which is `Send`; the raw `ctx`
@@ -282,6 +283,21 @@ unsafe extern "C" fn shim_play_sound(ctx: *mut c_void, path: *const c_char) -> m
     }
 }
 
+unsafe extern "C" fn shim_plugin_dir(
+    ctx: *mut c_void,
+    out: *mut c_char,
+    out_size: *mut u32,
+) -> mpl_result_t {
+    unsafe {
+        let ctx = &*(ctx as *const NativeHostCtx);
+        let (Some(out), Some(out_size)) = (out.as_mut(), out_size.as_mut()) else {
+            return mpl_result_t::MPL_ERR_INVALID_ARG;
+        };
+        let dir = ctx.host.plugin_dir();
+        write_json_to_buf(&dir, out, out_size)
+    }
+}
+
 unsafe extern "C" fn shim_connected_devices(
     ctx: *mut c_void,
     out: *mut c_char,
@@ -332,6 +348,7 @@ pub fn host_table_for(ctx: Arc<NativeHostCtx>) -> mpl_host_api_t {
         connected_devices: shim_connected_devices,
         ctx: ctx_ptr as *mut c_void,
         play_sound: shim_play_sound,
+        plugin_dir: shim_plugin_dir,
     }
 }
 

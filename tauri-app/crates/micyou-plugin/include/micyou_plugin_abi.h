@@ -71,6 +71,8 @@ typedef struct mpl_host_api {
      * keep working because ctx stays at its original offset. New fields are
      * only ever added here, never before ctx. */
     mpl_result_t (*play_sound)(void *ctx, const char *path);
+    /* absolute path of the plugin install directory (read-only query) */
+    mpl_result_t (*plugin_dir)(void *ctx, char *out, uint32_t *out_size);
 } mpl_host_api_t;
 
 /* Static plugin identity. The id/version must match the manifest. */

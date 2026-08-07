@@ -567,6 +567,20 @@ fn register_host_functions(linker: &mut Linker<WasmHostCtx>) {
         )
         .unwrap();
 
+    // plugin_dir() -> ptr (host-allocated absolute path string, or 0)
+    linker
+        .func_wrap(
+            WASM_IMPORT_MODULE,
+            "plugin_dir",
+            |mut caller: wasmi::Caller<'_, WasmHostCtx>| -> Result<i32, wasmi::Error> {
+                let memory = export_memory(&caller)?;
+                let dir = caller.data().host.plugin_dir();
+                let ptr = write_str_to_memory(&mut caller, &memory, &dir)?;
+                Ok(ptr)
+            },
+        )
+        .unwrap();
+
     // connected_devices() -> ptr (host-allocated JSON array, or 0)
     linker
         .func_wrap(
