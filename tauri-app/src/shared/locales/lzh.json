@@ -547,6 +547,9 @@
       "utility": "工具",
       "ui": "UI 面板",
       "bridge": "同步橋"
-    }
+    },
+    "import": "匯入 .zip",
+    "importing": "匯入中…",
+    "installHintDir": "或置插件目錄於插件目錄"
   }
 }

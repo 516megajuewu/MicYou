@@ -549,6 +549,9 @@
       "utility": "Utility",
       "ui": "UI Panel",
       "bridge": "Bridge"
-    }
+    },
+    "import": "Import .zip",
+    "importing": "Importing…",
+    "installHintDir": "Or drop a plugin folder into the plugins folder"
   }
 }

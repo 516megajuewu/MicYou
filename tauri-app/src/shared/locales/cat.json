@@ -547,6 +547,9 @@
       "utility": "工具喵",
       "ui": "UI 面板喵",
       "bridge": "同步桥喵"
-    }
+    },
+    "import": "导入 .zip 喵",
+    "importing": "正在导入喵…",
+    "installHintDir": "或把喵插件文件夹放进来喵"
   }
 }

@@ -148,10 +148,7 @@ pub fn set_plugin_config(
 
 /// Recent log lines emitted by a plugin.
 #[tauri::command]
-pub fn get_plugin_logs(
-    state: State<'_, ServerState>,
-    id: String,
-) -> Result<Vec<String>, String> {
+pub fn get_plugin_logs(state: State<'_, ServerState>, id: String) -> Result<Vec<String>, String> {
     Ok(state.plugins.logs.lines(&id))
 }
 
@@ -178,4 +175,150 @@ pub fn open_plugins_dir(state: State<'_, ServerState>) -> Result<String, String>
         .to_path_buf();
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     Ok(dir.display().to_string())
+}
+
+/// Import a plugin from a `.zip` file or a plugin directory.
+///
+/// The source manifest is validated first; the payload is then copied into
+/// the plugins dir under the plugin id. Returns the imported plugin id.
+#[tauri::command]
+pub fn import_plugin(state: State<'_, ServerState>, source: String) -> Result<String, String> {
+    let src = std::path::PathBuf::from(source);
+    if !src.exists() {
+        return Err(format!("source not found: {}", src.display()));
+    }
+    let plugins_dir = state
+        .plugins
+        .manager
+        .lock()
+        .map_err(|_| "plugin manager lock poisoned".to_string())?
+        .plugins_dir()
+        .to_path_buf();
+    std::fs::create_dir_all(&plugins_dir).map_err(|e| e.to_string())?;
+
+    let id = if src.is_dir() {
+        import_plugin_dir(&src, &plugins_dir)
+    } else if src
+        .extension()
+        .map(|e| e.eq_ignore_ascii_case("zip"))
+        .unwrap_or(false)
+    {
+        import_plugin_zip(&src, &plugins_dir)
+    } else {
+        return Err("unsupported source: expected a directory or a .zip file".into());
+    }
+    .map_err(|e| e.to_string())?;
+
+    // Register the new entry so it appears immediately without a rescan.
+    let mut manager = state
+        .plugins
+        .manager
+        .lock()
+        .map_err(|_| "plugin manager lock poisoned".to_string())?;
+    manager
+        .discover_plugin(plugins_dir.join(&id))
+        .map_err(|e| e.to_string())?;
+    Ok(id)
+}
+
+/// Copy a plugin directory (validated) into the plugins dir.
+fn import_plugin_dir(src: &std::path::Path, dest_root: &std::path::Path) -> Result<String, String> {
+    let manifest = micyou_plugin::PluginManifest::load_from_dir(src)
+        .map_err(|e| format!("invalid plugin: {e}"))?;
+    let id = manifest.id.clone();
+    let dest = dest_root.join(&id);
+    if dest.exists() {
+        return Err(format!("plugin {id} already installed"));
+    }
+    copy_dir_recursive(src, &dest).map_err(|e| format!("copy failed: {e}"))?;
+    Ok(id)
+}
+
+/// Import a `.zip` plugin: peek the manifest for validation + id, then extract
+/// with path-traversal protection into `dest_root/<id>/`.
+fn import_plugin_zip(
+    zip_path: &std::path::Path,
+    dest_root: &std::path::Path,
+) -> Result<String, String> {
+    let file = std::fs::File::open(zip_path).map_err(|e| format!("open zip: {e}"))?;
+    let mut archive = zip::ZipArchive::new(file).map_err(|e| format!("read zip: {e}"))?;
+
+    // Locate plugin.json (may live in a nested folder) and validate it first.
+    let mut manifest_name: Option<String> = None;
+    for i in 0..archive.len() {
+        let name = archive
+            .by_index(i)
+            .map_err(|e| format!("zip entry: {e}"))?
+            .name()
+            .to_string();
+        if name == "plugin.json" || name.ends_with("/plugin.json") {
+            manifest_name = Some(name);
+            break;
+        }
+    }
+    let manifest_name = manifest_name.ok_or("zip contains no plugin.json")?;
+    let manifest_text = {
+        let mut entry = archive
+            .by_name(&manifest_name)
+            .map_err(|e| format!("read manifest: {e}"))?;
+        let mut text = String::new();
+        std::io::Read::read_to_string(&mut entry, &mut text)
+            .map_err(|e| format!("read manifest: {e}"))?;
+        text
+    };
+    let manifest = micyou_plugin::PluginManifest::from_json(&manifest_text)
+        .map_err(|e| format!("invalid plugin: {e}"))?;
+    let id = manifest.id.clone();
+    let dest = dest_root.join(&id);
+    if dest.exists() {
+        return Err(format!("plugin {id} already installed"));
+    }
+    std::fs::create_dir_all(&dest).map_err(|e| format!("create dir: {e}"))?;
+
+    // Strip the folder prefix that contains plugin.json (e.g. "my-plugin/")
+    let prefix = std::path::Path::new(&manifest_name)
+        .parent()
+        .map(|p| p.to_path_buf())
+        .unwrap_or_default();
+
+    for i in 0..archive.len() {
+        let mut entry = archive.by_index(i).map_err(|e| format!("zip entry: {e}"))?;
+        // `enclosed_name` rejects absolute paths and `..` traversal
+        let Some(rel) = entry.enclosed_name() else {
+            continue;
+        };
+        let rel = if rel.starts_with(&prefix) {
+            rel.strip_prefix(&prefix).unwrap_or(&rel).to_path_buf()
+        } else {
+            rel
+        };
+        let target = dest.join(&rel);
+        if entry.is_dir() {
+            std::fs::create_dir_all(&target).map_err(|e| format!("mkdir: {e}"))?;
+        } else {
+            if let Some(parent) = target.parent() {
+                std::fs::create_dir_all(parent).map_err(|e| format!("mkdir: {e}"))?;
+            }
+            let mut out =
+                std::fs::File::create(&target).map_err(|e| format!("create file: {e}"))?;
+            std::io::copy(&mut entry, &mut out).map_err(|e| format!("extract: {e}"))?;
+        }
+    }
+    Ok(id)
+}
+
+/// Recursive directory copy (no symlink following).
+fn copy_dir_recursive(src: &std::path::Path, dest: &std::path::Path) -> std::io::Result<()> {
+    std::fs::create_dir_all(dest)?;
+    for entry in std::fs::read_dir(src)? {
+        let entry = entry?;
+        let from = entry.path();
+        let to = dest.join(entry.file_name());
+        if entry.file_type()?.is_dir() {
+            copy_dir_recursive(&from, &to)?;
+        } else {
+            std::fs::copy(&from, &to)?;
+        }
+    }
+    Ok(())
 }

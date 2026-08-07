@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
 import {
   RefreshCw,
   Puzzle,
   FolderOpen,
+  Download,
   Trash2,
   ToggleLeft,
   ToggleRight,
@@ -11,8 +12,13 @@ import {
 } from '@lucide/vue';
 import { usePlugins, type PluginView } from '../composables/usePlugins';
 
-// 可复用的插件管理面板：用于独立插件对话框与设置对话框的「插件」页面
+// 可复用的插件管理面板：用于设置对话框的「插件」页面
+// 首次挂载即拉取插件列表（单例状态，两个入口共享）
 const p = usePlugins();
+onMounted(() => {
+  p.refresh();
+});
+
 const showLogsFor = ref<string | null>(null);
 const logLines = ref<string[]>([]);
 const openConfigFor = ref<string | null>(null);
@@ -61,11 +67,6 @@ function confirmUninstall(plugin: PluginView) {
     p.uninstall(plugin);
   }
 }
-
-async function revealPluginsDir() {
-  const dir = await p.openDir();
-  if (dir) window.alert(`Plugins: ${dir}`);
-}
 </script>
 
 <template>
@@ -112,7 +113,7 @@ async function revealPluginsDir() {
     <div v-else-if="p.plugins.value.length === 0" class="py-16 text-center">
       <p class="text-on-surface-variant text-sm">{{ $t('plugins.noPlugins') }}</p>
       <button
-        @click="revealPluginsDir"
+        @click="p.openDir()"
         class="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/20 text-primary hover:bg-primary/30 text-sm font-medium"
       >
         <FolderOpen class="w-4 h-4" />
@@ -121,18 +122,31 @@ async function revealPluginsDir() {
     </div>
 
     <template v-else>
-      <!-- Install hint -->
+      <!-- Install hint: import zip + open dir -->
       <div
-        class="flex items-center justify-between px-4 py-2 rounded-lg bg-surface-variant/20 text-xs text-on-surface-variant"
+        class="rounded-lg bg-surface-variant/20 px-4 py-3 text-xs text-on-surface-variant space-y-2"
       >
-        <span>{{ $t('plugins.installHint') }}</span>
-        <button
-          @click="p.openDir()"
-          class="inline-flex items-center gap-1.5 text-primary hover:underline font-medium"
-        >
-          <FolderOpen class="w-3.5 h-3.5" />
-          {{ $t('plugins.openDir') }}
-        </button>
+        <div class="flex items-center justify-between gap-3">
+          <span>{{ $t('plugins.installHint') }}</span>
+          <button
+            @click="p.importPlugin()"
+            :disabled="p.busyId.value === 'import'"
+            class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/20 text-primary hover:bg-primary/30 font-medium disabled:opacity-50"
+          >
+            <Download class="w-3.5 h-3.5" />
+            {{ p.busyId.value === 'import' ? $t('plugins.importing') : $t('plugins.import') }}
+          </button>
+        </div>
+        <div class="flex items-center justify-between gap-3">
+          <span>{{ $t('plugins.installHintDir') }}</span>
+          <button
+            @click="p.openDir()"
+            class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-surface-variant/40 hover:bg-surface-variant text-on-surface-variant font-medium"
+          >
+            <FolderOpen class="w-3.5 h-3.5" />
+            {{ $t('plugins.openDir') }}
+          </button>
+        </div>
       </div>
 
       <div
@@ -225,10 +239,17 @@ async function revealPluginsDir() {
         </div>
 
         <!-- Config editor -->
-        <div v-if="openConfigFor === plugin.id" class="mt-3 pt-3 border-t border-surface-variant/20">
+        <div
+          v-if="openConfigFor === plugin.id"
+          class="mt-3 pt-3 border-t border-surface-variant/20"
+        >
           <div class="flex items-center justify-between mb-2">
-            <span class="text-xs font-medium text-on-surface-variant">{{ $t('plugins.config') }}</span>
-            <span v-if="configSaved" class="text-xs text-green-400">{{ $t('plugins.configSaved') }}</span>
+            <span class="text-xs font-medium text-on-surface-variant">{{
+              $t('plugins.config')
+            }}</span>
+            <span v-if="configSaved" class="text-xs text-green-400">{{
+              $t('plugins.configSaved')
+            }}</span>
           </div>
           <textarea
             v-model="configJson"

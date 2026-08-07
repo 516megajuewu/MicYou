@@ -42,20 +42,12 @@ pub enum mpl_log_level_t {
 #[derive(Clone, Copy)]
 pub struct mpl_host_api_t {
     pub log: unsafe extern "C" fn(*mut c_void, mpl_log_level_t, *const c_char),
-    pub get_config: unsafe extern "C" fn(
-        *mut c_void,
-        *const c_char,
-        *mut c_char,
-        *mut u32,
-    ) -> mpl_result_t,
+    pub get_config:
+        unsafe extern "C" fn(*mut c_void, *const c_char, *mut c_char, *mut u32) -> mpl_result_t,
     pub set_config: unsafe extern "C" fn(*mut c_void, *const c_char, *const c_char) -> mpl_result_t,
     pub emit_event: unsafe extern "C" fn(*mut c_void, *const c_char, *const c_char) -> mpl_result_t,
-    pub send_message: unsafe extern "C" fn(
-        *mut c_void,
-        *const c_char,
-        *const u8,
-        u32,
-    ) -> mpl_result_t,
+    pub send_message:
+        unsafe extern "C" fn(*mut c_void, *const c_char, *const u8, u32) -> mpl_result_t,
     pub audio_state: unsafe extern "C" fn(*mut c_void, *mut c_char, *mut u32) -> mpl_result_t,
     pub connected_devices: unsafe extern "C" fn(*mut c_void, *mut c_char, *mut u32) -> mpl_result_t,
     pub ctx: *mut c_void,

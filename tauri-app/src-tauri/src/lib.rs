@@ -227,6 +227,7 @@ pub fn run() {
             commands::plugins::get_plugin_logs,
             commands::plugins::get_plugin_sync_status,
             commands::plugins::open_plugins_dir,
+            commands::plugins::import_plugin,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
