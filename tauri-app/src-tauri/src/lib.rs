@@ -234,6 +234,7 @@ pub fn run() {
             commands::plugins::import_plugin,
             commands::plugins::plugin_trigger,
             commands::plugins::get_plugin_panel,
+            commands::plugins::open_plugin_window,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

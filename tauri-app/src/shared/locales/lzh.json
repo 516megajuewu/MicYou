@@ -553,6 +553,7 @@
     "importing": "匯入中…",
     "installHintDir": "或置插件目錄於插件目錄",
     "soundpad": "音效板",
-    "soundpadEmpty": "插件配置中添 sounds 陣列，按鈕自現"
+    "soundpadEmpty": "插件配置中添 sounds 陣列，按鈕自現",
+    "openWindow": "另開新窗"
   }
 }

@@ -553,6 +553,7 @@
     "importing": "正在匯入…",
     "installHintDir": "或將外掛程式資料夾放入外掛程式資料夾",
     "soundpad": "音效板",
-    "soundpadEmpty": "在外掛程式設定中加入 sounds 陣列以顯示按鈕"
+    "soundpadEmpty": "在外掛程式設定中加入 sounds 陣列以顯示按鈕",
+    "openWindow": "在新視窗開啟"
   }
 }

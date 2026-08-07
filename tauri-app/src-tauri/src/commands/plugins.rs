@@ -4,6 +4,7 @@ use crate::server::ServerState;
 use micyou_plugin::PluginSyncTransport;
 use micyou_plugin::manifest::UiDescriptor;
 use serde::Serialize;
+use tauri::Manager;
 use tauri::State;
 
 /// Frontend view of one plugin.
@@ -179,6 +180,53 @@ pub fn open_plugins_dir(state: State<'_, ServerState>) -> Result<String, String>
         .to_path_buf();
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     Ok(dir.display().to_string())
+}
+
+/// Open a plugin panel in its own Tauri window
+#[tauri::command]
+pub fn open_plugin_window(
+    app: tauri::AppHandle,
+    state: State<'_, ServerState>,
+    pluginId: String,
+    panelId: String,
+) -> Result<(), String> {
+    let (title, label) = {
+        let manager = state
+            .plugins
+            .manager
+            .lock()
+            .map_err(|_| "plugin manager lock poisoned".to_string())?;
+        let entry = manager
+            .entry(&pluginId)
+            .map_err(|e| e.to_string())?
+            .ok_or_else(|| format!("unknown plugin {pluginId}"))?;
+        let panel = entry
+            .manifest
+            .ui
+            .as_ref()
+            .and_then(|u| u.panels.iter().find(|p| p.id == panelId))
+            .ok_or_else(|| format!("unknown panel {panelId}"))?;
+        (
+            format!("{} · {}", entry.manifest.name, panel.label),
+            format!("plugin-window-{}", pluginId.replace('.', "_")),
+        )
+    };
+    if app.get_webview_window(&label).is_some() {
+        return Ok(()); // 已在独立窗口打开
+    }
+    tauri::WebviewWindowBuilder::new(
+        &app,
+        &label,
+        tauri::WebviewUrl::App(
+            format!("index.html#/plugin/{pluginId}/{panelId}").into(),
+        ),
+    )
+    .title(title)
+    .inner_size(520.0, 720.0)
+    .min_inner_size(360.0, 480.0)
+    .build()
+    .map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 /// Read a plugin-authored settings page (self-contained HTML file inside

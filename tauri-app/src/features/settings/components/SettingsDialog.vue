@@ -21,24 +21,29 @@
             <h2 class="text-xl font-bold text-primary">{{ $t('settings.title') }}</h2>
           </div>
 
-          <button
-            v-for="section in sections"
-            :key="section.id"
-            @click="currentSection = section.id"
-            class="settings-nav-item"
-            :class="
-              currentSection === section.id
-                ? 'bg-secondary-container/80 text-on-secondary-container shadow-sm scale-[1.02]'
-                : 'hover:bg-surface-variant/30 text-on-surface-variant'
-            "
-          >
-            <component
-              :is="section.icon"
-              class="w-5 h-5"
-              :class="currentSection === section.id ? 'text-primary' : ''"
-            />
-            <span class="font-medium text-sm">{{ section.name }}</span>
-          </button>
+          <template v-for="section in sections" :key="section.id">
+            <div
+              v-if="section.divider"
+              class="my-2 mx-3 h-px bg-border/70"
+            ></div>
+            <button
+              v-else
+              @click="currentSection = section.id"
+              class="settings-nav-item"
+              :class="
+                currentSection === section.id
+                  ? 'bg-secondary-container/80 text-on-secondary-container shadow-sm scale-[1.02]'
+                  : 'hover:bg-surface-variant/30 text-on-surface-variant'
+              "
+            >
+              <component
+                :is="section.icon"
+                class="w-5 h-5"
+                :class="currentSection === section.id ? 'text-primary' : ''"
+              />
+              <span class="font-medium text-sm">{{ section.name }}</span>
+            </button>
+          </template>
         </div>
 
         <!-- Right Content -->
@@ -1170,13 +1175,24 @@
                 >
                   {{ panelError }}
                 </div>
-                <iframe
-                  v-else
-                  ref="panelFrame"
-                  :srcdoc="panelHtml"
-                  sandbox="allow-scripts allow-popups"
-                  class="w-full h-[620px] rounded-2xl border border-border bg-white"
-                ></iframe>
+                <div v-else class="space-y-3">
+                  <div class="flex items-center justify-end">
+                    <button
+                      @click="openPanelWindow"
+                      class="inline-flex items-center gap-1.5 text-xs font-medium text-on-surface-variant hover:text-primary transition-colors"
+                    >
+                      <LayoutPanelTop class="w-3.5 h-3.5" />
+                      {{ $t('plugins.openWindow') }}
+                    </button>
+                  </div>
+                  <iframe
+                    ref="panelFrame"
+                    :srcdoc="panelHtml"
+                    sandbox="allow-scripts allow-popups"
+                    class="w-full h-[600px] rounded-2xl border border-border"
+                    style="background: hsl(var(--surface))"
+                  ></iframe>
+                </div>
               </div>
 
               <!-- ABOUT -->
@@ -1511,6 +1527,7 @@ interface SettingsSection {
   icon: typeof SettingsIcon;
   pluginId?: string;
   panelId?: string;
+  divider?: boolean;
 }
 
 const baseSections: SettingsSection[] = [
@@ -1544,7 +1561,11 @@ const sections = computed(() => {
   const out: SettingsSection[] = [];
   for (const s of baseSections) {
     out.push(s);
-    if (s.id === 'plugins') out.push(...panelSections.value);
+  }
+  // 插件专属页面：放在「关于」之下，前面加一条分隔线
+  if (panelSections.value.length > 0) {
+    out.push({ id: '__divider__', name: '', icon: SettingsIcon, divider: true });
+    out.push(...panelSections.value);
   }
   return out;
 });
@@ -1569,16 +1590,40 @@ function activePanel() {
   return null;
 }
 
+function collectThemeVars(): string {
+  const style = getComputedStyle(document.documentElement);
+  const vars: string[] = [];
+  for (let i = 0; i < style.length; i++) {
+    const name = style[i];
+    if (name.startsWith('--')) {
+      vars.push(`${name}: ${style.getPropertyValue(name)};`);
+    }
+  }
+  return vars.join('\n');
+}
+
 async function loadPanel(pluginId: string, panelId: string) {
   panelLoading.value = true;
   panelError.value = null;
   try {
-    panelHtml.value = await invoke<string>('get_plugin_panel', { pluginId, panelId });
+    const html = await invoke<string>('get_plugin_panel', { pluginId, panelId });
+    // 注入当前主题 CSS 变量，使插件页面与软件整体风格一致并自动跟随主题
+    panelHtml.value = `<style>:root{${collectThemeVars()}}</style>${html}`;
   } catch (e) {
     panelError.value = String(e);
     panelHtml.value = '';
   } finally {
     panelLoading.value = false;
+  }
+}
+
+async function openPanelWindow() {
+  const panel = activePanel();
+  if (!panel) return;
+  try {
+    await invoke('open_plugin_window', { pluginId: panel.pluginId, panelId: panel.panelId });
+  } catch (e) {
+    panelError.value = String(e);
   }
 }
 
@@ -1599,6 +1644,17 @@ watch(currentSection, async () => {
   }
   contentRef.value?.scrollTo({ top: 0 });
 });
+
+// 主题切换时刷新插件面板（跟随主题）
+watch(
+  () => colorMode.value,
+  async () => {
+    if (currentSection.value.startsWith('panel:')) {
+      const panel = activePanel();
+      if (panel) await loadPanel(panel.pluginId, panel.panelId);
+    }
+  },
+);
 
 watch(currentSection, () => {
   contentRef.value?.scrollTo({ top: 0 });

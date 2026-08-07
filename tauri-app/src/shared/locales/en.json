@@ -555,6 +555,7 @@
     "importing": "Importing…",
     "installHintDir": "Or drop a plugin folder into the plugins folder",
     "soundpad": "Soundpad",
-    "soundpadEmpty": "Add sounds to plugin config to show buttons"
+    "soundpadEmpty": "Add sounds to plugin config to show buttons",
+    "openWindow": "Open in window"
   }
 }
