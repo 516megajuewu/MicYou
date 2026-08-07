@@ -552,6 +552,8 @@
     },
     "import": "导入 .zip",
     "importing": "正在导入…",
-    "installHintDir": "或把铁插件文件夹放入铁插件目录"
+    "installHintDir": "或把铁插件文件夹放入铁插件目录",
+    "soundpad": "音效铁板",
+    "soundpadEmpty": "在铁插件配置里加 sounds 数组就能显示按钮"
   }
 }

@@ -553,6 +553,8 @@
     },
     "import": "导入 .zip",
     "importing": "正在导入…",
-    "installHintDir": "或把插件文件夹放入插件目录"
+    "installHintDir": "或把插件文件夹放入插件目录",
+    "soundpad": "音效板",
+    "soundpadEmpty": "在插件配置中添加 sounds 数组以显示按钮"
   }
 }

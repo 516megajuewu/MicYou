@@ -151,6 +151,20 @@ impl PluginHost {
         }
     }
 
+    /// Deliver a UI-triggered action to a plugin instance as a bus message on
+    /// topic `ui:<action>` with the given payload (soundpad buttons etc).
+    /// The plugin receives it through its `handle_message` entry.
+    pub fn trigger(&self, plugin_id: &str, action: &str, payload: &[u8]) -> PluginResult<()> {
+        let msg = PluginMessage::new(
+            "ui",
+            plugin_id,
+            &format!("ui:{action}"),
+            payload.to_vec(),
+        );
+        self.bus.handle_incoming(&msg);
+        Ok(())
+    }
+
     /// Load + start one plugin: instantiate the runtime, init it, register the
     /// instance and (for DSP plugins) its processing node.
     pub fn enable_plugin(&self, id: &str) -> PluginResult<()> {

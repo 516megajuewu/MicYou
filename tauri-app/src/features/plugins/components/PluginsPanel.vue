@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, watch } from 'vue';
 import {
   RefreshCw,
   Puzzle,
@@ -21,6 +21,22 @@ onMounted(() => {
 
 const showLogsFor = ref<string | null>(null);
 const logLines = ref<string[]>([]);
+const uiConfigs = ref<Record<string, Record<string, unknown>>>({});
+
+// 对声明了按钮面板（ui.route === 'buttons'）的插件加载其配置（音效列表）
+async function loadUiConfigs() {
+  const next: Record<string, Record<string, unknown>> = {};
+  for (const plugin of p.plugins.value) {
+    if (plugin.ui?.route === 'buttons' && plugin.loaded) {
+      next[plugin.id] = await p.getConfig(plugin);
+    }
+  }
+  uiConfigs.value = next;
+}
+watch(
+  () => [p.plugins.value, p.syncStatus.value],
+  () => loadUiConfigs(),
+);
 const openConfigFor = ref<string | null>(null);
 const configJson = ref('{}');
 const configSaved = ref(false);
@@ -247,6 +263,35 @@ function confirmUninstall(plugin: PluginView) {
               {{ plugin.enabled ? $t('plugins.enabled') : $t('plugins.disabled') }}
             </button>
           </div>
+        </div>
+
+        <!-- Soundpad panel: ui.route === 'buttons' -->
+        <div
+          v-if="plugin.ui?.route === 'buttons' && plugin.loaded"
+          class="mt-3 pt-3 border-t border-surface-variant/20"
+        >
+          <span class="text-xs font-medium text-on-surface-variant">{{
+            $t('plugins.soundpad')
+          }}</span>
+          <div
+            v-if="(uiConfigs[plugin.id]?.sounds as any[])?.length"
+            class="grid grid-cols-3 gap-2 mt-2"
+          >
+            <button
+              v-for="snd in (uiConfigs[plugin.id]?.sounds as any[])"
+              :key="snd.id"
+              @click="p.trigger(plugin, 'play', JSON.stringify({ id: snd.id }))"
+              class="px-3 py-2 rounded-lg bg-surface-variant/30 hover:bg-surface-variant text-sm font-medium transition-colors"
+            >
+              {{ snd.label ?? snd.id }}
+            </button>
+          </div>
+          <p
+            v-else
+            class="mt-2 text-xs text-on-surface-variant/70"
+          >
+            {{ $t('plugins.soundpadEmpty') }}
+          </p>
         </div>
 
         <!-- Config editor -->

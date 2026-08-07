@@ -13,6 +13,7 @@ export interface PluginView {
   kind: string; // dsp | utility | ui | bridge
   platforms: string[];
   capabilities: string[];
+  ui?: { route: string; label?: string; entry?: string | null } | null;
   enabled: boolean;
   loaded: boolean;
   dspNode: boolean;
@@ -82,11 +83,32 @@ export function usePlugins() {
     }
   }
 
+  async function getConfig(plugin: PluginView): Promise<Record<string, unknown>> {
+    try {
+      const v = await invoke<Record<string, unknown>>('get_plugin_config', { id: plugin.id });
+      return v ?? {};
+    } catch {
+      return {};
+    }
+  }
+
   async function logs(plugin: PluginView): Promise<string[]> {
     try {
       return await invoke<string[]>('get_plugin_logs', { id: plugin.id });
     } catch {
       return [];
+    }
+  }
+
+  /** 触发插件 UI 动作（soundpad 按钮等）：topic ui:<action>，payload 为 JSON 字符串 */
+  async function trigger(plugin: PluginView, action: string, payload?: string) {
+    error.value = null;
+    try {
+      await invoke('plugin_trigger', { pluginId: plugin.id, action, payload: payload ?? null });
+      return true;
+    } catch (e) {
+      error.value = String(e);
+      return false;
     }
   }
 
@@ -134,7 +156,9 @@ export function usePlugins() {
     toggle,
     uninstall,
     saveConfig,
+    getConfig,
     logs,
+    trigger,
     openDir,
     importPlugin,
   };

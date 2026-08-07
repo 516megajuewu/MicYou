@@ -2,6 +2,7 @@
 
 use crate::server::ServerState;
 use micyou_plugin::PluginSyncTransport;
+use micyou_plugin::manifest::UiDescriptor;
 use serde::Serialize;
 use tauri::State;
 
@@ -20,6 +21,8 @@ pub struct PluginView {
     pub kind: String,
     pub platforms: Vec<String>,
     pub capabilities: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ui: Option<UiDescriptor>,
     pub enabled: bool,
     pub loaded: bool,
     pub dsp_node: bool,
@@ -68,6 +71,7 @@ pub fn list_plugins(state: State<'_, ServerState>) -> Result<Vec<PluginView>, St
                 kind: m.kind.to_string(),
                 platforms: m.platforms.clone(),
                 capabilities: m.capabilities.clone(),
+                ui: m.ui.clone(),
             }
         })
         .collect();
@@ -175,6 +179,22 @@ pub fn open_plugins_dir(state: State<'_, ServerState>) -> Result<String, String>
         .to_path_buf();
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     Ok(dir.display().to_string())
+}
+
+/// Deliver a UI action to a plugin instance (soundpad buttons etc).
+/// The plugin receives `{ action, payload }` through its message entry.
+#[tauri::command]
+pub fn plugin_trigger(
+    state: State<'_, ServerState>,
+    pluginId: String,
+    action: String,
+    payload: Option<String>,
+) -> Result<(), String> {
+    let bytes = payload.unwrap_or_default().into_bytes();
+    state
+        .plugins
+        .trigger(&pluginId, &action, &bytes)
+        .map_err(|e| e.to_string())
 }
 
 /// Import a plugin from a `.zip` file or a plugin directory.
