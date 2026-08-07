@@ -9,7 +9,7 @@ import { useI18n } from 'vue-i18n';
 import { 
   Mic, Wifi, RadioTower, Globe, ChevronDown, CheckCircle2, Settings, 
   Link, Unlink, RefreshCw, ActivitySquare as MonitoringIcon, X, Minus, 
-  VolumeX, Volume2, Headphones, QrCode as QrCodeIcon, Loader2 
+  VolumeX, Volume2, Headphones, QrCode as QrCodeIcon, Loader2, Puzzle 
 } from '@lucide/vue';
 
 // Composables managing server connection, audio, theme, window, and system tray
@@ -25,6 +25,7 @@ import QrCodeDialog from './features/connection/components/QrCodeDialog.vue';
 import AudioRing from './features/audio/components/AudioRing.vue';
 import MonitoringPanel from './features/audio/components/MonitoringPanel.vue';
 import SettingsDialog from './features/settings/components/SettingsDialog.vue';
+import PluginsDialog from './features/plugins/components/PluginsDialog.vue';
 import OnboardingWizard from './features/onboarding/components/OnboardingWizard.vue';
 import PocketLayout from './features/pocket/components/PocketLayout.vue';
 import CustomBackground from './shared/components/CustomBackground.vue';
@@ -45,6 +46,7 @@ if (isMacOS && typeof document !== 'undefined') {
 }
 
 const { t } = useI18n();
+const isPluginsOpen = ref(false);
 
 // Initialize shared features
 const audio = useAudio();
@@ -614,6 +616,14 @@ onUnmounted(() => {
             <MonitoringIcon class="w-4 h-4" />
           </button>
 
+          <button
+            @click="isPluginsOpen = true"
+            class="w-10 h-10 rounded-full bg-surface-variant/40 hover:bg-surface-variant flex items-center justify-center transition-all duration-300 hover:scale-110 active:scale-90"
+            :title="$t('plugins.title')"
+          >
+            <Puzzle class="w-4 h-4 text-on-surface-variant" />
+          </button>
+
           <button @click="isSettingsOpen = true" class="w-10 h-10 rounded-full bg-surface-variant/40 hover:bg-surface-variant flex items-center justify-center transition-all duration-300 hover:scale-110 active:scale-90">
             <Settings class="w-4 h-4 text-on-surface-variant" />
           </button>
@@ -626,6 +636,8 @@ onUnmounted(() => {
       @close="isSettingsOpen = false"
       @updateDevice="dev => server.outputDevice.value = dev"
     />
+
+    <PluginsDialog :isOpen="isPluginsOpen" @close="isPluginsOpen = false" />
 
     <UdpWarningDialog
       :show="audio.showUdpWarning.value"

@@ -14,16 +14,29 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 default = ["vbcable", "adb", "web-server"]
 vbcable = ["dep:zip"]
 adb = []
-web-server = ["dep:axum", "dep:rcgen", "dep:rustls", "dep:tokio-rustls", "dep:rustls-pemfile"]
+web-server = [
+  "dep:axum",
+  "dep:rcgen",
+  "dep:rustls",
+  "dep:tokio-rustls",
+  "dep:rustls-pemfile",
+]
 
 [dependencies]
 # Workspace crates
 micyou-protocol = { path = "../crates/micyou-protocol" }
-micyou-audio = { path = "../crates/micyou-audio", features = ["dsp", "noise-suppression"] }
+micyou-audio = { path = "../crates/micyou-audio", features = [
+  "dsp",
+  "noise-suppression",
+] }
 micyou-plugin = { path = "../crates/micyou-plugin" }
 
 # Tauri
-tauri = { version = "2", features = ["macos-private-api", "tray-icon", "image-png"] }
+tauri = { version = "2", features = [
+  "macos-private-api",
+  "tray-icon",
+  "image-png",
+] }
 tauri-plugin-opener = "2"
 tauri-plugin-autostart = "2"
 tauri-plugin-log = "2.8.0"
@@ -69,7 +82,13 @@ rustls-pemfile = { version = "2", optional = true }
 tauri-build = { version = "2", features = [] }
 
 [target.'cfg(windows)'.dependencies]
-winapi = { version = "0.3", features = ["winsock2", "winuser", "processthreadsapi", "handleapi", "winnt"] }
+winapi = { version = "0.3", features = [
+  "winsock2",
+  "winuser",
+  "processthreadsapi",
+  "handleapi",
+  "winnt",
+] }
 winreg = "0.52"
 
 [target.'cfg(unix)'.dependencies]

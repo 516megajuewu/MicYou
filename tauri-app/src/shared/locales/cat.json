@@ -519,5 +519,33 @@
     "adminRequired": "需要管理员权限喵~请批准 UAC 提示喵~",
     "timeout": "安装超时喵~请重试喵~ (´・ω・`)",
     "retry": "重试喵~"
+  },
+  "plugins": {
+    "title": "喵插件",
+    "desc": "用原生或 WASM 喵插件扩展 MicYou 喵",
+    "refresh": "刷新喵",
+    "loading": "正在加载喵插件…",
+    "noPlugins": "还没有喵插件喵",
+    "openDir": "打开喵插件目录",
+    "installHint": "把喵插件文件夹或 .zip 放进来，然后刷新喵",
+    "enabled": "已启用喵",
+    "disabled": "已禁用喵",
+    "uninstall": "卸载喵",
+    "logs": "日志喵",
+    "noLogs": "暂无日志喵",
+    "config": "配置喵",
+    "configSaved": "已保存喵",
+    "save": "保存喵",
+    "inChain": "DSP 链中喵",
+    "sync": {
+      "connected": "设备已连接喵",
+      "disconnected": "无设备喵"
+    },
+    "kind": {
+      "dsp": "DSP 处理喵",
+      "utility": "工具喵",
+      "ui": "UI 面板喵",
+      "bridge": "同步桥喵"
+    }
   }
 }

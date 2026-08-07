@@ -105,6 +105,33 @@ pub fn run() {
                 log::warn!(target: "tray", "failed to build tray: {e}");
             }
 
+            // Scan the plugins directory and auto-enable plugins that were
+            // enabled in a previous session.
+            {
+                let state = app.state::<server::ServerState>();
+                let plugins = state.plugins.clone();
+                let report = plugins
+                    .manager
+                    .lock()
+                    .map(|mut m| m.scan())
+                    .unwrap_or_else(|_| Ok(micyou_plugin::ScanReport::default()));
+                match report {
+                    Ok(report) => {
+                        for entry in report.discovered {
+                            if entry.state.is_enabled() {
+                                if let Err(e) = plugins.enable_plugin(&entry.manifest.id) {
+                                    log::warn!(
+                                        "[plugins] failed to start {}: {e}",
+                                        entry.manifest.id
+                                    );
+                                }
+                            }
+                        }
+                    }
+                    Err(e) => log::warn!("[plugins] scan failed: {e}"),
+                }
+            }
+
             // Acquire the GUI mode lock so the CLI/TUI knows the GUI is running.
             // A live terminal-mode lock does not block the GUI; the frontend
             // reads `get_mode_status` to show the active mode notice.
@@ -192,6 +219,14 @@ pub fn run() {
             commands::server_prefs_exists,
             commands::get_server_prefs,
             commands::save_server_prefs,
+            commands::plugins::list_plugins,
+            commands::plugins::set_plugin_enabled,
+            commands::plugins::uninstall_plugin,
+            commands::plugins::get_plugin_config,
+            commands::plugins::set_plugin_config,
+            commands::plugins::get_plugin_logs,
+            commands::plugins::get_plugin_sync_status,
+            commands::plugins::open_plugins_dir,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

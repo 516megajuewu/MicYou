@@ -211,11 +211,7 @@ impl PluginBus {
     }
 
     /// Build a response message for a request.
-    pub fn respond(
-        &self,
-        request: &PluginMessage,
-        result: PluginResult<Vec<u8>>,
-    ) -> PluginMessage {
+    pub fn respond(&self, request: &PluginMessage, result: PluginResult<Vec<u8>>) -> PluginMessage {
         match result {
             Ok(payload) => PluginMessage {
                 source: request.target.clone(),
@@ -380,7 +376,12 @@ mod tests {
         });
 
         let result = bus
-            .request("dev.micyou.peer", "calc", vec![1, 2], Duration::from_secs(1))
+            .request(
+                "dev.micyou.peer",
+                "calc",
+                vec![1, 2],
+                Duration::from_secs(1),
+            )
             .expect("RPC must complete");
         assert_eq!(result, vec![9, 9]);
         responder.join().unwrap();
@@ -413,7 +414,10 @@ mod tests {
         let response = bus.respond(&request, Err(PluginError::PermissionDenied("nope".into())));
         assert!(response.is_response);
         assert!(!response.is_ok());
-        assert_eq!(response.error_code, error_code(&PluginError::PermissionDenied("nope".into())));
+        assert_eq!(
+            response.error_code,
+            error_code(&PluginError::PermissionDenied("nope".into()))
+        );
         assert_eq!(response.error_message, "capability not granted: nope");
     }
 

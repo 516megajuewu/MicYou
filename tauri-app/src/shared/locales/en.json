@@ -521,5 +521,33 @@
     "adminRequired": "Administrator privileges required. Please approve the UAC prompt.",
     "timeout": "Installation timed out. Please try again.",
     "retry": "Retry"
+  },
+  "plugins": {
+    "title": "Plugins",
+    "desc": "Extend MicYou with native or WASM plugins",
+    "refresh": "Refresh",
+    "loading": "Loading plugins…",
+    "noPlugins": "No plugins installed yet",
+    "openDir": "Open plugins folder",
+    "installHint": "Drop a plugin folder or .zip into the plugins folder, then refresh",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "uninstall": "Uninstall",
+    "logs": "Logs",
+    "noLogs": "No logs yet",
+    "config": "Configuration",
+    "configSaved": "Saved",
+    "save": "Save",
+    "inChain": "in DSP chain",
+    "sync": {
+      "connected": "Device connected",
+      "disconnected": "No device"
+    },
+    "kind": {
+      "dsp": "DSP",
+      "utility": "Utility",
+      "ui": "UI Panel",
+      "bridge": "Bridge"
+    }
   }
 }

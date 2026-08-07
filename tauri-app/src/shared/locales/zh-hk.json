@@ -519,5 +519,33 @@
     "adminRequired": "需要管理員權限，批准吓 UAC 提示。",
     "timeout": "安裝逾時，再試过。",
     "retry": "重試"
+  },
+  "plugins": {
+    "title": "插件",
+    "desc": "使用原生或 WASM 插件擴展 MicYou",
+    "refresh": "刷新",
+    "loading": "正在載入插件…",
+    "noPlugins": "尚未安裝任何插件",
+    "openDir": "開啟插件目錄",
+    "installHint": "將插件資料夾或 .zip 放入插件目錄，然後刷新",
+    "enabled": "已啟用",
+    "disabled": "已停用",
+    "uninstall": "解除安裝",
+    "logs": "日誌",
+    "noLogs": "暫無日誌",
+    "config": "設定",
+    "configSaved": "已儲存",
+    "save": "儲存",
+    "inChain": "DSP 鏈中",
+    "sync": {
+      "connected": "裝置已連接",
+      "disconnected": "無裝置"
+    },
+    "kind": {
+      "dsp": "DSP 處理",
+      "utility": "工具",
+      "ui": "UI 面板",
+      "bridge": "同步橋"
+    }
   }
 }

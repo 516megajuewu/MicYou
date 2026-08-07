@@ -19,7 +19,7 @@ use crate::plugin::{PluginInstance, PluginRuntime, PluginState};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::{Mutex, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 
 /// Per-plugin persisted state.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -67,9 +67,10 @@ pub struct PluginManager {
     state_path: PathBuf,
     entries: RwLock<HashMap<String, PluginEntry>>,
     /// Loaded runtime instances (native/wasm), filled by the loaders.
-    /// `Mutex` (not `RwLock`) because `PluginInstance` is only `Send` and std's
-    /// `RwLock<T>: Sync` would require `T: Send + Sync`.
-    instances: Mutex<HashMap<String, PluginInstance>>,
+    /// Shared as `Arc<Mutex<..>>` so the DSP registry and the message-bus
+    /// dispatcher can hold their own handle without duplicating the instance.
+    /// `Mutex` (not `RwLock`) because `PluginInstance` is only `Send`.
+    instances: Mutex<HashMap<String, Arc<Mutex<PluginInstance>>>>,
 }
 
 impl PluginManager {
@@ -165,8 +166,10 @@ impl PluginManager {
     /// Remove a plugin from the registry (and drop any loaded instance).
     pub fn remove_plugin(&mut self, id: &str) -> PluginResult<()> {
         let mut instances = self.instances.lock().map_err(|_| poisoned())?;
-        if let Some(mut instance) = instances.remove(id) {
-            instance.deinit();
+        if let Some(handle) = instances.remove(id) {
+            if let Ok(mut instance) = handle.lock() {
+                instance.deinit();
+            }
         }
         self.entries.write().map_err(|_| poisoned())?.remove(id);
         self.persist_state()
@@ -239,31 +242,44 @@ impl PluginManager {
                 "instance for {id} already loaded"
             )));
         }
-        instances.insert(id, instance);
+        instances.insert(id, Arc::new(Mutex::new(instance)));
         Ok(())
     }
 
     pub fn unregister_instance(&self, id: &str) -> PluginResult<()> {
         let mut instances = self.instances.lock().map_err(|_| poisoned())?;
-        if let Some(mut instance) = instances.remove(id) {
-            instance.deinit();
+        if let Some(handle) = instances.remove(id) {
+            if let Ok(mut instance) = handle.lock() {
+                instance.deinit();
+            }
         }
         Ok(())
     }
 
-    /// Borrow a loaded instance's runtime mutably.
-    pub fn instance_mut(&self, id: &str) -> PluginResult<PluginInstance> {
-        let mut instances = self.instances.lock().map_err(|_| poisoned())?;
-        instances
-            .remove(id)
-            .ok_or_else(|| PluginError::NotLoaded(id.to_string()))
+    /// Get a shared handle to a loaded instance (for the DSP registry and the
+    /// message dispatcher). The caller locks it for each call.
+    pub fn instance_handle(&self, id: &str) -> PluginResult<Option<Arc<Mutex<PluginInstance>>>> {
+        Ok(self
+            .instances
+            .lock()
+            .map_err(|_| poisoned())?
+            .get(id)
+            .cloned())
     }
 
-    /// Give a loaded instance back (paired with `instance_mut`).
-    pub fn return_instance(&self, id: &str, instance: PluginInstance) {
-        if let Ok(mut instances) = self.instances.lock() {
-            instances.insert(id.to_string(), instance);
-        }
+    /// Run a closure against a loaded instance's runtime (shared handle).
+    pub fn with_instance<T>(
+        &self,
+        id: &str,
+        f: impl FnOnce(&mut PluginInstance) -> PluginResult<T>,
+    ) -> PluginResult<T> {
+        let handle = self
+            .instance_handle(id)?
+            .ok_or_else(|| PluginError::NotLoaded(id.to_string()))?;
+        let mut instance = handle
+            .lock()
+            .map_err(|_| PluginError::Runtime(format!("instance {id} poisoned")))?;
+        f(&mut instance)
     }
 
     pub fn loaded_ids(&self) -> Vec<String> {
@@ -291,25 +307,58 @@ impl PluginManager {
     }
 
     fn persist_state(&self) -> PluginResult<()> {
-        let state: HashMap<String, PluginPersistedState> = self
-            .entries()
-            .into_iter()
-            .map(|e| {
-                (
-                    e.manifest.id,
-                    PluginPersistedState {
-                        enabled: e.state.is_enabled(),
-                        config: serde_json::Map::new(),
-                    },
-                )
-            })
-            .collect();
+        // Preserve per-plugin config; only the enabled flag comes from the
+        // in-memory registry.
+        let mut state = self.load_persisted_state();
+        for e in self.entries() {
+            state.entry(e.manifest.id).or_default().enabled = e.state.is_enabled();
+        }
+        let ids: std::collections::HashSet<String> =
+            self.entries().into_iter().map(|e| e.manifest.id).collect();
+        state.retain(|id, _| ids.contains(id));
+        self.save_state(state)
+    }
+
+    fn save_state(&self, state: HashMap<String, PluginPersistedState>) -> PluginResult<()> {
         if let Some(parent) = self.state_path.parent() {
             std::fs::create_dir_all(parent)?;
         }
         let json =
             serde_json::to_string_pretty(&state).map_err(|e| PluginError::Io(e.to_string()))?;
         std::fs::write(&self.state_path, json).map_err(|e| PluginError::Io(e.to_string()))
+    }
+
+    // ── Plugin-scoped config ───────────────────────────────────────────────
+
+    /// Read the persisted config map for a plugin.
+    pub fn plugin_config(
+        &self,
+        id: &str,
+    ) -> PluginResult<serde_json::Map<String, serde_json::Value>> {
+        if self.entry(id)?.is_none() {
+            return Err(PluginError::UnknownPlugin(id.to_string()));
+        }
+        Ok(self
+            .load_persisted_state()
+            .get(id)
+            .map(|s| s.config.clone())
+            .unwrap_or_default())
+    }
+
+    /// Write one config value for a plugin (persisted).
+    pub fn set_plugin_config(
+        &self,
+        id: &str,
+        key: &str,
+        value: serde_json::Value,
+    ) -> PluginResult<()> {
+        if self.entry(id)?.is_none() {
+            return Err(PluginError::UnknownPlugin(id.to_string()));
+        }
+        let mut state = self.load_persisted_state();
+        let entry = state.entry(id.to_string()).or_default();
+        entry.config.insert(key.to_string(), value);
+        self.save_state(state)
     }
 }
 
@@ -449,9 +498,10 @@ mod tests {
         assert!(manager.is_loaded("dev.micyou.alpha"));
         assert_eq!(manager.loaded_ids(), vec!["dev.micyou.alpha".to_string()]);
 
-        // Take out and put back
-        let instance = manager.instance_mut("dev.micyou.alpha").unwrap();
-        manager.return_instance("dev.micyou.alpha", instance);
+        // Shared handle round-trip
+        manager
+            .with_instance("dev.micyou.alpha", |_instance| Ok(()))
+            .unwrap();
         assert!(manager.is_loaded("dev.micyou.alpha"));
     }
 
