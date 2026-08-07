@@ -14,6 +14,7 @@ pub mod opus;
 #[cfg(target_os = "linux")]
 pub mod pipewire;
 pub mod plugins;
+pub mod sound_player;
 pub mod server;
 pub mod stats;
 pub mod tcp_server;

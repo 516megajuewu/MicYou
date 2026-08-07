@@ -67,6 +67,10 @@ typedef struct mpl_host_api {
     /* out receives a JSON array of device snapshots */
     mpl_result_t (*connected_devices)(void *ctx, char *out, uint32_t *out_size);
     void *ctx;
+    /* Appended after ctx: older plugins compiled against the previous layout
+     * keep working because ctx stays at its original offset. New fields are
+     * only ever added here, never before ctx. */
+    mpl_result_t (*play_sound)(void *ctx, const char *path);
 } mpl_host_api_t;
 
 /* Static plugin identity. The id/version must match the manifest. */

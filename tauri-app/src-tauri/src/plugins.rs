@@ -98,6 +98,8 @@ pub struct PluginHost {
     pub bus: Arc<PluginBus>,
     /// Bounded per-plugin log buffers (read by the frontend).
     pub logs: Arc<PluginLogs>,
+    /// WAV playback for the `audio.play` capability (soundpads etc).
+    pub sound: Arc<crate::sound_player::SoundPlayer>,
 }
 
 /// Default chain position for the synthetic plugin node: right after AEC,
@@ -137,6 +139,7 @@ impl PluginHost {
 
         let bus = Arc::new(PluginBus::new(sync.clone(), dispatcher));
         let logs = Arc::new(PluginLogs::new());
+        let sound = crate::sound_player::SoundPlayer::new();
 
         Self {
             manager,
@@ -144,6 +147,7 @@ impl PluginHost {
             sync,
             bus,
             logs,
+            sound,
         }
     }
 
@@ -164,6 +168,7 @@ impl PluginHost {
             self.bus.clone(),
             self.manager.clone(),
             self.logs.clone(),
+            self.sound.clone(),
             id.to_string(),
         );
         let mut instance = match entry.manifest.runtime {
@@ -335,6 +340,7 @@ pub struct PluginHostApi {
     bus: Arc<PluginBus>,
     manager: Arc<Mutex<micyou_plugin::PluginManager>>,
     logs: Arc<PluginLogs>,
+    sound: Arc<crate::sound_player::SoundPlayer>,
     plugin_id: String,
 }
 
@@ -343,12 +349,14 @@ impl PluginHostApi {
         bus: Arc<PluginBus>,
         manager: Arc<Mutex<micyou_plugin::PluginManager>>,
         logs: Arc<PluginLogs>,
+        sound: Arc<crate::sound_player::SoundPlayer>,
         plugin_id: String,
     ) -> Arc<Self> {
         Arc::new(Self {
             bus,
             manager,
             logs,
+            sound,
             plugin_id,
         })
     }
@@ -406,6 +414,10 @@ impl HostApi for PluginHostApi {
         // Real-time audio state is wired by the app through the bus topics;
         // the snapshot defaults are safe for plugins that only read config.
         AudioStateSnapshot::default()
+    }
+
+    fn play_sound(&self, path: &str) -> PluginResult<()> {
+        self.sound.play_wav(path)
     }
 
     fn connected_devices(&self) -> Vec<DeviceSnapshot> {

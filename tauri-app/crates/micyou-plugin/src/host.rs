@@ -87,6 +87,11 @@ pub trait HostApi: Send + Sync {
     /// Live audio stream state (requires `audio.state` capability).
     fn audio_state(&self) -> AudioStateSnapshot;
 
+    /// Play a WAV file through the host audio output (requires `audio.play`
+    /// capability). Returns once the file is queued; playback is asynchronous
+    /// on a host-owned thread and never real-time safe.
+    fn play_sound(&self, path: &str) -> PluginResult<()>;
+
     /// Connected devices (requires `device.list` capability).
     fn connected_devices(&self) -> Vec<DeviceSnapshot>;
 }

@@ -88,6 +88,8 @@ pub mod capabilities {
     pub const MESSAGE_SEND: &str = "message.send";
     /// Query live audio stream state (levels, format, latency).
     pub const AUDIO_STATE: &str = "audio.state";
+    /// Play an audio file (wav) through the host output device.
+    pub const AUDIO_PLAY: &str = "audio.play";
     /// Enumerate connected devices (phones, web clients).
     pub const DEVICE_LIST: &str = "device.list";
     /// Open outbound network connections.
@@ -104,6 +106,7 @@ pub const KNOWN_CAPABILITIES: &[&str] = &[
     capabilities::EVENT_EMIT,
     capabilities::MESSAGE_SEND,
     capabilities::AUDIO_STATE,
+    capabilities::AUDIO_PLAY,
     capabilities::DEVICE_LIST,
     capabilities::NETWORK_IO,
     capabilities::FS_READ,

@@ -9,7 +9,7 @@ use libloading::Library;
 use micyou_plugin::host::{AudioStateSnapshot, DeviceSnapshot, HostApi, MessageTarget};
 use micyou_plugin::manifest::{PluginKind, PluginManifest, RuntimeKind};
 use micyou_plugin::plugin::{AudioFrameCtx, PluginEvent, PluginRuntime};
-use micyou_plugin::PluginLogLevel;
+use micyou_plugin::{PluginLogLevel, PluginResult};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
@@ -67,6 +67,7 @@ impl HostApi for MockHost {
     fn audio_state(&self) -> AudioStateSnapshot {
         AudioStateSnapshot::default()
     }
+    fn play_sound(&self, _path: &str) -> PluginResult<()> { Ok(()) }
     fn connected_devices(&self) -> Vec<DeviceSnapshot> {
         Vec::new()
     }

@@ -543,6 +543,30 @@ fn register_host_functions(linker: &mut Linker<WasmHostCtx>) {
         )
         .unwrap();
 
+    // play_sound(path_ptr) -> result code
+    linker
+        .func_wrap(
+            WASM_IMPORT_MODULE,
+            "play_sound",
+            |mut caller: wasmi::Caller<'_, WasmHostCtx>,
+             path_ptr: i32|
+             -> Result<i32, wasmi::Error> {
+                caller
+                    .data()
+                    .require(crate::manifest::capabilities::AUDIO_PLAY)
+                    .map_err(|e| wasmi::Error::new(e.to_string()))?;
+                let memory = export_memory(&caller)?;
+                let path = read_str_from_memory(&mut caller, &memory, path_ptr)?;
+                caller
+                    .data()
+                    .host
+                    .play_sound(&path)
+                    .map(|_| mpl_result_t::MPL_OK as i32)
+                    .map_err(|e| wasmi::Error::new(e.to_string()))
+            },
+        )
+        .unwrap();
+
     // connected_devices() -> ptr (host-allocated JSON array, or 0)
     linker
         .func_wrap(

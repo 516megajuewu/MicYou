@@ -1,7 +1,7 @@
 //! Direct in-process tests of the host shim functions (no dlopen involved).
 use micyou_plugin::abi::{self, mpl_host_api_t, mpl_log_level_t, mpl_result_t, NativeHostCtx};
 use micyou_plugin::host::{AudioStateSnapshot, DeviceSnapshot, HostApi, MessageTarget};
-use micyou_plugin::PluginLogLevel;
+use micyou_plugin::{PluginLogLevel, PluginResult};
 use std::ffi::c_void;
 use std::sync::{Arc, Mutex};
 
@@ -21,6 +21,7 @@ impl HostApi for DirectHost {
     fn emit_event(&self, _t: &str, _p: serde_json::Value) -> micyou_plugin::PluginResult<()> { Ok(()) }
     fn send_message(&self, _t: MessageTarget, _p: Vec<u8>) -> micyou_plugin::PluginResult<()> { Ok(()) }
     fn audio_state(&self) -> AudioStateSnapshot { AudioStateSnapshot::default() }
+    fn play_sound(&self, _path: &str) -> PluginResult<()> { Ok(()) }
     fn connected_devices(&self) -> Vec<DeviceSnapshot> { Vec::new() }
 }
 
