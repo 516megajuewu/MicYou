@@ -58,6 +58,12 @@ impl From<std::io::Error> for PluginError {
     }
 }
 
+impl From<wasmi::Error> for PluginError {
+    fn from(error: wasmi::Error) -> Self {
+        PluginError::Runtime(error.to_string())
+    }
+}
+
 impl From<serde_json::Error> for PluginError {
     fn from(error: serde_json::Error) -> Self {
         PluginError::InvalidManifest(error.to_string())

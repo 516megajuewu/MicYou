@@ -17,6 +17,7 @@ pub mod manager;
 pub mod manifest;
 pub mod native;
 pub mod plugin;
+pub mod wasm;
 
 pub use error::{PluginError, PluginResult};
 pub use host::{AudioStateSnapshot, DeviceSnapshot, HostApi, MessageTarget, PluginLogLevel};
