@@ -24,7 +24,9 @@ pub struct SoundMixer {
 
 impl SoundMixer {
     pub fn new() -> Self {
-        Self { effects: Vec::new() }
+        Self {
+            effects: Vec::new(),
+        }
     }
 
     /// Queue a mono effect for playback, starting on the next mix call
