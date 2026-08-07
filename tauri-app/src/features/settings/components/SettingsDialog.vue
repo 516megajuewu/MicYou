@@ -837,6 +837,7 @@ import AudioChainDialog from '@/features/audio/components/AudioChainDialog.vue';
 import CustomCssDialog from '@/features/theme/components/CustomCssDialog.vue';
 import ThemeCatalogDialog from '@/features/theme/components/ThemeCatalogDialog.vue';
 import EqualizerPanel from '@/features/audio/components/EqualizerPanel.vue';
+import PluginsPanel from '@/features/plugins/components/PluginsPanel.vue';
 import ThemeSelector from '@/features/theme/components/ThemeSelector.vue';
 import CustomColorPicker from '@/features/theme/components/CustomColorPicker.vue';
 import { useTheme } from '@/features/theme/composables/useTheme';
