@@ -11,6 +11,7 @@
 //! and (in a future phase) Android with a different loading implementation.
 
 pub mod abi;
+pub mod bus;
 pub mod dsp;
 pub mod error;
 pub mod host;
@@ -18,8 +19,10 @@ pub mod manager;
 pub mod manifest;
 pub mod native;
 pub mod plugin;
+pub mod sync;
 pub mod wasm;
 
+pub use bus::{error_code, error_message_for, PluginBus, PluginMessage, PluginSyncTransport};
 pub use dsp::{DspNode, PluginDspBridge, PluginDspRegistry};
 pub use error::{PluginError, PluginResult};
 pub use host::{AudioStateSnapshot, DeviceSnapshot, HostApi, MessageTarget, PluginLogLevel};

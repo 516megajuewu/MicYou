@@ -906,6 +906,7 @@ pub async fn start_server_inner(
     let active_connection_tcp = state.active_connection.clone();
     let takeover_lock_tcp = state.takeover_lock.clone();
     let active_audio_session_tcp = state.active_audio_session.clone();
+    let plugins_tcp = state.plugins.clone();
     let (tcp_ready_tx, tcp_ready_rx) = tokio::sync::oneshot::channel();
     let tcp_task = tokio::spawn(async move {
         if let Err(e) = crate::tcp_server::start_tcp_server(
@@ -919,6 +920,7 @@ pub async fn start_server_inner(
             active_connection_tcp,
             takeover_lock_tcp,
             active_audio_session_tcp,
+            plugins_tcp,
             tcp_ready_tx,
         )
         .await
