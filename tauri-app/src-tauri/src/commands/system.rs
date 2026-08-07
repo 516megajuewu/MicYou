@@ -212,10 +212,27 @@ fn should_capture_loopback(
     transport_active && audio_received && aec_enabled && runtime_available
 }
 
-fn find_model_dir() -> Option<std::path::PathBuf> {
-    const MODELS: [&str; 2] = ["purevox6.onnx", "aec7_ep0185.onnx"];
+/// Locate the directory containing MicYou's bundled runtime resources (ONNX
+/// models and the `alsa/` config). The path cannot be derived from
+/// `resource_dir()` alone on a packaged deb: the binary is installed as
+/// `/usr/bin/micyou-app` (Cargo package name) while the deb bundler places
+/// resources under `/usr/lib/<productName>/resources`, so the Tauri-resolved
+/// resource dir (`/usr/lib/<crate name>`) does not exist. We therefore probe a
+/// candidate list ending in a scan of `/usr/lib/*`.
+fn find_resource_dir(resource_dir: Option<&std::path::Path>) -> Option<std::path::PathBuf> {
+    const MARKERS: [&str; 2] = ["purevox6.onnx", "aec7_ep0185.onnx"];
 
-    let mut candidates = Vec::with_capacity(3);
+    let mut candidates = Vec::new();
+
+    // Runtime resource dir resolved by Tauri (correct in dev and when the
+    // binary name matches the product name).
+    if let Some(dir) = resource_dir {
+        candidates.push(dir.to_path_buf());
+        candidates.push(dir.join("resources"));
+    }
+
+    // Executable-relative (covers `cargo run`, `tauri dev` and installs where
+    // resources live next to the binary).
     if let Some(executable_dir) = std::env::current_exe()
         .ok()
         .and_then(|path| path.parent().map(std::path::Path::to_path_buf))
@@ -223,11 +240,25 @@ fn find_model_dir() -> Option<std::path::PathBuf> {
         candidates.push(executable_dir.clone());
         candidates.push(executable_dir.join("resources"));
     }
+
+    // Compile-time fallback for `cargo run` from the workspace.
     candidates.push(std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources"));
+
+    // Packaged deb/appimage: resources live under /usr/lib/<productName>/resources,
+    // which does not always match the binary-derived resource_dir().
+    if let Ok(entries) = std::fs::read_dir("/usr/lib") {
+        for entry in entries.flatten() {
+            if let Ok(ft) = entry.file_type() {
+                if ft.is_dir() {
+                    candidates.push(entry.path().join("resources"));
+                }
+            }
+        }
+    }
 
     candidates
         .into_iter()
-        .find(|directory| MODELS.iter().any(|model| directory.join(model).exists()))
+        .find(|directory| MARKERS.iter().any(|model| directory.join(model).exists()))
 }
 
 async fn join_tasks_bounded(
@@ -270,6 +301,52 @@ async fn rollback_start(
 use crate::tray::{TrayContext, TrayMenuStrings, TrayState};
 use micyou_audio::dsp::DspProcessor;
 
+/// Normalize a raw persisted output-device value ("", "auto", "default" all
+/// mean "no explicit device") to the Option form used by the audio engine.
+pub fn normalize_output_device(raw: &str) -> Option<String> {
+    let d = raw.trim();
+    if d.is_empty() || d == "auto" || d == "default" {
+        None
+    } else {
+        Some(d.to_string())
+    }
+}
+
+/// Create and open the persistent audio output device (cpal stream, plus the
+/// PipeWire virtual sink/source on Linux). Idempotent: re-opening only happens
+/// if the stream is not already open, so repeated calls from app startup and
+/// server start are safe. Called at GUI startup and lazily from the audio
+/// thread on the first server start (CLI/TUI).
+pub fn ensure_audio_output_started(
+    audio_output: &std::sync::Arc<crate::audio_output::AudioOutputHandle>,
+    output_device: Option<String>,
+    output_buffer_ms: usize,
+    resource_dir: Option<&std::path::Path>,
+) -> bool {
+    // On Linux, create the PipeWire virtual sink/source before opening output.
+    #[cfg(target_os = "linux")]
+    {
+        if output_device.is_none() && crate::pipewire::is_available() && !crate::pipewire::is_setup()
+        {
+            if crate::pipewire::setup(resource_dir) {
+                log::info!("[PipeWire] Virtual device ready, ALSA will route to virtual sink");
+            } else {
+                log::warn!("[PipeWire] Setup failed, falling back to default device");
+            }
+        }
+    }
+
+    audio_output.ensure_open(output_device, output_buffer_ms)
+}
+
+/// Tear down the persistent audio output device. Only called when the process
+/// is exiting (GUI `RunEvent::Exit`, CLI/TUI shutdown), never on server stop.
+pub fn shutdown_audio_output(state: &ServerState) {
+    state.audio_output.shutdown();
+    #[cfg(target_os = "linux")]
+    crate::pipewire::cleanup();
+}
+
 #[derive(serde::Serialize, Clone)]
 pub struct SpectrumPayload {
     pub raw: Vec<f32>,
@@ -286,13 +363,23 @@ pub async fn start_server(
     output_device: Option<String>,
 ) -> Result<String, String> {
     let events: crate::events::SharedEvents =
-        std::sync::Arc::new(crate::events::TauriEventSink(app_handle));
+        std::sync::Arc::new(crate::events::TauriEventSink(app_handle.clone()));
+    let resource_dir = app_handle.path().resource_dir().ok();
     // Reload shared settings.json before starting so CLI-side changes apply
     let file_settings = crate::app_config::load_dsp_settings();
     if let Ok(mut current) = state.dsp_settings.write() {
         *current = file_settings;
     }
-    start_server_inner(&state, port, mode, bind_address, output_device, events).await
+    start_server_inner(
+        &state,
+        port,
+        mode,
+        bind_address,
+        output_device,
+        resource_dir,
+        events,
+    )
+    .await
 }
 
 /// Core server startup, independent of the Tauri runtime.
@@ -303,6 +390,7 @@ pub async fn start_server_inner(
     mode: String,
     bind_address: Option<String>,
     output_device: Option<String>,
+    resource_dir: Option<std::path::PathBuf>,
     events: crate::events::SharedEvents,
 ) -> Result<String, String> {
     let udp_port = validate_server_port(port, &mode)?;
@@ -339,22 +427,9 @@ pub async fn start_server_inner(
         .map(|s| (s.output_buffer_ms as usize).clamp(100, 1200))
         .unwrap_or(800);
 
-    // On Linux, set up PipeWire virtual audio device before starting audio output.
-    #[cfg(target_os = "linux")]
-    if output_device.is_none() {
-        if crate::pipewire::is_available() {
-            if !crate::pipewire::is_setup() {
-                log::info!("[PipeWire] Setting up virtual audio device...");
-                if crate::pipewire::setup() {
-                    log::info!("[PipeWire] Virtual device ready, ALSA will route to virtual sink");
-                } else {
-                    log::warn!("[PipeWire] Setup failed, falling back to default device");
-                }
-            }
-        } else {
-            log::info!("[PipeWire] Not available, using default audio device");
-        }
-    }
+    // Locate bundled resources (ONNX models + alsa config) once for the whole
+    // startup. On a packaged deb this does NOT equal Tauri's resource_dir().
+    let resource_root = find_resource_dir(resource_dir.as_deref());
 
     let resolved_output_device = output_device;
     // Bound queued latency: Android packets are ~7 ms, so 128 slots provide ample
@@ -369,22 +444,35 @@ pub async fn start_server_inner(
     let is_monitoring_flag = state.is_monitoring.clone();
     let spectrum_streaming_enabled = state.spectrum_streaming_enabled.clone();
     let active_audio_session_audio = state.active_audio_session.clone();
+    // The audio output device is persistent (created at app startup or on the
+    // first server start) and shared across server restarts. The audio thread
+    // only pushes decoded PCM into it; it never owns or tears it down.
+    let audio_output_shared = state.audio_output.clone();
 
     let audio_thread = std::thread::spawn(move || {
-        let mut audio_manager = micyou_audio::AudioOutputManager::new();
-        if let Err(e) = audio_manager.start(resolved_output_device, output_buffer_ms) {
-            let _ = ready_tx.send(Err(e.to_string()));
-            return;
+        // Ensure the virtual device is open. This is normally a no-op (already
+        // opened at app startup); it also covers CLI/TUI first run and the rare
+        // case where opening failed earlier and a later attempt succeeds.
+        if !ensure_audio_output_started(
+            &audio_output_shared,
+            resolved_output_device,
+            output_buffer_ms,
+            resource_root.as_deref(),
+        ) {
+            eprintln!("[Audio] Output device unavailable; audio will be silent");
         }
         let _ = ready_tx.send(Ok(()));
-
-        let mut dsp_processor = DspProcessor::new(dsp_settings.clone(), find_model_dir());
+        let mut dsp_processor = DspProcessor::new(dsp_settings.clone(), resource_root);
         let mut jb = crate::jitter_buffer::JitterBuffer::new(12);
         let mut frame_counter: u32 = 0;
         let mut input_resampler: Option<micyou_audio::RubatoResampler> = None;
         let mut current_input_sample_rate: u32 = 0;
         let mut resample_out_buf = Vec::new();
         let mut pcm_f32 = Vec::new();
+        // Opus decoder is keyed by (sample_rate, channel_count); recreated whenever
+        // those change or a new transport session starts (stateful codec).
+        let mut opus_decoder: Option<(u32, usize, crate::opus::Decoder)> = None;
+        let mut opus_float_buf: Vec<f32> = Vec::new();
 
         // Speaker loopback capture for the AEC far-end reference. Windows uses
         // WASAPI loopback; Linux records the default physical playback sink.
@@ -468,7 +556,7 @@ pub async fn start_server_inner(
                     }));
                 }
                 Ok(event) => {
-                    audio_manager.set_monitoring(
+                    audio_output_shared.set_monitoring(
                         is_monitoring_flag.load(std::sync::atomic::Ordering::Relaxed),
                     );
                     match event {
@@ -478,6 +566,7 @@ pub async fn start_server_inner(
                                 lb.reset_session();
                             }
                             dsp_processor.reset_aec_session();
+                            opus_decoder = None;
                             if loopback.is_some() {
                                 restore_aec_runtime(
                                     &mut aec_runtime_available,
@@ -501,50 +590,90 @@ pub async fn start_server_inner(
 
                     for ordered_packet in packets {
                         if let Some(audio_data) = ordered_packet.audio_packet {
-                            let capacity = match audio_data.audio_format {
-                                2 => audio_data.buffer.len() / 2,
-                                3 => audio_data.buffer.len(),
-                                4 => audio_data.buffer.len() / 4,
-                                6 => audio_data.buffer.len() / 3,
-                                _ => 0,
-                            };
-                            pcm_f32.clear();
-                            pcm_f32.reserve(capacity);
-                            match audio_data.audio_format {
-                                2 => {
-                                    for chunk in audio_data.buffer.chunks_exact(2) {
-                                        let sample_i16 = i16::from_le_bytes([chunk[0], chunk[1]]);
-                                        pcm_f32.push(sample_i16 as f32 / 32768.0);
+                            if audio_data.codec == micyou_protocol::CODEC_OPUS {
+                                // Opus decode: reorder on flags/sample-rate changes, then
+                                // decode directly into f32 so it feeds the DSP chain intact.
+                                let channels = audio_data.channel_count as usize;
+                                let sample_rate = audio_data.sample_rate as u32;
+                                let needs_decoder = match &opus_decoder {
+                                    Some((sr, ch, _)) => *sr != sample_rate || *ch != channels,
+                                    None => true,
+                                };
+                                if needs_decoder {
+                                    let created = crate::opus::Channels::from_channel_count(channels)
+                                        .and_then(|ch| crate::opus::Decoder::new(sample_rate, ch).ok());
+                                    opus_decoder = created.map(|dec| (sample_rate, channels, dec));
+                                    if opus_decoder.is_none() {
+                                        eprintln!(
+                                            "[Audio] Failed to create Opus decoder for {}Hz/{}ch",
+                                            sample_rate, channels
+                                        );
                                     }
                                 }
-                                3 => {
-                                    for &byte in &audio_data.buffer {
-                                        let sample_f32 = (byte as f32 - 128.0) / 128.0;
-                                        pcm_f32.push(sample_f32);
+                                if let Some((_, _, decoder)) = opus_decoder.as_mut() {
+                                    let target_frames = (sample_rate as usize / 50) * channels; // 20ms
+                                    if opus_float_buf.len() != target_frames {
+                                        opus_float_buf.resize(target_frames, 0.0);
                                     }
-                                }
-                                4 => {
-                                    for chunk in audio_data.buffer.chunks_exact(4) {
-                                        let sample_f32 = f32::from_le_bytes([
-                                            chunk[0], chunk[1], chunk[2], chunk[3],
-                                        ]);
-                                        pcm_f32.push(sample_f32);
+                                    match decoder.decode_float(&audio_data.buffer, &mut opus_float_buf) {
+                                        Ok(frames) => {
+                                            pcm_f32.clear();
+                                            pcm_f32.extend_from_slice(&opus_float_buf[..frames * channels]);
+                                        }
+                                        Err(e) => {
+                                            eprintln!("[Audio] Opus decode error: {}", e);
+                                            pcm_f32.clear();
+                                        }
                                     }
+                                } else {
+                                    pcm_f32.clear();
                                 }
-                                6 => {
-                                    for chunk in audio_data.buffer.chunks_exact(3) {
-                                        let sample24 = (chunk[0] as i32)
-                                            | ((chunk[1] as i32) << 8)
-                                            | ((chunk[2] as i8 as i32) << 16);
-                                        let sample_f32 = (sample24 as f32) / 8388608.0;
-                                        pcm_f32.push(sample_f32);
+                            } else {
+                                let capacity = match audio_data.audio_format {
+                                    2 => audio_data.buffer.len() / 2,
+                                    3 => audio_data.buffer.len(),
+                                    4 => audio_data.buffer.len() / 4,
+                                    6 => audio_data.buffer.len() / 3,
+                                    _ => 0,
+                                };
+                                pcm_f32.clear();
+                                pcm_f32.reserve(capacity);
+                                match audio_data.audio_format {
+                                    2 => {
+                                        for chunk in audio_data.buffer.chunks_exact(2) {
+                                            let sample_i16 = i16::from_le_bytes([chunk[0], chunk[1]]);
+                                            pcm_f32.push(sample_i16 as f32 / 32768.0);
+                                        }
                                     }
-                                }
-                                _ => {
-                                    eprintln!(
-                                        "Unsupported audio format: {}",
-                                        audio_data.audio_format
-                                    );
+                                    3 => {
+                                        for &byte in &audio_data.buffer {
+                                            let sample_f32 = (byte as f32 - 128.0) / 128.0;
+                                            pcm_f32.push(sample_f32);
+                                        }
+                                    }
+                                    4 => {
+                                        for chunk in audio_data.buffer.chunks_exact(4) {
+                                            let sample_f32 = f32::from_le_bytes([
+                                                chunk[0], chunk[1], chunk[2], chunk[3],
+                                            ]);
+                                            pcm_f32.push(sample_f32);
+                                        }
+                                    }
+                                    6 => {
+                                        for chunk in audio_data.buffer.chunks_exact(3) {
+                                            let sample24 = (chunk[0] as i32)
+                                                | ((chunk[1] as i32) << 8)
+                                                | ((chunk[2] as i8 as i32) << 16);
+                                            let sample_f32 = (sample24 as f32) / 8388608.0;
+                                            pcm_f32.push(sample_f32);
+                                        }
+                                    }
+                                    _ => {
+                                        eprintln!(
+                                            "Unsupported audio format: {}",
+                                            audio_data.audio_format
+                                        );
+                                    }
                                 }
                             }
                             if !pcm_f32.is_empty() {
@@ -583,7 +712,7 @@ pub async fn start_server_inner(
                                     current_input_sample_rate = 48000;
                                 }
 
-                                let queued_samples = audio_manager.queued_samples();
+                                let queued_samples = audio_output_shared.queued_samples();
                                 let queued_ms = if channels > 0 {
                                     (queued_samples as f64 / channels as f64) / 48.0
                                 } else {
@@ -624,7 +753,8 @@ pub async fn start_server_inner(
                                     processed
                                 };
 
-                                audio_manager.push_audio_data(&pcm_f32, channels.max(1));
+                                audio_output_shared
+                                    .push(pcm_f32.clone(), channels.max(1));
 
                                 frame_counter = frame_counter.wrapping_add(1);
                                 if frame_counter.is_multiple_of(6) {
@@ -890,11 +1020,6 @@ pub async fn stop_server_inner(
     #[cfg(target_os = "macos")]
     {
         let _ = crate::blackhole::do_restore_input_device().await;
-    }
-    // Clean up PipeWire virtual devices on Linux
-    #[cfg(target_os = "linux")]
-    {
-        crate::pipewire::cleanup();
     }
     audio_result?;
     if had_token {

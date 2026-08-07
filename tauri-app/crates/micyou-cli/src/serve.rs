@@ -58,7 +58,8 @@ pub async fn run(args: ServeArgs) -> Result<(), String> {
     let state = build_state();
     let events: Arc<dyn tauri_app_lib::events::ServerEvents> = Arc::new(CliEventSink);
 
-    let result = start_server_inner(&state, port, mode.clone(), bind, device, events.clone()).await;
+    let result =
+        start_server_inner(&state, port, mode.clone(), bind, device, None, events.clone()).await;
 
     match result {
         Ok(message) => println!("{message}"),
@@ -72,6 +73,8 @@ pub async fn run(args: ServeArgs) -> Result<(), String> {
     let _ = tokio::signal::ctrl_c().await;
     println!("Stopping server...");
     let _ = stop_server_inner(&state, events).await;
+    // Close the persistent virtual device (only on process exit).
+    tauri_app_lib::commands::system::shutdown_audio_output(state.as_ref());
     tauri_app_lib::mode_lock::release();
     Ok(())
 }
