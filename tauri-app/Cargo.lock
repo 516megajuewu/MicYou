@@ -3447,6 +3447,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "micyou-plugin"
+version = "2.0.0"
+dependencies = [
+ "log",
+ "semver",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "micyou-protocol"
 version = "2.0.0"
 dependencies = [
