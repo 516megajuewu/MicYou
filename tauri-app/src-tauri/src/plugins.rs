@@ -201,18 +201,38 @@ impl PluginHost {
         let dispatcher: Arc<
             dyn Fn(&PluginMessage) -> micyou_plugin::PluginResult<()> + Send + Sync,
         > = Arc::new(move |msg: &PluginMessage| {
-            let manager = manager_dispatch
-                .lock()
-                .map_err(|_| micyou_plugin::PluginError::Runtime("manager poisoned".into()))?;
-            let targets: Vec<String> = if msg.target.is_empty() {
-                manager.loaded_ids()
-            } else {
-                vec![msg.target.clone()]
+            // 短锁收集目标，随后立即释放 manager 锁
+            // 插件 handle_message 会反向调用 host API（play_sound / get_config
+            // 等），它们都要再锁 manager，若此处持锁执行插件代码会造成
+            // std Mutex 同线程重入死锁（曾导致播放音效卡死）
+            let targets: Vec<String> = {
+                let manager = manager_dispatch.lock().map_err(|_| {
+                    micyou_plugin::PluginError::Runtime("manager poisoned".into())
+                })?;
+                if msg.target.is_empty() {
+                    manager.loaded_ids()
+                } else {
+                    vec![msg.target.clone()]
+                }
             };
             for id in targets {
-                manager.with_instance(&id, |instance| {
-                    instance.handle_message(&msg.source, &msg.topic, &msg.payload)
-                })?;
+                // 短锁取共享句柄，释放 manager 锁后再锁实例
+                let handle = {
+                    let manager = manager_dispatch.lock().map_err(|_| {
+                        micyou_plugin::PluginError::Runtime("manager poisoned".into())
+                    })?;
+                    match manager.instance_handle(&id)? {
+                        Some(h) => h,
+                        None => continue,
+                    }
+                };
+                // try_lock：插件在 handle_message 中 emit_event 会重新进入
+                // dispatcher 并尝试锁同一实例，直接等待会死锁，跳过更安全
+                let Ok(mut instance) = handle.try_lock() else {
+                    log::warn!("[plugins] skip message for busy instance {id}");
+                    continue;
+                };
+                instance.handle_message(&msg.source, &msg.topic, &msg.payload)?;
             }
             Ok(())
         });
@@ -267,6 +287,7 @@ impl PluginHost {
             self.sound.clone(),
             self.hotkeys.clone(),
             id.to_string(),
+            entry.dir.clone(),
         );
         let mut instance = match entry.manifest.runtime {
             RuntimeKind::Native => micyou_plugin::native::load_native_instance(
@@ -434,6 +455,7 @@ pub struct PluginHostApi {
     sound: Arc<crate::sound_player::SoundPlayer>,
     hotkeys: Arc<HotkeyService>,
     plugin_id: String,
+    dir: std::path::PathBuf,
 }
 
 impl PluginHostApi {
@@ -444,6 +466,7 @@ impl PluginHostApi {
         sound: Arc<crate::sound_player::SoundPlayer>,
         hotkeys: Arc<HotkeyService>,
         plugin_id: String,
+        dir: std::path::PathBuf,
     ) -> Arc<Self> {
         Arc::new(Self {
             bus,
@@ -452,6 +475,7 @@ impl PluginHostApi {
             sound,
             hotkeys,
             plugin_id,
+            dir,
         })
     }
 }
@@ -525,16 +549,14 @@ impl HostApi for PluginHostApi {
 
     fn play_sound(&self, path: &str) -> PluginResult<()> {
         // Relative paths resolve against the plugin's own directory so a
-        // plugin can ship/generate sound files next to itself.
+        // plugin can ship/generate sound files next to itself
+        // Uses the dir cached at enable time so this never locks the manager
+        // (play_sound is often called from handle_message, which runs while
+        // the dispatcher is delivering a message)
         let full = if std::path::Path::new(path).is_absolute() {
             path.to_string()
         } else {
-            let manager = self.manager.lock().map_err(lock_err)?;
-            let Some(entry) = manager.entry(&self.plugin_id)? else {
-                return Err(PluginError::UnknownPlugin(self.plugin_id.clone()));
-            };
-            drop(manager);
-            entry.dir.join(path).display().to_string()
+            self.dir.join(path).display().to_string()
         };
         self.sound.play_wav(&full)
     }
