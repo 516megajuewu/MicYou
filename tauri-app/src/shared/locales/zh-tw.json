@@ -540,7 +540,8 @@
     "inChain": "DSP 鏈中",
     "sync": {
       "connected": "裝置已連線",
-      "disconnected": "無裝置"
+      "disconnected": "無裝置",
+      "tip": "跨端外掛程式同步狀態：手機等裝置經控制通道連線後，外掛程式訊息可跨端收發"
     },
     "kind": {
       "dsp": "DSP 處理",

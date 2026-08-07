@@ -542,7 +542,8 @@
     "inChain": "DSP 链中",
     "sync": {
       "connected": "设备已连接",
-      "disconnected": "无设备"
+      "disconnected": "无设备",
+      "tip": "跨端插件同步状态：手机等设备通过控制通道连接后，插件消息可跨端收发"
     },
     "kind": {
       "dsp": "DSP 处理",

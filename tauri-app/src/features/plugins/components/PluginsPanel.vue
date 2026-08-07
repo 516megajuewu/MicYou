@@ -75,6 +75,7 @@ function confirmUninstall(plugin: PluginView) {
     <div class="flex items-center justify-between">
       <span
         class="px-3 py-1 rounded-full text-xs font-medium"
+        :title="$t('plugins.sync.tip')"
         :class="
           p.syncStatus.value.deviceConnected
             ? 'bg-green-500/15 text-green-400'
@@ -112,13 +113,23 @@ function confirmUninstall(plugin: PluginView) {
 
     <div v-else-if="p.plugins.value.length === 0" class="py-16 text-center">
       <p class="text-on-surface-variant text-sm">{{ $t('plugins.noPlugins') }}</p>
-      <button
-        @click="p.openDir()"
-        class="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/20 text-primary hover:bg-primary/30 text-sm font-medium"
-      >
-        <FolderOpen class="w-4 h-4" />
-        {{ $t('plugins.openDir') }}
-      </button>
+      <div class="mt-4 flex items-center justify-center gap-3">
+        <button
+          @click="p.importPlugin()"
+          :disabled="p.busyId.value === 'import'"
+          class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/20 text-primary hover:bg-primary/30 text-sm font-medium disabled:opacity-50"
+        >
+          <Download class="w-4 h-4" />
+          {{ p.busyId.value === 'import' ? $t('plugins.importing') : $t('plugins.import') }}
+        </button>
+        <button
+          @click="p.openDir()"
+          class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-surface-variant/40 hover:bg-surface-variant text-on-surface-variant text-sm font-medium"
+        >
+          <FolderOpen class="w-4 h-4" />
+          {{ $t('plugins.openDir') }}
+        </button>
+      </div>
     </div>
 
     <template v-else>

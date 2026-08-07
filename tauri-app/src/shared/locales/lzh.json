@@ -540,7 +540,8 @@
     "inChain": "DSP 鏈中",
     "sync": {
       "connected": "設備已連",
-      "disconnected": "無設備"
+      "disconnected": "無設備",
+      "tip": "跨端插件同步之態：設備既接，消息可互通"
     },
     "kind": {
       "dsp": "DSP 處理",

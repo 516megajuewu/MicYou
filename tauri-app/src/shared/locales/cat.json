@@ -540,7 +540,8 @@
     "inChain": "DSP 链中喵",
     "sync": {
       "connected": "设备已连接喵",
-      "disconnected": "无设备喵"
+      "disconnected": "无设备喵",
+      "tip": "跨端喵插件同步状态：手机连上后，喵插件消息可以跨端收发喵"
     },
     "kind": {
       "dsp": "DSP 处理喵",

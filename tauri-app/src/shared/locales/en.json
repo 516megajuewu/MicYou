@@ -542,7 +542,8 @@
     "inChain": "in DSP chain",
     "sync": {
       "connected": "Device connected",
-      "disconnected": "No device"
+      "disconnected": "No device",
+      "tip": "Cross-device plugin sync status: shows when a phone/device is connected over the control channel"
     },
     "kind": {
       "dsp": "DSP",
