@@ -1,34 +1,34 @@
 //! Sound playback for the plugin `audio.play` capability
 //!
-//! Plays a WAV file once through the default output device on a host-owned
-//! thread Playback is intentionally simple: parse PCM, open a one-shot cpal
-//! stream, wait until the buffer drains, then drop the stream
-//! Never used on the real-time audio thread
+//! Sound effects are mixed into the virtual microphone output stream
+//! (`AudioOutputHandle` -> `AudioOutputManager` mixer) so the remote peer
+//! hears them exactly like real mic audio, and the user hears them through
+//! monitoring
+//! No separate cpal stream is ever opened, so playback can never stall or
+//! deadlock the audio stack
 
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
-/// Play WAV files on the system output device
-pub struct SoundPlayer;
+/// Plays WAV files into the virtual microphone output
+pub struct SoundPlayer {
+    output: Arc<crate::audio_output::AudioOutputHandle>,
+}
 
 impl SoundPlayer {
-    /// Create a shared player instance
-    pub fn new() -> Arc<Self> {
-        Arc::new(Self)
+    /// Create a shared player bound to the persistent output device handle
+    pub fn new(output: Arc<crate::audio_output::AudioOutputHandle>) -> Arc<Self> {
+        Arc::new(Self { output })
     }
 
     /// Queue a WAV file for playback, returning once parsing succeeds
-    /// Playback happens on a detached thread so the caller never blocks
+    /// Mixing happens on the output device thread; this never blocks
     pub fn play_wav(&self, path: &str) -> micyou_plugin::PluginResult<()> {
-        let (samples, sample_rate) = parse_wav(path)
+        let (samples, _sample_rate) = parse_wav(path)
             .map_err(|e| micyou_plugin::PluginError::Runtime(format!("wav parse: {e}")))?;
         if samples.is_empty() {
             return Err(micyou_plugin::PluginError::Runtime("empty wav data".into()));
         }
-        if sample_rate == 0 {
-            return Err(micyou_plugin::PluginError::Runtime("bad sample rate".into()));
-        }
-        spawn_playback(samples, sample_rate);
+        self.output.push_sound(samples, 1.0);
         Ok(())
     }
 }
@@ -89,68 +89,4 @@ fn parse_wav(path: &str) -> Result<(Vec<f32>, u32), String> {
         samples.push((sum / channels as f64) as f32);
     }
     Ok((samples, sample_rate))
-}
-
-/// Play samples on a detached thread; the stream is kept alive until the
-/// buffer drains, then dropped so the device is released
-fn spawn_playback(samples: Vec<f32>, _sample_rate: u32) {
-    std::thread::spawn(move || {
-        use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-        let host = cpal::default_host();
-        let Some(device) = host.default_output_device() else {
-            return;
-        };
-        let Ok(supported) = device.default_output_config() else {
-            return;
-        };
-        let sample_format = supported.sample_format();
-        let config: cpal::StreamConfig = supported.config();
-        let pos = Arc::new(AtomicUsize::new(0));
-        let err_fn = |e| log::warn!("[sound] playback stream error: {e}");
-
-        macro_rules! build_stream {
-            ($t:ty) => {{
-                let p = Arc::clone(&pos);
-                let s = samples.clone();
-                device
-                    .build_output_stream::<$t, _, _>(
-                        &config,
-                        move |out: &mut [$t], _| {
-                            let cur = p.load(Ordering::Relaxed);
-                            let n = out.len();
-                            let remaining = s.len().saturating_sub(cur);
-                            let copy = remaining.min(n);
-                            for i in 0..copy {
-                                out[i] = <$t as cpal::Sample>::from_sample(s[cur + i]);
-                            }
-                            for i in copy..n {
-                                out[i] = <$t as cpal::Sample>::from_sample(0.0f32);
-                            }
-                            p.store(cur + n, Ordering::Relaxed);
-                        },
-                        err_fn,
-                        None,
-                    )
-            }};
-        }
-
-        let stream = match sample_format {
-            cpal::SampleFormat::F32 => build_stream!(f32),
-            cpal::SampleFormat::I16 => build_stream!(i16),
-            cpal::SampleFormat::U16 => build_stream!(u16),
-            cpal::SampleFormat::F64 => build_stream!(f64),
-            _ => return,
-        };
-        let Ok(stream) = stream else {
-            return;
-        };
-        if stream.play().is_err() {
-            return;
-        }
-        let total = samples.len();
-        while pos.load(Ordering::Relaxed) < total {
-            std::thread::sleep(std::time::Duration::from_millis(10));
-        }
-        drop(stream);
-    });
 }

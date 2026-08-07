@@ -99,6 +99,7 @@ pub struct PluginHost {
     /// Bounded per-plugin log buffers (read by the frontend).
     pub logs: Arc<PluginLogs>,
     /// WAV playback for the `audio.play` capability (soundpads etc).
+    /// Effects are mixed into the virtual microphone output stream.
     pub sound: Arc<crate::sound_player::SoundPlayer>,
 }
 
@@ -107,7 +108,7 @@ pub struct PluginHost {
 pub const PLUGIN_NODE_AFTER: &str = "AEC";
 
 impl PluginHost {
-    pub fn new() -> Self {
+    pub fn new(output: Arc<crate::audio_output::AudioOutputHandle>) -> Self {
         let config = crate::app_config::config_dir();
         let manager = Arc::new(Mutex::new(micyou_plugin::PluginManager::new(
             config.join("plugins"),
@@ -139,7 +140,7 @@ impl PluginHost {
 
         let bus = Arc::new(PluginBus::new(sync.clone(), dispatcher));
         let logs = Arc::new(PluginLogs::new());
-        let sound = crate::sound_player::SoundPlayer::new();
+        let sound = crate::sound_player::SoundPlayer::new(output);
 
         Self {
             manager,
@@ -272,12 +273,6 @@ impl PluginHost {
     pub fn dsp_hook(&self) -> Option<Box<dyn FnMut(&mut Vec<f32>, usize, f64) + Send>> {
         let bridge = micyou_plugin::PluginDspBridge::new(self.dsp_registry.clone());
         Some(bridge.hook())
-    }
-}
-
-impl Default for PluginHost {
-    fn default() -> Self {
-        Self::new()
     }
 }
 

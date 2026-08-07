@@ -145,7 +145,6 @@ impl ServerLifecycleState {
     }
 }
 
-#[derive(Default)]
 pub struct ServerState {
     pub lifecycle_gate: ServerLifecycleGate,
     pub lifecycle: Arc<Mutex<ServerLifecycleState>>,

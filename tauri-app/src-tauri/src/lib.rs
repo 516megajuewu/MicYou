@@ -67,6 +67,7 @@ fn apply_macos_vibrancy(_: &tauri::WebviewWindow) {}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let audio_output = crate::audio_output::AudioOutputHandle::spawn();
     tauri::Builder::default()
         .manage(server::ServerState {
             lifecycle_gate: server::ServerLifecycleGate::default(),
@@ -81,8 +82,8 @@ pub fn run() {
             active_connection: Arc::new(Mutex::new(None)),
             takeover_lock: Arc::new(Mutex::new(())),
             active_audio_session: Arc::new(RwLock::new(Default::default())),
-            audio_output: crate::audio_output::AudioOutputHandle::spawn(),
-            plugins: Arc::new(crate::plugins::PluginHost::new()),
+            audio_output: audio_output.clone(),
+            plugins: Arc::new(crate::plugins::PluginHost::new(audio_output.clone())),
             #[cfg(feature = "web-server")]
             web_server: Arc::new(Mutex::new(None)),
             #[cfg(feature = "web-server")]
