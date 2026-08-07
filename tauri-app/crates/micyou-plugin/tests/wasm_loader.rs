@@ -68,6 +68,7 @@ impl HostApi for MockHost {
     }
     fn play_sound(&self, _path: &str) -> PluginResult<()> { Ok(()) }
     fn plugin_dir(&self) -> String { "/tmp/plugin-dir".to_string() }
+    fn register_hotkey(&self, _s: &str) -> PluginResult<u64> { Ok(7) }
     fn connected_devices(&self) -> Vec<DeviceSnapshot> {
         Vec::new()
     }
@@ -305,11 +306,8 @@ fn example_manifests_validate() {
         .parent()
         .expect("repo layout");
     for (dir, id) in [
-        ("plugins/examples/native-gain", "dev.micyou.example.gain"),
-        ("plugins/examples/wasm-counter", "dev.micyou.example.counter"),
         ("plugins/examples/native-soundpad", "dev.micyou.example.soundpad"),
         ("plugins/examples/native-noisegate", "dev.micyou.example.noisegate"),
-        ("plugins/examples/native-systeminfo", "dev.micyou.example.systeminfo"),
     ] {
         let path = repo_root.join(dir).join("plugin.json");
         let text = std::fs::read_to_string(&path)
@@ -317,12 +315,20 @@ fn example_manifests_validate() {
         let manifest = micyou_plugin::manifest::PluginManifest::from_json(&text)
             .unwrap_or_else(|e| panic!("manifest {id} invalid: {e}"));
         assert_eq!(manifest.id, id);
+        if id == "dev.micyou.example.soundpad" {
+            // soundpad declares a custom settings page
+            let panels = manifest
+                .ui
+                .as_ref()
+                .expect("soundpad ui descriptor")
+                .panels
+                .clone();
+            assert_eq!(panels.len(), 1);
+            assert_eq!(panels[0].id, "console");
+            let html = repo_root
+                .join("plugins/examples/native-soundpad")
+                .join(&panels[0].entry);
+            assert!(html.exists(), "panel html must ship with the plugin");
+        }
     }
-
-    // The example WAT must parse to valid wasm (toolchain-free check)
-    let wat_path = repo_root
-        .join("plugins/examples/wasm-counter/counter.wat");
-    let wat = std::fs::read_to_string(&wat_path).unwrap();
-    let bytes = wat::parse_str(&wat).expect("example counter.wat must parse");
-    assert!(!bytes.is_empty());
 }

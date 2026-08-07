@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>Soundpad 控制台</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: #f5f2ed;
+    color: #2c2a26;
+    padding: 20px;
+  }
+  h2 { font-size: 16px; margin-bottom: 4px; color: #8a6d5a; }
+  .sub { font-size: 12px; color: #8a8a8a; margin-bottom: 16px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
+  .btn {
+    border: none; border-radius: 12px; padding: 14px 10px;
+    font-size: 14px; font-weight: 600; cursor: pointer;
+    background: #e3d5c8; color: #4a3f36;
+    transition: transform 0.06s ease, background 0.15s ease;
+  }
+  .btn:hover { background: #d6c4b4; }
+  .btn:active { transform: scale(0.95); }
+  .btn.playing { background: #b08968; color: #fff; }
+  .card {
+    background: #fff; border-radius: 14px; padding: 14px;
+    margin-top: 14px; box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  }
+  .row { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: #ccc; }
+  .dot.on { background: #6fae5a; }
+  .kbd {
+    font-family: ui-monospace, monospace; font-size: 12px;
+    background: #eee; border: 1px solid #ddd; border-bottom-width: 2px;
+    border-radius: 5px; padding: 2px 6px;
+  }
+  .empty { font-size: 13px; color: #999; padding: 10px 0; }
+  .err { color: #c0392b; font-size: 12px; margin-top: 10px; }
+  .loading { color: #999; font-size: 13px; }
+</style>
+</head>
+<body>
+  <h2>🎛 Soundpad 控制台</h2>
+  <div class="sub">示例插件专属页面 · 通过 postMessage 桥调用宿主能力</div>
+
+  <div class="card">
+    <div class="row"><span class="dot" id="dot"></span><span id="status">加载中…</span></div>
+  </div>
+
+  <div class="card">
+    <div id="sounds" class="grid"><div class="loading">正在读取音效配置…</div></div>
+    <div class="sub" style="margin-top:12px;margin-bottom:0">
+      全局快捷键 <span class="kbd">Ctrl</span>+<span class="kbd">Shift</span>+<span class="kbd">S</span> 播放第一个音效
+    </div>
+  </div>
+
+  <div id="err" class="err"></div>
+
+<script>
+// ── 与宿主（设置对话框）的 postMessage 桥 ────────────────────────────────
+function call(api, args) {
+  return new Promise((resolve, reject) => {
+    const id = Math.random().toString(36).slice(2);
+    const onMsg = (e) => {
+      if (e.data && e.data.__micyou === 1 && e.data.id === id) {
+        window.removeEventListener('message', onMsg);
+        e.data.ok ? resolve(e.data.value) : reject(new Error(e.data.error));
+      }
+    };
+    window.addEventListener('message', onMsg);
+    window.parent.postMessage({ __micyou: 1, id, api, args: args || {} }, '*');
+  });
+}
+
+const dot = document.getElementById('dot');
+const statusEl = document.getElementById('status');
+const errEl = document.getElementById('err');
+
+function setStatus(text, on) {
+  statusEl.textContent = text;
+  dot.className = 'dot' + (on ? ' on' : '');
+}
+
+async function init() {
+  try {
+    const cfg = await call('get_config', {});
+    const sounds = (cfg && Array.isArray(cfg.sounds)) ? cfg.sounds : [];
+    renderButtons(sounds);
+    setStatus('已连接宿主 · ' + sounds.length + ' 个音效', true);
+  } catch (e) {
+    setStatus('无法读取配置', false);
+    errEl.textContent = String(e);
+  }
+}
+
+function renderButtons(sounds) {
+  const box = document.getElementById('sounds');
+  box.replaceChildren();
+  if (!sounds.length) {
+    const empty = document.createElement('div');
+    empty.className = 'empty';
+    empty.textContent = '没有音效，启用插件时已自动生成示例音效（在插件配置里可改）';
+    box.appendChild(empty);
+    return;
+  }
+  for (const s of sounds) {
+    const b = document.createElement('button');
+    b.className = 'btn';
+    b.textContent = s.label || s.id;
+    b.onclick = async () => {
+      b.classList.add('playing');
+      try {
+        await call('play', { id: s.id });
+      } catch (e) {
+        errEl.textContent = String(e);
+      }
+      setTimeout(() => b.classList.remove('playing'), 200);
+    };
+    box.appendChild(b);
+  }
+}
+
+init();
+</script>
+</body>
+</html>

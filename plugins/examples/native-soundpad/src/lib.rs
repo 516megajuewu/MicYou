@@ -56,6 +56,7 @@ pub struct mpl_host_api_t {
     pub ctx: *mut c_void,
     pub play_sound: unsafe extern "C" fn(*mut c_void, *const c_char) -> mpl_result_t,
     pub plugin_dir: unsafe extern "C" fn(*mut c_void, *mut c_char, *mut u32) -> mpl_result_t,
+    pub register_hotkey: unsafe extern "C" fn(*mut c_void, *const c_char, *mut u64) -> mpl_result_t,
 }
 
 #[repr(C)]
@@ -169,6 +170,16 @@ pub unsafe extern "C" fn micyou_plugin_init(host: *const mpl_host_api_t) -> mpl_
                     log_info(&msg);
                 }
             }
+            // 注册全局快捷键：Ctrl+Shift+S 播放第一个音效
+            let mut hotkey_id: u64 = 0;
+            let sc = std::ffi::CString::new("ctrl+shift+s").expect("nul-free");
+            let code = ((*host).register_hotkey)((*host).ctx, sc.as_ptr(), &mut hotkey_id);
+            if code == mpl_result_t::MPL_OK && hotkey_id != 0 {
+                let msg = format!("soundpad: hotkey ctrl+shift+s registered (id {hotkey_id})");
+                log_info(&msg);
+            } else {
+                log_info("soundpad: hotkey registration skipped (host unavailable)");
+            }
         }
         mpl_result_t::MPL_OK
     })
@@ -177,41 +188,42 @@ pub unsafe extern "C" fn micyou_plugin_init(host: *const mpl_host_api_t) -> mpl_
 /// 从配置加载音效；为空时生成三个示例音效并持久化
 unsafe fn load_or_generate_sounds() -> Result<(), String> {
     unsafe {
-    let raw = host_get_config(CONFIG_KEY);
-    let parsed: serde_json::Value = serde_json::from_str(&raw).unwrap_or(serde_json::Value::Null);
-    let mut sounds: Vec<(String, String, String)> = Vec::new();
-    if let Some(arr) = parsed.as_array() {
-        for item in arr {
-            if let (Some(id), Some(label), Some(file)) = (
-                item.get("id").and_then(|v| v.as_str()),
-                item.get("label").and_then(|v| v.as_str()),
-                item.get("file").and_then(|v| v.as_str()),
-            ) {
-                sounds.push((id.to_string(), label.to_string(), file.to_string()));
+        let raw = host_get_config(CONFIG_KEY);
+        let parsed: serde_json::Value =
+            serde_json::from_str(&raw).unwrap_or(serde_json::Value::Null);
+        let mut sounds: Vec<(String, String, String)> = Vec::new();
+        if let Some(arr) = parsed.as_array() {
+            for item in arr {
+                if let (Some(id), Some(label), Some(file)) = (
+                    item.get("id").and_then(|v| v.as_str()),
+                    item.get("label").and_then(|v| v.as_str()),
+                    item.get("file").and_then(|v| v.as_str()),
+                ) {
+                    sounds.push((id.to_string(), label.to_string(), file.to_string()));
+                }
             }
         }
-    }
-    if !sounds.is_empty() {
-        SOUNDS = sounds;
-        return Ok(());
-    }
-    // 生成示例音效：三个正弦波（440/660/880 Hz，0.35s）
-    let demo: Vec<(String, String, u32)> = vec![
-        ("beep".into(), "Beep".into(), 440),
-        ("ding".into(), "Ding".into(), 660),
-        ("chime".into(), "Chime".into(), 880),
-    ];
-    let dir = host_plugin_dir();
-    if dir.is_empty() {
-        return Err("plugin_dir unavailable".into());
-    }
-    for (id, label, freq) in &demo {
-        let abs = format!("{dir}/sounds/{id}.wav");
-        write_sine_wav(&abs, *freq, 0.35, 0.5)?;
-        // config 存相对路径，宿主播放时解析到插件目录
-        sounds.push((id.clone(), label.clone(), format!("sounds/{id}.wav")));
-    }
-    let json = serde_json::to_string(
+        if !sounds.is_empty() {
+            SOUNDS = sounds;
+            return Ok(());
+        }
+        // 生成示例音效：三个正弦波（440/660/880 Hz，0.35s）
+        let demo: Vec<(String, String, u32)> = vec![
+            ("beep".into(), "Beep".into(), 440),
+            ("ding".into(), "Ding".into(), 660),
+            ("chime".into(), "Chime".into(), 880),
+        ];
+        let dir = host_plugin_dir();
+        if dir.is_empty() {
+            return Err("plugin_dir unavailable".into());
+        }
+        for (id, label, freq) in &demo {
+            let abs = format!("{dir}/sounds/{id}.wav");
+            write_sine_wav(&abs, *freq, 0.35, 0.5)?;
+            // config 存相对路径，宿主播放时解析到插件目录
+            sounds.push((id.clone(), label.clone(), format!("sounds/{id}.wav")));
+        }
+        let json = serde_json::to_string(
         &sounds
             .iter()
             .map(|(id, label, file)| {
@@ -220,9 +232,9 @@ unsafe fn load_or_generate_sounds() -> Result<(), String> {
             .collect::<Vec<_>>(),
     )
     .map_err(|e| e.to_string())?;
-    host_set_config(CONFIG_KEY, &json);
-    SOUNDS = sounds;
-    Ok(())
+        host_set_config(CONFIG_KEY, &json);
+        SOUNDS = sounds;
+        Ok(())
     }
 }
 
@@ -285,7 +297,10 @@ pub extern "C" fn micyou_plugin_handle_event(
     mpl_result_t::MPL_OK
 }
 
-/// 跨端消息 / UI 动作：topic `ui:play`，payload `{"id":"x"}` 时播放对应音效
+/// 跨端消息 / UI 动作：
+/// - topic `ui:play`：payload `{"id":"x"}` 播放对应音效
+/// - topic `ui:log`：payload `{"message":"..."}` 记录面板日志
+/// - topic `hotkey:<id>`：全局快捷键触发，播放第一个音效
 /// # Safety
 /// `topic` 必须为 NUL 结尾字符串，`payload` 必须指向 payload_len 字节
 #[unsafe(no_mangle)]
@@ -300,46 +315,75 @@ pub unsafe extern "C" fn micyou_plugin_handle_message(
         let Ok(topic_str) = (unsafe { CStr::from_ptr(topic) }).to_str() else {
             return mpl_result_t::MPL_ERR_INVALID_ARG;
         };
+        // 全局快捷键：播放第一个音效
+        if topic_str.starts_with("hotkey:") {
+            let sounds = unsafe { &SOUNDS };
+            let Some((id, _, _)) = sounds.first() else {
+                return mpl_result_t::MPL_OK;
+            };
+            return play_sound_by_id(id);
+        }
         if !topic_str.starts_with("ui:") {
-            return mpl_result_t::MPL_OK; // 非 UI 动作，忽略
+            return mpl_result_t::MPL_OK; // 其他主题，忽略
         }
         let action = &topic_str[3..];
+        if action == "log" {
+            let msg = body_string(payload, payload_len).unwrap_or_default();
+            unsafe { log_info(&format!("soundpad panel: {msg}")) };
+            return mpl_result_t::MPL_OK;
+        }
         if action != "play" {
             return mpl_result_t::MPL_OK;
         }
-        if payload.is_null() || payload_len == 0 {
-            return mpl_result_t::MPL_ERR_INVALID_ARG;
-        }
-        let body = unsafe { std::slice::from_raw_parts(payload, payload_len as usize) };
-        let parsed: serde_json::Value =
-            match serde_json::from_slice(body) {
-                Ok(v) => v,
-                Err(_) => return mpl_result_t::MPL_ERR_INVALID_ARG,
-            };
-        let Some(id) = parsed.get("id").and_then(|v| v.as_str()) else {
+        let Some(id) = parsed_id(payload, payload_len) else {
             return mpl_result_t::MPL_ERR_INVALID_ARG;
         };
-        let sounds = unsafe { &SOUNDS };
-        let Some((_, _, file)) = sounds.iter().find(|(sid, _, _)| sid == id) else {
-            let msg = format!("soundpad: unknown sound {id}");
-            unsafe { log_info(&msg) };
-            return mpl_result_t::MPL_ERR_INVALID_ARG;
-        };
-        let c = match CString::new(file.clone()) {
-            Ok(c) => c,
-            Err(_) => return mpl_result_t::MPL_ERR_INVALID_ARG,
-        };
-        unsafe {
-            let h = host();
-            let code = (h.play_sound)(h.ctx, c.as_ptr());
-            if code != mpl_result_t::MPL_OK {
-                let msg = format!("soundpad: play failed for {id}");
-                log_info(&msg);
-                return code;
-            }
-        }
-        let msg = format!("soundpad: playing {id}");
-        unsafe { log_info(&msg) };
-        mpl_result_t::MPL_OK
+        play_sound_by_id(&id)
     })
+}
+
+/// 解析 payload 中的 `{"id":"x"}`，返回 id
+unsafe fn parsed_id(payload: *const u8, payload_len: u32) -> Option<String> {
+    if payload.is_null() || payload_len == 0 {
+        return None;
+    }
+    let body = unsafe { std::slice::from_raw_parts(payload, payload_len as usize) };
+    let parsed: serde_json::Value = serde_json::from_slice(body).ok()?;
+    parsed.get("id").and_then(|v| v.as_str()).map(String::from)
+}
+
+/// payload 原样转为字符串（面板日志等）
+unsafe fn body_string(payload: *const u8, payload_len: u32) -> Option<String> {
+    if payload.is_null() || payload_len == 0 {
+        return None;
+    }
+    let body = unsafe { std::slice::from_raw_parts(payload, payload_len as usize) };
+    String::from_utf8(body.to_vec()).ok()
+}
+
+/// 按 id 查表并调用 host.play_sound
+#[allow(static_mut_refs)]
+fn play_sound_by_id(id: &str) -> mpl_result_t {
+    let sounds = unsafe { &SOUNDS };
+    let Some((_, _, file)) = sounds.iter().find(|(sid, _, _)| sid == id) else {
+        let msg = format!("soundpad: unknown sound {id}");
+        unsafe { log_info(&msg) };
+        return mpl_result_t::MPL_ERR_INVALID_ARG;
+    };
+    let c = match CString::new(file.clone()) {
+        Ok(c) => c,
+        Err(_) => return mpl_result_t::MPL_ERR_INVALID_ARG,
+    };
+    unsafe {
+        let h = host();
+        let code = (h.play_sound)(h.ctx, c.as_ptr());
+        if code != mpl_result_t::MPL_OK {
+            let msg = format!("soundpad: play failed for {id}");
+            log_info(&msg);
+            return code;
+        }
+    }
+    let msg = format!("soundpad: playing {id}");
+    unsafe { log_info(&msg) };
+    mpl_result_t::MPL_OK
 }

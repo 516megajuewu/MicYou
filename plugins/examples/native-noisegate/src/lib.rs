@@ -116,7 +116,12 @@ unsafe fn load_config() {
         ] {
             let mut buf = [0i8; 128];
             let mut size: u32 = buf.len() as u32;
-            let code = (h.get_config)(h.ctx, key.as_ptr() as *const c_char, buf.as_mut_ptr(), &mut size);
+            let code = (h.get_config)(
+                h.ctx,
+                key.as_ptr() as *const c_char,
+                buf.as_mut_ptr(),
+                &mut size,
+            );
             if code == mpl_result_t::MPL_OK && size > 0 {
                 let text = CStr::from_ptr(buf.as_ptr()).to_string_lossy().to_string();
                 if let Ok(v) = text.trim().parse::<f64>() {
