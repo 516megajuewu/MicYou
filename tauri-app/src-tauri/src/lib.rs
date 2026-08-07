@@ -13,6 +13,7 @@ pub mod network;
 pub mod opus;
 #[cfg(target_os = "linux")]
 pub mod pipewire;
+pub mod plugins;
 pub mod server;
 pub mod stats;
 pub mod tcp_server;
@@ -80,6 +81,7 @@ pub fn run() {
             takeover_lock: Arc::new(Mutex::new(())),
             active_audio_session: Arc::new(RwLock::new(Default::default())),
             audio_output: crate::audio_output::AudioOutputHandle::spawn(),
+            plugins: Arc::new(crate::plugins::PluginHost::new()),
             #[cfg(feature = "web-server")]
             web_server: Arc::new(Mutex::new(None)),
             #[cfg(feature = "web-server")]

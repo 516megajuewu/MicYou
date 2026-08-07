@@ -6,7 +6,7 @@
 //! delivery and fuel-metered sandboxing.
 
 use micyou_plugin::host::{AudioStateSnapshot, DeviceSnapshot, HostApi, MessageTarget};
-use micyou_plugin::manifest::{PluginManifest, PluginKind, RuntimeKind};
+use micyou_plugin::manifest::{PluginKind, PluginManifest, RuntimeKind};
 use micyou_plugin::plugin::{AudioFrameCtx, PluginEvent, PluginRuntime};
 use micyou_plugin::PluginLogLevel;
 use std::path::Path;
@@ -47,11 +47,19 @@ impl HostApi for MockHost {
         self.config.lock().unwrap().insert(key.into(), value);
         Ok(())
     }
-    fn emit_event(&self, topic: &str, payload: serde_json::Value) -> micyou_plugin::PluginResult<()> {
+    fn emit_event(
+        &self,
+        topic: &str,
+        payload: serde_json::Value,
+    ) -> micyou_plugin::PluginResult<()> {
         self.emitted.lock().unwrap().push((topic.into(), payload));
         Ok(())
     }
-    fn send_message(&self, target: MessageTarget, payload: Vec<u8>) -> micyou_plugin::PluginResult<()> {
+    fn send_message(
+        &self,
+        target: MessageTarget,
+        payload: Vec<u8>,
+    ) -> micyou_plugin::PluginResult<()> {
         self.sent.lock().unwrap().push((target, payload));
         Ok(())
     }
@@ -164,9 +172,8 @@ fn wasm_plugin_delivers_events_and_messages() {
         .handle_message("test.wasm.peer", "plugin:test.wasm.fixture", b"hello")
         .unwrap();
 
-    let events: wasmi::TypedFunc<(), i32> = plugin
-        .export("test_events")
-        .expect("test_events export");
+    let events: wasmi::TypedFunc<(), i32> =
+        plugin.export("test_events").expect("test_events export");
     let messages: wasmi::TypedFunc<(), i32> = plugin
         .export("test_messages")
         .expect("test_messages export");
@@ -185,7 +192,10 @@ fn wasm_plugin_host_get_config_roundtrip() {
     let ptr = get_config.call(plugin.store_mut(), ()).unwrap();
     assert!(ptr > 0, "host must return an allocated JSON pointer");
     let value = plugin.read_str(ptr).expect("read string from memory");
-    assert!(value.contains("enabled"), "config JSON missing key: {value}");
+    assert!(
+        value.contains("enabled"),
+        "config JSON missing key: {value}"
+    );
 }
 
 #[test]
@@ -193,11 +203,8 @@ fn wasm_plugin_rejects_api_version_mismatch() {
     let host = MockHost::new();
     let mut manifest = fixture_manifest();
     manifest.api_version = 99;
-    let result = micyou_plugin::wasm::WasmPlugin::from_bytes(
-        manifest,
-        fixture_wasm_bytes(),
-        host.clone(),
-    );
+    let result =
+        micyou_plugin::wasm::WasmPlugin::from_bytes(manifest, fixture_wasm_bytes(), host.clone());
     assert!(matches!(
         result,
         Err(micyou_plugin::PluginError::ApiVersionMismatch { plugin: 99, .. })
@@ -212,7 +219,10 @@ fn wasm_plugin_missing_module_reports_not_found() {
         Path::new("/nonexistent/plugin/dir"),
         host.clone(),
     );
-    assert!(matches!(result, Err(micyou_plugin::PluginError::NotFound(_))));
+    assert!(matches!(
+        result,
+        Err(micyou_plugin::PluginError::NotFound(_))
+    ));
 }
 
 #[test]
@@ -258,8 +268,8 @@ fn wasm_plugin_missing_optional_exports_are_skipped() {
     let host = MockHost::new();
     let mut manifest = fixture_manifest();
     manifest.kind = PluginKind::Utility;
-    let mut plugin = micyou_plugin::wasm::WasmPlugin::from_bytes(manifest, minimal, host.clone())
-        .unwrap();
+    let mut plugin =
+        micyou_plugin::wasm::WasmPlugin::from_bytes(manifest, minimal, host.clone()).unwrap();
     plugin.init(&*host).unwrap();
     let mut data = vec![1.0f32];
     let mut ctx = AudioFrameCtx {
@@ -275,7 +285,5 @@ fn wasm_plugin_missing_optional_exports_are_skipped() {
     plugin
         .handle_event(&PluginEvent::DspSettingsChanged)
         .unwrap();
-    plugin
-        .handle_message("src", "topic", b"data")
-        .unwrap();
+    plugin.handle_message("src", "topic", b"data").unwrap();
 }

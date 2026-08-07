@@ -45,20 +45,11 @@ pub enum mpl_log_level_t {
 #[derive(Clone, Copy)]
 pub struct mpl_host_api_t {
     log: unsafe extern "C" fn(*mut c_void, mpl_log_level_t, *const c_char),
-    get_config: unsafe extern "C" fn(
-        *mut c_void,
-        *const c_char,
-        *mut c_char,
-        *mut u32,
-    ) -> mpl_result_t,
+    get_config:
+        unsafe extern "C" fn(*mut c_void, *const c_char, *mut c_char, *mut u32) -> mpl_result_t,
     set_config: unsafe extern "C" fn(*mut c_void, *const c_char, *const c_char) -> mpl_result_t,
     emit_event: unsafe extern "C" fn(*mut c_void, *const c_char, *const c_char) -> mpl_result_t,
-    send_message: unsafe extern "C" fn(
-        *mut c_void,
-        *const c_char,
-        *const u8,
-        u32,
-    ) -> mpl_result_t,
+    send_message: unsafe extern "C" fn(*mut c_void, *const c_char, *const u8, u32) -> mpl_result_t,
     audio_state: unsafe extern "C" fn(*mut c_void, *mut c_char, *mut u32) -> mpl_result_t,
     connected_devices: unsafe extern "C" fn(*mut c_void, *mut c_char, *mut u32) -> mpl_result_t,
     ctx: *mut c_void,
@@ -255,7 +246,9 @@ pub unsafe extern "C" fn test_native_host_call() -> mpl_result_t {
             )
         };
         if result == mpl_result_t::MPL_OK {
-            let value = unsafe { CStr::from_ptr(buf.as_ptr()) }.to_string_lossy().to_string();
+            let value = unsafe { CStr::from_ptr(buf.as_ptr()) }
+                .to_string_lossy()
+                .to_string();
             let msg = format!("fixture config = {value}");
             unsafe {
                 (host.log)(

@@ -11,6 +11,7 @@
 //! and (in a future phase) Android with a different loading implementation.
 
 pub mod abi;
+pub mod dsp;
 pub mod error;
 pub mod host;
 pub mod manager;
@@ -19,14 +20,15 @@ pub mod native;
 pub mod plugin;
 pub mod wasm;
 
+pub use dsp::{DspNode, PluginDspBridge, PluginDspRegistry};
 pub use error::{PluginError, PluginResult};
 pub use host::{AudioStateSnapshot, DeviceSnapshot, HostApi, MessageTarget, PluginLogLevel};
 pub use manager::{PluginEntry, PluginManager, PluginPersistedState, ScanReport};
 pub use manifest::{
-    capabilities, platforms, DspDescriptor, PluginManifest, PluginKind, RuntimeKind,
-    UiDescriptor, HOST_API_VERSION, KNOWN_CAPABILITIES, MANIFEST_FILE_NAME,
+    capabilities, platforms, DspDescriptor, PluginKind, PluginManifest, RuntimeKind, UiDescriptor,
+    HOST_API_VERSION, KNOWN_CAPABILITIES, MANIFEST_FILE_NAME,
 };
 pub use plugin::{
-    message_topic, require_capability, AudioFrameCtx, PluginEvent, PluginInstance,
-    PluginRuntime, PluginState, ProcessStatus,
+    message_topic, require_capability, AudioFrameCtx, PluginEvent, PluginInstance, PluginRuntime,
+    PluginState, ProcessStatus,
 };

@@ -33,14 +33,21 @@ impl PluginState {
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum PluginEvent {
     /// A device (phone/web client) connected or disconnected.
-    DeviceConnected { mode: String, label: String },
+    DeviceConnected {
+        mode: String,
+        label: String,
+    },
     DeviceDisconnected,
     /// Mute state changed by the user.
-    MuteChanged { muted: bool },
+    MuteChanged {
+        muted: bool,
+    },
     /// The DSP settings changed (chain reordered, a node toggled).
     DspSettingsChanged,
     /// The plugin was enabled or disabled while the host kept running.
-    StateChanged { enabled: bool },
+    StateChanged {
+        enabled: bool,
+    },
 }
 
 /// An audio frame handed to a DSP plugin node.

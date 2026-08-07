@@ -34,17 +34,24 @@ impl fmt::Display for PluginError {
         match self {
             PluginError::NotFound(what) => write!(f, "plugin artifact not found: {what}"),
             PluginError::InvalidManifest(reason) => write!(f, "invalid plugin manifest: {reason}"),
-            PluginError::Validation(reason) => write!(f, "plugin manifest validation failed: {reason}"),
+            PluginError::Validation(reason) => {
+                write!(f, "plugin manifest validation failed: {reason}")
+            }
             PluginError::UnknownPlugin(id) => write!(f, "unknown plugin: {id}"),
             PluginError::NotLoaded(id) => write!(f, "plugin is not loaded: {id}"),
             PluginError::LoadFailed(reason) => write!(f, "plugin load failed: {reason}"),
             PluginError::ApiVersionMismatch { plugin, host } => {
-                write!(f, "plugin requires Host API v{plugin}, host provides v{host}")
+                write!(
+                    f,
+                    "plugin requires Host API v{plugin}, host provides v{host}"
+                )
             }
             PluginError::PermissionDenied(cap) => write!(f, "capability not granted: {cap}"),
             PluginError::AlreadyExists(what) => write!(f, "plugin already exists: {what}"),
             PluginError::Runtime(reason) => write!(f, "plugin runtime error: {reason}"),
-            PluginError::MessageDelivery(reason) => write!(f, "plugin message delivery failed: {reason}"),
+            PluginError::MessageDelivery(reason) => {
+                write!(f, "plugin message delivery failed: {reason}")
+            }
             PluginError::Io(reason) => write!(f, "plugin state I/O failed: {reason}"),
         }
     }

@@ -8,9 +8,7 @@ use crate::abi::{
 use crate::error::{PluginError, PluginResult};
 use crate::host::HostApi;
 use crate::manifest::PluginManifest;
-use crate::plugin::{
-    AudioFrameCtx, PluginEvent, PluginInstance, PluginRuntime, ProcessStatus,
-};
+use crate::plugin::{AudioFrameCtx, PluginEvent, PluginInstance, PluginRuntime, ProcessStatus};
 use libloading::{Library, Symbol};
 use std::ffi::{c_char, CStr, CString};
 use std::path::Path;
@@ -19,11 +17,9 @@ use std::sync::Arc;
 type InfoFn = unsafe extern "C" fn() -> *const mpl_plugin_info_t;
 type InitFn = unsafe extern "C" fn(*const mpl_host_api_t) -> mpl_result_t;
 type DeinitFn = unsafe extern "C" fn();
-type ProcessFn =
-    unsafe extern "C" fn(*mut f32, u32, u32, f64, *mut u32) -> mpl_result_t;
+type ProcessFn = unsafe extern "C" fn(*mut f32, u32, u32, f64, *mut u32) -> mpl_result_t;
 type EventFn = unsafe extern "C" fn(*const c_char, *const c_char) -> mpl_result_t;
-type MessageFn =
-    unsafe extern "C" fn(*const c_char, *const c_char, *const u8, u32) -> mpl_result_t;
+type MessageFn = unsafe extern "C" fn(*const c_char, *const c_char, *const u8, u32) -> mpl_result_t;
 
 /// A loaded native plugin. Keeps the `Library` (and thus the exported
 /// function pointers) alive for its whole lifetime.
@@ -72,9 +68,8 @@ impl NativePlugin {
                 });
             }
 
-            let lib = Library::new(&entry).map_err(|e| {
-                PluginError::LoadFailed(format!("{}: {e}", entry.display()))
-            })?;
+            let lib = Library::new(&entry)
+                .map_err(|e| PluginError::LoadFailed(format!("{}: {e}", entry.display())))?;
 
             // ── Version handshake ──
             let info_fn: Symbol<'_, InfoFn> = lib
@@ -120,9 +115,8 @@ impl NativePlugin {
             let f_init: Symbol<'_, InitFn> = lib
                 .get(b"micyou_plugin_init\0")
                 .map_err(|e| PluginError::LoadFailed(format!("missing micyou_plugin_init: {e}")))?;
-            let f_deinit: Symbol<'_, DeinitFn> = lib
-                .get(b"micyou_plugin_deinit\0")
-                .map_err(|e| {
+            let f_deinit: Symbol<'_, DeinitFn> =
+                lib.get(b"micyou_plugin_deinit\0").map_err(|e| {
                     PluginError::LoadFailed(format!("missing micyou_plugin_deinit: {e}"))
                 })?;
             let f_init: Symbol<'static, InitFn> = transmute_symbol(f_init);
@@ -150,8 +144,7 @@ impl NativePlugin {
             // ── init ──
             let code = (plugin.f_init)(&plugin.host_table);
             if code != mpl_result_t::MPL_OK {
-                return Err(abi::result_from_code(code, "micyou_plugin_init")
-                    .unwrap_err());
+                return Err(abi::result_from_code(code, "micyou_plugin_init").unwrap_err());
             }
             Ok(plugin)
         }
@@ -218,8 +211,8 @@ impl PluginRuntime for NativePlugin {
         let Some(f_event) = &self.f_event else {
             return Ok(());
         };
-        let event_type = serde_json::to_string(event)
-            .map_err(|e| PluginError::Runtime(e.to_string()))?;
+        let event_type =
+            serde_json::to_string(event).map_err(|e| PluginError::Runtime(e.to_string()))?;
         let type_name = CString::new(match event {
             PluginEvent::DeviceConnected { .. } => "device_connected",
             PluginEvent::DeviceDisconnected => "device_disconnected",
@@ -233,12 +226,7 @@ impl PluginRuntime for NativePlugin {
         abi::result_from_code(code, "micyou_plugin_handle_event")
     }
 
-    fn handle_message(
-        &mut self,
-        source: &str,
-        topic: &str,
-        payload: &[u8],
-    ) -> PluginResult<()> {
+    fn handle_message(&mut self, source: &str, topic: &str, payload: &[u8]) -> PluginResult<()> {
         let Some(f_message) = &self.f_message else {
             return Ok(());
         };

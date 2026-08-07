@@ -19,7 +19,7 @@ use crate::plugin::{PluginInstance, PluginRuntime, PluginState};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::RwLock;
+use std::sync::{Mutex, RwLock};
 
 /// Per-plugin persisted state.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -67,7 +67,9 @@ pub struct PluginManager {
     state_path: PathBuf,
     entries: RwLock<HashMap<String, PluginEntry>>,
     /// Loaded runtime instances (native/wasm), filled by the loaders.
-    instances: RwLock<HashMap<String, PluginInstance>>,
+    /// `Mutex` (not `RwLock`) because `PluginInstance` is only `Send` and std's
+    /// `RwLock<T>: Sync` would require `T: Send + Sync`.
+    instances: Mutex<HashMap<String, PluginInstance>>,
 }
 
 impl PluginManager {
@@ -76,7 +78,7 @@ impl PluginManager {
             plugins_dir,
             state_path,
             entries: RwLock::new(HashMap::new()),
-            instances: RwLock::new(HashMap::new()),
+            instances: Mutex::new(HashMap::new()),
         }
     }
 
@@ -108,10 +110,7 @@ impl PluginManager {
             match PluginManifest::load_from_dir(&path) {
                 Ok(manifest) => {
                     let id = manifest.id.clone();
-                    let enabled = persisted
-                        .get(&id)
-                        .map(|s| s.enabled)
-                        .unwrap_or(false);
+                    let enabled = persisted.get(&id).map(|s| s.enabled).unwrap_or(false);
                     entries.insert(
                         id.clone(),
                         PluginEntry {
@@ -165,7 +164,7 @@ impl PluginManager {
 
     /// Remove a plugin from the registry (and drop any loaded instance).
     pub fn remove_plugin(&mut self, id: &str) -> PluginResult<()> {
-        let mut instances = self.instances.write().map_err(|_| poisoned())?;
+        let mut instances = self.instances.lock().map_err(|_| poisoned())?;
         if let Some(mut instance) = instances.remove(id) {
             instance.deinit();
         }
@@ -234,7 +233,7 @@ impl PluginManager {
                 "{id} is disabled; enable it before loading"
             )));
         }
-        let mut instances = self.instances.write().map_err(|_| poisoned())?;
+        let mut instances = self.instances.lock().map_err(|_| poisoned())?;
         if instances.contains_key(&id) {
             return Err(PluginError::AlreadyExists(format!(
                 "instance for {id} already loaded"
@@ -245,7 +244,7 @@ impl PluginManager {
     }
 
     pub fn unregister_instance(&self, id: &str) -> PluginResult<()> {
-        let mut instances = self.instances.write().map_err(|_| poisoned())?;
+        let mut instances = self.instances.lock().map_err(|_| poisoned())?;
         if let Some(mut instance) = instances.remove(id) {
             instance.deinit();
         }
@@ -254,7 +253,7 @@ impl PluginManager {
 
     /// Borrow a loaded instance's runtime mutably.
     pub fn instance_mut(&self, id: &str) -> PluginResult<PluginInstance> {
-        let mut instances = self.instances.write().map_err(|_| poisoned())?;
+        let mut instances = self.instances.lock().map_err(|_| poisoned())?;
         instances
             .remove(id)
             .ok_or_else(|| PluginError::NotLoaded(id.to_string()))
@@ -262,14 +261,14 @@ impl PluginManager {
 
     /// Give a loaded instance back (paired with `instance_mut`).
     pub fn return_instance(&self, id: &str, instance: PluginInstance) {
-        if let Ok(mut instances) = self.instances.write() {
+        if let Ok(mut instances) = self.instances.lock() {
             instances.insert(id.to_string(), instance);
         }
     }
 
     pub fn loaded_ids(&self) -> Vec<String> {
         self.instances
-            .read()
+            .lock()
             .map_err(|_| poisoned())
             .map(|g| g.keys().cloned().collect())
             .unwrap_or_default()
@@ -277,7 +276,7 @@ impl PluginManager {
 
     pub fn is_loaded(&self, id: &str) -> bool {
         self.instances
-            .read()
+            .lock()
             .map(|g| g.contains_key(id))
             .unwrap_or(false)
     }
@@ -308,8 +307,8 @@ impl PluginManager {
         if let Some(parent) = self.state_path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        let json = serde_json::to_string_pretty(&state)
-            .map_err(|e| PluginError::Io(e.to_string()))?;
+        let json =
+            serde_json::to_string_pretty(&state).map_err(|e| PluginError::Io(e.to_string()))?;
         std::fs::write(&self.state_path, json).map_err(|e| PluginError::Io(e.to_string()))
     }
 }
@@ -353,8 +352,18 @@ mod tests {
     fn scan_discovers_valid_plugins_and_skips_broken_dirs() {
         let root = temp_dir("scan");
         let plugins_dir = root.join("plugins");
-        write_manifest(&plugins_dir.join("dev.micyou.alpha"), "dev.micyou.alpha", RuntimeKind::Native, "liba.so");
-        write_manifest(&plugins_dir.join("dev.micyou.beta"), "dev.micyou.beta", RuntimeKind::Wasm, "b.wasm");
+        write_manifest(
+            &plugins_dir.join("dev.micyou.alpha"),
+            "dev.micyou.alpha",
+            RuntimeKind::Native,
+            "liba.so",
+        );
+        write_manifest(
+            &plugins_dir.join("dev.micyou.beta"),
+            "dev.micyou.beta",
+            RuntimeKind::Wasm,
+            "b.wasm",
+        );
         fs::create_dir_all(plugins_dir.join("broken-dir")).unwrap(); // no manifest
 
         let mut manager = PluginManager::new(plugins_dir.clone(), root.join("state.json"));
@@ -372,7 +381,12 @@ mod tests {
         let root = temp_dir("state");
         let plugins_dir = root.join("plugins");
         let state_path = root.join("state.json");
-        write_manifest(&plugins_dir.join("dev.micyou.alpha"), "dev.micyou.alpha", RuntimeKind::Native, "liba.so");
+        write_manifest(
+            &plugins_dir.join("dev.micyou.alpha"),
+            "dev.micyou.alpha",
+            RuntimeKind::Native,
+            "liba.so",
+        );
 
         {
             let mut manager = PluginManager::new(plugins_dir.clone(), state_path.clone());
@@ -394,8 +408,15 @@ mod tests {
         let root = temp_dir("discover");
         let plugins_dir = root.join("plugins");
         let mut manager = PluginManager::new(plugins_dir.clone(), root.join("state.json"));
-        write_manifest(&plugins_dir.join("dev.micyou.gamma"), "dev.micyou.gamma", RuntimeKind::Wasm, "g.wasm");
-        let id = manager.discover_plugin(plugins_dir.join("dev.micyou.gamma")).unwrap();
+        write_manifest(
+            &plugins_dir.join("dev.micyou.gamma"),
+            "dev.micyou.gamma",
+            RuntimeKind::Wasm,
+            "g.wasm",
+        );
+        let id = manager
+            .discover_plugin(plugins_dir.join("dev.micyou.gamma"))
+            .unwrap();
         assert_eq!(id, "dev.micyou.gamma");
         assert!(manager.is_enabled(&id).unwrap() == false);
 
@@ -409,7 +430,12 @@ mod tests {
         let root = temp_dir("instance");
         let plugins_dir = root.join("plugins");
         let mut manager = PluginManager::new(plugins_dir.clone(), root.join("state.json"));
-        write_manifest(&plugins_dir.join("dev.micyou.alpha"), "dev.micyou.alpha", RuntimeKind::Native, "liba.so");
+        write_manifest(
+            &plugins_dir.join("dev.micyou.alpha"),
+            "dev.micyou.alpha",
+            RuntimeKind::Native,
+            "liba.so",
+        );
         manager.scan().unwrap();
 
         // Disabled → load rejected
@@ -417,7 +443,9 @@ mod tests {
         assert!(matches!(result, Err(PluginError::NotLoaded(_))));
 
         manager.set_enabled("dev.micyou.alpha", true).unwrap();
-        manager.register_instance(dummy_instance("dev.micyou.alpha")).unwrap();
+        manager
+            .register_instance(dummy_instance("dev.micyou.alpha"))
+            .unwrap();
         assert!(manager.is_loaded("dev.micyou.alpha"));
         assert_eq!(manager.loaded_ids(), vec!["dev.micyou.alpha".to_string()]);
 

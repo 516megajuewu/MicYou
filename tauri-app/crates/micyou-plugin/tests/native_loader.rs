@@ -7,7 +7,7 @@
 
 use libloading::Library;
 use micyou_plugin::host::{AudioStateSnapshot, DeviceSnapshot, HostApi, MessageTarget};
-use micyou_plugin::manifest::{PluginManifest, PluginKind, RuntimeKind};
+use micyou_plugin::manifest::{PluginKind, PluginManifest, RuntimeKind};
 use micyou_plugin::plugin::{AudioFrameCtx, PluginEvent, PluginRuntime};
 use micyou_plugin::PluginLogLevel;
 use std::path::PathBuf;
@@ -205,12 +205,9 @@ fn test_helpers(dylib: &PathBuf) -> Library {
 fn native_plugin_loads_and_processes_audio() {
     let (dir, dylib, manifest) = stage_fixture();
     let host = MockHost::new();
-    let mut instance = micyou_plugin::native::load_native_instance(
-        manifest.clone(),
-        dir.path(),
-        host.clone(),
-    )
-    .expect("fixture must load");
+    let mut instance =
+        micyou_plugin::native::load_native_instance(manifest.clone(), dir.path(), host.clone())
+            .expect("fixture must load");
     assert_eq!(instance.id(), "test.native.minimal");
     assert_eq!(instance.runtime_kind(), RuntimeKind::Native);
 
@@ -255,12 +252,8 @@ fn native_plugin_loads_and_processes_audio() {
 fn native_plugin_delivers_events_and_messages() {
     let (dir, dylib, manifest) = stage_fixture();
     let host = MockHost::new();
-    let mut instance = micyou_plugin::native::load_native_instance(
-        manifest,
-        dir.path(),
-        host.clone(),
-    )
-    .unwrap();
+    let mut instance =
+        micyou_plugin::native::load_native_instance(manifest, dir.path(), host.clone()).unwrap();
 
     instance
         .handle_event(&PluginEvent::MuteChanged { muted: true })
@@ -277,7 +270,9 @@ fn native_plugin_delivers_events_and_messages() {
 
     let helpers = test_helpers(&dylib);
     unsafe {
-        let events = helpers.get::<unsafe extern "C" fn() -> i32>(b"test_native_events\0").unwrap()();
+        let events = helpers
+            .get::<unsafe extern "C" fn() -> i32>(b"test_native_events\0")
+            .unwrap()();
         let messages = helpers
             .get::<unsafe extern "C" fn() -> i32>(b"test_native_messages\0")
             .unwrap()();
@@ -290,12 +285,8 @@ fn native_plugin_delivers_events_and_messages() {
 fn native_plugin_host_callbacks_work() {
     let (dir, dylib, manifest) = stage_fixture();
     let host = MockHost::new();
-    let instance = micyou_plugin::native::load_native_instance(
-        manifest,
-        dir.path(),
-        host.clone(),
-    )
-    .unwrap();
+    let instance =
+        micyou_plugin::native::load_native_instance(manifest, dir.path(), host.clone()).unwrap();
 
     // The fixture's test_native_host_call reads "fixture.key" through the host
     // table of the shared module (HOST is set by init while the instance lives).
@@ -312,7 +303,8 @@ fn native_plugin_host_callbacks_work() {
     {
         let logs = host.log_lines.lock().unwrap();
         assert!(
-            logs.iter().any(|l| l.contains("fixture config") && l.contains("enabled")),
+            logs.iter()
+                .any(|l| l.contains("fixture config") && l.contains("enabled")),
             "expected fixture config log, got: {logs:?}"
         );
     }
@@ -326,7 +318,10 @@ fn native_plugin_rejects_id_mismatch_and_wrong_abi() {
     manifest.id = "test.native.other".to_string();
     let host = MockHost::new();
     let result = micyou_plugin::native::load_native_instance(manifest, dir.path(), host.clone());
-    assert!(matches!(result, Err(micyou_plugin::PluginError::Validation(_))));
+    assert!(matches!(
+        result,
+        Err(micyou_plugin::PluginError::Validation(_))
+    ));
 
     // wrong host API version
     let (dir2, _dylib2, mut manifest) = stage_fixture();
@@ -346,19 +341,18 @@ fn native_plugin_missing_entry_reports_not_found() {
         PathBuf::from("/nonexistent/plugin/dir").as_path(),
         host.clone(),
     );
-    assert!(matches!(result, Err(micyou_plugin::PluginError::NotFound(_))));
+    assert!(matches!(
+        result,
+        Err(micyou_plugin::PluginError::NotFound(_))
+    ));
 }
 
 #[test]
 fn native_plugin_deinit_is_called_once() {
     let (dir, _dylib, manifest) = stage_fixture();
     let host = MockHost::new();
-    let instance = micyou_plugin::native::load_native_instance(
-        manifest,
-        dir.path(),
-        host.clone(),
-    )
-    .unwrap();
+    let instance =
+        micyou_plugin::native::load_native_instance(manifest, dir.path(), host.clone()).unwrap();
     drop(instance); // triggers deinit through Drop
     let logs = host.log_lines.lock().unwrap();
     let deinit_logs = logs.iter().filter(|l| l.contains("deinitialized")).count();

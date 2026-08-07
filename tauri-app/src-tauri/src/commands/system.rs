@@ -422,6 +422,9 @@ pub async fn start_server_inner(
     }
 
     let dsp_settings = state.dsp_settings.clone();
+    // Make sure the synthetic "Plugins" node is in the chain when DSP
+    // plugins are registered (runtime-only change, user can reorder).
+    state.plugins.ensure_plugin_chain_node(&dsp_settings);
     let output_buffer_ms = dsp_settings
         .read()
         .map(|s| (s.output_buffer_ms as usize).clamp(100, 1200))
@@ -448,6 +451,7 @@ pub async fn start_server_inner(
     // first server start) and shared across server restarts. The audio thread
     // only pushes decoded PCM into it; it never owns or tears it down.
     let audio_output_shared = state.audio_output.clone();
+    let plugins_shared = state.plugins.clone();
 
     let audio_thread = std::thread::spawn(move || {
         // Ensure the virtual device is open. This is normally a no-op (already
@@ -463,6 +467,10 @@ pub async fn start_server_inner(
         }
         let _ = ready_tx.send(Ok(()));
         let mut dsp_processor = DspProcessor::new(dsp_settings.clone(), resource_root);
+        // Attach the plugin DSP stage (runs when the chain reaches "Plugins").
+        if let Some(hook) = plugins_shared.dsp_hook() {
+            dsp_processor.set_external_hook(Some(hook));
+        }
         let mut jb = crate::jitter_buffer::JitterBuffer::new(12);
         let mut frame_counter: u32 = 0;
         let mut input_resampler: Option<micyou_audio::RubatoResampler> = None;

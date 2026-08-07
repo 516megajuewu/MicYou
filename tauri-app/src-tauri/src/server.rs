@@ -164,6 +164,8 @@ pub struct ServerState {
     /// first server start for CLI/TUI) and only closed when the process exits.
     /// Server start/stop and phone connect/disconnect never tear it down.
     pub audio_output: Arc<crate::audio_output::AudioOutputHandle>,
+    /// Plugin host: manager + DSP node registry, shared with the audio thread.
+    pub plugins: Arc<crate::plugins::PluginHost>,
     #[cfg(feature = "web-server")]
     pub web_server: Arc<Mutex<Option<crate::web_server::WebServer>>>,
     #[cfg(feature = "web-server")]

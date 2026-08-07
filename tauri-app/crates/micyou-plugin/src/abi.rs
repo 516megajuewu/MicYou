@@ -13,7 +13,7 @@
 
 use crate::error::{PluginError, PluginResult};
 use crate::host::{HostApi, MessageTarget, PluginLogLevel};
-use std::ffi::{CStr, CString, c_char, c_void};
+use std::ffi::{c_char, c_void, CStr, CString};
 use std::sync::Arc;
 
 /// ABI version of the struct layouts in this module.
@@ -58,11 +58,7 @@ impl From<mpl_log_level_t> for PluginLogLevel {
 #[repr(C)]
 #[derive(Clone)]
 pub struct mpl_host_api_t {
-    pub log: unsafe extern "C" fn(
-        ctx: *mut c_void,
-        level: mpl_log_level_t,
-        msg: *const c_char,
-    ),
+    pub log: unsafe extern "C" fn(ctx: *mut c_void, level: mpl_log_level_t, msg: *const c_char),
     pub get_config: unsafe extern "C" fn(
         ctx: *mut c_void,
         key: *const c_char,
@@ -335,15 +331,13 @@ pub fn result_from_code(code: mpl_result_t, context: &str) -> PluginResult<()> {
         mpl_result_t::MPL_ERR_INVALID_ARG => {
             Err(PluginError::Runtime(format!("{context}: invalid argument")))
         }
-        mpl_result_t::MPL_ERR_RUNTIME => {
-            Err(PluginError::Runtime(format!("{context}: plugin runtime error")))
-        }
+        mpl_result_t::MPL_ERR_RUNTIME => Err(PluginError::Runtime(format!(
+            "{context}: plugin runtime error"
+        ))),
         mpl_result_t::MPL_ERR_BUFFER_TOO_SMALL => {
             Err(PluginError::Runtime(format!("{context}: buffer too small")))
         }
-        mpl_result_t::MPL_ERR_PERMISSION => {
-            Err(PluginError::PermissionDenied(context.to_string()))
-        }
+        mpl_result_t::MPL_ERR_PERMISSION => Err(PluginError::PermissionDenied(context.to_string())),
     }
 }
 
@@ -351,4 +345,3 @@ pub fn result_from_code(code: mpl_result_t, context: &str) -> PluginResult<()> {
 pub fn cstr(value: &str) -> PluginResult<CString> {
     CString::new(value).map_err(|e| PluginError::Runtime(format!("invalid string: {e}")))
 }
-

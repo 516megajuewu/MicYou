@@ -3396,6 +3396,7 @@ dependencies = [
  "md-5",
  "mdns-sd",
  "micyou-audio",
+ "micyou-plugin",
  "micyou-protocol",
  "objc",
  "opus-decoder",

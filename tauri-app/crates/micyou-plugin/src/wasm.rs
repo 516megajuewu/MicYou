@@ -12,16 +12,16 @@
 //! interpreter latency cannot guarantee real-time safety.
 
 use crate::abi::mpl_result_t;
-use crate::host::PluginLogLevel;
 use crate::error::{PluginError, PluginResult};
 use crate::host::HostApi;
+use crate::host::PluginLogLevel;
 use crate::manifest::PluginManifest;
-use crate::plugin::{
-    AudioFrameCtx, PluginEvent, PluginInstance, PluginRuntime, ProcessStatus,
-};
+use crate::plugin::{AudioFrameCtx, PluginEvent, PluginInstance, PluginRuntime, ProcessStatus};
 use std::path::Path;
 use std::sync::Arc;
-use wasmi::{Config, Engine, Instance, Linker, Memory, Module, Store, TypedFunc, WasmParams, WasmResults};
+use wasmi::{
+    Config, Engine, Instance, Linker, Memory, Module, Store, TypedFunc, WasmParams, WasmResults,
+};
 
 /// Fuel granted to a plugin call before the engine traps it.
 const CALL_FUEL_BUDGET: u64 = 100_000;
@@ -153,7 +153,7 @@ impl WasmPlugin {
             .map_err(|e| PluginError::Runtime(format!("set fuel: {e}")))?;
         let result = f(self);
         // Fuel < 0 means the budget was exhausted mid-call.
-        if let Ok(_) = &result {
+        if result.is_ok() {
             if let Ok(fuel) = self.store.get_fuel() {
                 if fuel == 0 {
                     return Err(PluginError::Runtime(
@@ -222,10 +222,7 @@ impl WasmPlugin {
 
     /// Fetch a typed export without tripping the borrow checker (test/debug
     /// helper). Returns `None` when the export is missing or mis-typed.
-    pub fn export<Params, Results>(
-        &mut self,
-        name: &str,
-    ) -> Option<TypedFunc<Params, Results>>
+    pub fn export<Params, Results>(&mut self, name: &str) -> Option<TypedFunc<Params, Results>>
     where
         Params: WasmParams,
         Results: WasmResults,
@@ -266,7 +263,8 @@ impl WasmPlugin {
         let code = f_event
             .call(&mut self.store, (ptr,))
             .map_err(|e| PluginError::Runtime(format!("handle_event: {e}")))?;
-        self.f_dealloc.call(&mut self.store, (ptr, json.len() as i32 + 1))?;
+        self.f_dealloc
+            .call(&mut self.store, (ptr, json.len() as i32 + 1))?;
         result_from_wasm_code(code, "handle_event")
     }
 }
@@ -343,11 +341,7 @@ impl PluginRuntime for WasmPlugin {
             let processed = this.read_bytes(ptr, bytes.len())?;
             this.f_dealloc
                 .call(&mut this.store, (ptr, bytes.len() as i32))?;
-            for (sample, chunk) in ctx
-                .data
-                .iter_mut()
-                .zip(processed.chunks_exact(4))
-            {
+            for (sample, chunk) in ctx.data.iter_mut().zip(processed.chunks_exact(4)) {
                 *sample = f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
             }
             if code == 1 {
@@ -426,7 +420,10 @@ fn register_host_functions(linker: &mut Linker<WasmHostCtx>) {
             |mut caller: wasmi::Caller<'_, WasmHostCtx>,
              key_ptr: i32|
              -> Result<i32, wasmi::Error> {
-                caller.data().require(crate::manifest::capabilities::CONFIG_READ).map_err(|e| wasmi::Error::new(e.to_string()))?;
+                caller
+                    .data()
+                    .require(crate::manifest::capabilities::CONFIG_READ)
+                    .map_err(|e| wasmi::Error::new(e.to_string()))?;
                 let memory = export_memory(&caller)?;
                 let key = read_str_from_memory(&mut caller, &memory, key_ptr)?;
                 match caller.data().host.get_config(&key) {
@@ -450,7 +447,10 @@ fn register_host_functions(linker: &mut Linker<WasmHostCtx>) {
              key_ptr: i32,
              value_ptr: i32|
              -> Result<i32, wasmi::Error> {
-                caller.data().require(crate::manifest::capabilities::CONFIG_WRITE).map_err(|e| wasmi::Error::new(e.to_string()))?;
+                caller
+                    .data()
+                    .require(crate::manifest::capabilities::CONFIG_WRITE)
+                    .map_err(|e| wasmi::Error::new(e.to_string()))?;
                 let memory = export_memory(&caller)?;
                 let key = read_str_from_memory(&mut caller, &memory, key_ptr)?;
                 let value_json = read_str_from_memory(&mut caller, &memory, value_ptr)?;
@@ -475,7 +475,10 @@ fn register_host_functions(linker: &mut Linker<WasmHostCtx>) {
              topic_ptr: i32,
              payload_ptr: i32|
              -> Result<i32, wasmi::Error> {
-                caller.data().require(crate::manifest::capabilities::EVENT_EMIT).map_err(|e| wasmi::Error::new(e.to_string()))?;
+                caller
+                    .data()
+                    .require(crate::manifest::capabilities::EVENT_EMIT)
+                    .map_err(|e| wasmi::Error::new(e.to_string()))?;
                 let memory = export_memory(&caller)?;
                 let topic = read_str_from_memory(&mut caller, &memory, topic_ptr)?;
                 let payload_json = read_str_from_memory(&mut caller, &memory, payload_ptr)?;
@@ -501,12 +504,16 @@ fn register_host_functions(linker: &mut Linker<WasmHostCtx>) {
              payload_ptr: i32,
              payload_len: i32|
              -> Result<i32, wasmi::Error> {
-                caller.data().require(crate::manifest::capabilities::MESSAGE_SEND).map_err(|e| wasmi::Error::new(e.to_string()))?;
+                caller
+                    .data()
+                    .require(crate::manifest::capabilities::MESSAGE_SEND)
+                    .map_err(|e| wasmi::Error::new(e.to_string()))?;
                 let memory = export_memory(&caller)?;
                 let target_json = read_str_from_memory(&mut caller, &memory, target_ptr)?;
                 let target: crate::host::MessageTarget = serde_json::from_str(&target_json)
                     .map_err(|e| wasmi::Error::new(format!("invalid target: {e}")))?;
-                let payload = read_bytes_from_memory(&mut caller, &memory, payload_ptr, payload_len)?;
+                let payload =
+                    read_bytes_from_memory(&mut caller, &memory, payload_ptr, payload_len)?;
                 caller
                     .data()
                     .host
@@ -523,7 +530,10 @@ fn register_host_functions(linker: &mut Linker<WasmHostCtx>) {
             WASM_IMPORT_MODULE,
             "audio_state",
             |mut caller: wasmi::Caller<'_, WasmHostCtx>| -> Result<i32, wasmi::Error> {
-                caller.data().require(crate::manifest::capabilities::AUDIO_STATE).map_err(|e| wasmi::Error::new(e.to_string()))?;
+                caller
+                    .data()
+                    .require(crate::manifest::capabilities::AUDIO_STATE)
+                    .map_err(|e| wasmi::Error::new(e.to_string()))?;
                 let memory = export_memory(&caller)?;
                 let json = serde_json::to_string(&caller.data().host.audio_state())
                     .map_err(|e| wasmi::Error::new(format!("serialize: {e}")))?;
@@ -539,7 +549,10 @@ fn register_host_functions(linker: &mut Linker<WasmHostCtx>) {
             WASM_IMPORT_MODULE,
             "connected_devices",
             |mut caller: wasmi::Caller<'_, WasmHostCtx>| -> Result<i32, wasmi::Error> {
-                caller.data().require(crate::manifest::capabilities::DEVICE_LIST).map_err(|e| wasmi::Error::new(e.to_string()))?;
+                caller
+                    .data()
+                    .require(crate::manifest::capabilities::DEVICE_LIST)
+                    .map_err(|e| wasmi::Error::new(e.to_string()))?;
                 let memory = export_memory(&caller)?;
                 let json = serde_json::to_string(&caller.data().host.connected_devices())
                     .map_err(|e| wasmi::Error::new(format!("serialize: {e}")))?;
@@ -621,4 +634,3 @@ fn write_str_to_memory(
         .map_err(|e| wasmi::Error::new(format!("write NUL: {e}")))?;
     Ok(ptr)
 }
-

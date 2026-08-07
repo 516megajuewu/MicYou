@@ -196,8 +196,8 @@ pub struct PluginManifest {
 impl PluginManifest {
     /// Parse + validate a manifest from raw JSON text.
     pub fn from_json(text: &str) -> PluginResult<Self> {
-        let manifest: Self = serde_json::from_str(text)
-            .map_err(|e| PluginError::InvalidManifest(e.to_string()))?;
+        let manifest: Self =
+            serde_json::from_str(text).map_err(|e| PluginError::InvalidManifest(e.to_string()))?;
         manifest.validate()?;
         Ok(manifest)
     }
@@ -342,7 +342,10 @@ mod tests {
         let result = PluginManifest::from_json(json).unwrap_err();
         assert!(matches!(
             result,
-            PluginError::ApiVersionMismatch { plugin: 99, host: 1 }
+            PluginError::ApiVersionMismatch {
+                plugin: 99,
+                host: 1
+            }
         ));
     }
 
