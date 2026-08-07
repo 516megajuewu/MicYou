@@ -307,6 +307,9 @@ fn example_manifests_validate() {
     for (dir, id) in [
         ("plugins/examples/native-gain", "dev.micyou.example.gain"),
         ("plugins/examples/wasm-counter", "dev.micyou.example.counter"),
+        ("plugins/examples/native-soundpad", "dev.micyou.example.soundpad"),
+        ("plugins/examples/native-noisegate", "dev.micyou.example.noisegate"),
+        ("plugins/examples/native-systeminfo", "dev.micyou.example.systeminfo"),
     ] {
         let path = repo_root.join(dir).join("plugin.json");
         let text = std::fs::read_to_string(&path)

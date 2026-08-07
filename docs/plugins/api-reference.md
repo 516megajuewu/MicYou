@@ -16,8 +16,16 @@ typedef struct mpl_host_api {
     mpl_result_t (*audio_state)(void *ctx, char *out, uint32_t *out_size);
     mpl_result_t (*connected_devices)(void *ctx, char *out, uint32_t *out_size);
     void *ctx;
+    /* 以下字段一律追加在 ctx 之后：旧插件按原偏移解释不受影响 */
+    mpl_result_t (*play_sound)(void *ctx, const char *path);
+    mpl_result_t (*plugin_dir)(void *ctx, char *out, uint32_t *out_size);
 } mpl_host_api_t;
 ```
+
+字段追加规则：**新字段只能加在 `ctx` 之后**，禁止插入中间
+- 旧插件（按旧布局编译）仍能读到正确的 `ctx`，保持二进制兼容
+- 新插件按新布局访问后置字段
+- 当前后置字段：`play_sound`、`plugin_dir`
 
 ### WASM（导入模块 `micyou`）
 
@@ -30,6 +38,8 @@ typedef struct mpl_host_api {
 | `send_message` | `(target_json_ptr: i32, payload_ptr: i32, len: i32) -> i32` | 返回结果码 |
 | `audio_state` | `() -> i32` | 返回宿主分配的 JSON 指针 |
 | `connected_devices` | `() -> i32` | 返回宿主分配的 JSON 数组指针 |
+| `play_sound` | `(path_ptr: i32) -> i32` | 排队播放 WAV（需 audio.play），返回结果码 |
+| `plugin_dir` | `() -> i32` | 返回插件安装目录绝对路径字符串 |
 
 ### 缓冲区契约（out / out_size）
 
@@ -47,6 +57,12 @@ typedef struct mpl_host_api {
 ```json
 [ { "mode": "wifi", "label": "MicYou Mobile", "audioActive": true } ]
 ```
+
+### play_sound（音频播放）
+
+- 参数为 WAV 文件路径，相对路径解析到插件自己的安装目录（插件可自带或动态生成音效文件）
+- 排队即返回，播放异步进行，**非实时安全**，禁止在 process 中调用
+- 常见用法：ui 按钮面板（`ui.route=buttons`）点击 → `handle_message` 收到 `ui:play` → 查配置 → `play_sound`
 
 ## Plugin API（插件向宿主实现的接口）
 
@@ -139,6 +155,7 @@ Native 的 `mpl_result_t` 数值与此保持一致（0-5 子集）
 | `event.emit` | emit_event | 总线事件（含远端广播） |
 | `message.send` | send_message | 跨端消息 |
 | `audio.state` | audio_state | 音频流状态快照 |
+| `audio.play` | play_sound | 播放 WAV 音效（异步，非实时） |
 | `device.list` | connected_devices | 已连接设备信息 |
 | `network.io` | 预留 | 出站网络 |
 | `fs.read` | 预留 | 沙箱内文件 |

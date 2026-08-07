@@ -69,6 +69,8 @@ RePlugin / Shadow / VirtualAPK 等动态插件框架面向「应用级插件化�
 | 插件总线（本地） | ✅ | ✅（阶段 1） | 同一语义 |
 | 插件总线（跨端） | ✅ | ✅（阶段 3） | 同一传输协议 |
 | DSP 链节点 | ✅（`Plugins` 链节点） | 规划 | 安卓侧处理链在 AudioRecord 管线内 |
+| UI 按钮面板（`ui.route=buttons`） | ✅ | 规划 | 音效板等声明式面板 |
+| `audio.play`（播放音效） | ✅ | 规划 | 安卓可映射到 MediaPlayer |
 | 前端管理界面 | ✅（Vue） | 规划 | Compose 面板 |
 | `network.io` / `fs.read` | 预留 | 预留 | — |
 

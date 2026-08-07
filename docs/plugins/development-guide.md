@@ -213,6 +213,8 @@ WASM 插件是 core wasm 模块（无需 WASI），在 `wasmi` 纯 Rust 解释�
 | `send_message` | `(i32, i32, i32) -> i32` | target JSON, 数据指针, 长度 -> 结果码 |
 | `audio_state` | `() -> i32` | -> 宿主分配 JSON 指针 |
 | `connected_devices` | `() -> i32` | -> 宿主分配 JSON 数组指针 |
+| `play_sound` | `(i32) -> i32` | WAV 路径指针 -> 结果码（需 audio.play） |
+| `plugin_dir` | `() -> i32` | -> 插件安装目录绝对路径字符串 |
 
 ### 完整最小示例（WAT）
 
@@ -260,8 +262,10 @@ WASM 插件是 core wasm 模块（无需 WASI），在 `wasmi` 纯 Rust 解释�
 | `event.emit` | emit_event | 向总线发布事件（本地订阅者 + 已连接的远端） |
 | `message.send` | send_message | 向本地/远端插件发消息 |
 | `audio.state` | audio_state | 实时音频流快照 |
+| `audio.play` | play_sound | 播放 WAV 音效（异步，非实时） |
 | `device.list` | connected_devices | 已连接设备 |
 | `dsp.node` | （manifest 声明） | 注册为 DSP 链节点 |
+| `plugin_dir` | 无需能力 | 查询插件安装目录（只读） |
 | `network.io` | — | 预留：出站网络 |
 | `fs.read` | — | 预留：插件沙箱内文件读取 |
 
@@ -305,6 +309,42 @@ host->send_message(host->ctx,
 
 - 插件可用 `emit_event` 发布事件；本地与远端订阅者都会收到
 - 宿主总线内置 `handle_incoming` 路由：响应完成 pending RPC，请求/事件投递给本地分发器与主题订阅者
+
+## 高级示例（直接可跑的参考实现）
+
+`plugins/examples/` 下提供四个 Native 示例 + 一个 WASM 示例，覆盖插件系统的核心能力
+
+### 音效板（native-soundpad）：UI 面板 + 音频播放
+
+- manifest 声明 `"ui": { "route": "buttons" }`，前端在插件页渲染按钮网格
+- `init` 时若配置为空，自动生成三个正弦波 WAV（写入插件目录 `sounds/`）并持久化配置
+- 前端按钮点击 → 宿主 `plugin_trigger` → 插件 `handle_message` 收到 `ui:play`（payload `{"id":"x"}`）→ 查表 → `host.play_sound` 播放
+- 配置用相对路径（如 `sounds/beep.wav`），宿主自动解析到插件目录
+- 关键点：UI 动作经总线以 `ui:<action>` 主题投递，插件只处理自己关心的动作
+
+```json
+{
+  "ui": { "route": "buttons", "label": "Soundpad" },
+  "capabilities": ["config.read", "config.write", "audio.play"],
+  "config": { "sounds": [ { "id": "beep", "label": "Beep", "file": "sounds/beep.wav" } ] }
+}
+```
+
+### 降噪引擎（native-noisegate）：实时 DSP 处理
+
+- 帧 RMS 噪声门：低于阈值按 depth 衰减，attack/release 包络平滑避免咔哒声
+- 全程无分配、无 host 调用（配置经原子变量无锁读取），满足实时安全
+- 进 DSP 链的位置由 `dsp.insertAfter` 决定（默认 AEC 之后）
+
+### 系统信息（native-systeminfo）：调用宿主与系统 API
+
+- 宿主 API：`plugin_dir` / `audio_state` / `connected_devices`
+- 系统 API：直接读取 `/proc`（内核版本、主机名、内存）
+- Native 插件拥有完整进程权限，可调用任意系统接口；WASM 插件被沙箱限制
+
+### 触发插件 UI 动作（宿主命令）
+
+前端通过 `plugin_trigger(pluginId, action, payload?)` 投递动作，插件在 `handle_message` 中按 `ui:<action>` 主题处理
 
 ## 调试与测试
 
