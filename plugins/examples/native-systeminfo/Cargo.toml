@@ -1,0 +1,12 @@
+[package]
+name = "micyou-example-native-systeminfo"
+version = "1.0.0"
+edition = "2021"
+license = "GPL-3.0-only"
+description = "MicYou native plugin example: queries host + system APIs and logs a report"
+publish = false
+
+[workspace]
+
+[lib]
+crate-type = ["cdylib"]
