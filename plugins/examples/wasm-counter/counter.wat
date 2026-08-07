@@ -73,9 +73,10 @@
     (i32.const 0))
 
   ;; 事件计数器：每次收到事件 +1 并通过 emit_event 回传
+  ;; 注意 emit_event 返回 i32，必须用 drop 丢弃返回值，否则函数结束时栈上残留值导致类型校验失败
   (func (export "handle_event") (param $json_ptr i32) (result i32)
     (global.set $events (i32.add (global.get $events) (i32.const 1)))
-    (call $emit_event (i32.const 0) (i32.const 0)) ;; 忽略返回值，仅演示
+    (drop (call $emit_event (i32.const 0) (i32.const 0)))
     (i32.const 0))
 
   (func (export "handle_message") (param $ptr i32) (param $len i32) (result i32)
