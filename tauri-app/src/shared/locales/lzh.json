@@ -86,7 +86,8 @@
       "appearance": "外观",
       "audio": "音频",
       "network": "网络",
-      "about": "关于"
+      "about": "关于",
+      "plugins": "插件"
     },
     "language": {
       "title": "语言",

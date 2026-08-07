@@ -86,7 +86,8 @@
       "appearance": "外观性部分",
       "audio": "音频性部分",
       "network": "网络",
-      "about": "关于性部分"
+      "about": "关于性部分",
+      "plugins": "铁插件"
     },
     "language": {
       "title": "语言标签项",

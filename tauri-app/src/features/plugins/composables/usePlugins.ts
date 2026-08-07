@@ -96,5 +96,17 @@ export function usePlugins() {
     }
   }
 
-  return { plugins, syncStatus, loading, busyId, error, refresh, toggle, uninstall, saveConfig, logs, openDir };
+  return {
+    plugins,
+    syncStatus,
+    loading,
+    busyId,
+    error,
+    refresh,
+    toggle,
+    uninstall,
+    saveConfig,
+    logs,
+    openDir,
+  };
 }

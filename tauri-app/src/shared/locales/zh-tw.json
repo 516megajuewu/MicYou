@@ -86,7 +86,8 @@
       "appearance": "外觀",
       "audio": "音訊",
       "network": "網路",
-      "about": "關於"
+      "about": "關於",
+      "plugins": "外掛程式"
     },
     "language": {
       "title": "語言",

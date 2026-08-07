@@ -697,6 +697,11 @@
             <EqualizerPanel :config="settings.equalizer" />
           </div>
 
+          <!-- PLUGINS SECTION -->
+          <div v-else-if="currentSection === 'plugins'" class="space-y-6" key="plugins">
+            <PluginsPanel />
+          </div>
+
           <!-- ABOUT -->
           <div v-else-if="currentSection === 'about'" class="space-y-4 pb-12" key="about">
             <div class="bg-surface-bright rounded-2xl overflow-hidden shadow-sm flex flex-col border border-border">
@@ -824,7 +829,7 @@ import {
   SlidersHorizontal,
   Palette,
   Ban,
-} from '@lucide/vue';
+ Puzzle,} from '@lucide/vue';
 import ContributorsDialog from './ContributorsDialog.vue';
 import SponsorsDialog from './SponsorsDialog.vue';
 import LicensesDialog from './LicensesDialog.vue';
@@ -953,6 +958,7 @@ const sections = computed(() => [
   { id: 'appearance', name: t('settings.categories.appearance'), icon: Palette },
   { id: 'audio', name: t('settings.categories.audio'), icon: Mic },
   { id: 'equalizer', name: t('settings.equalizer.title'), icon: SlidersHorizontal },
+  { id: 'plugins', name: t('settings.categories.plugins'), icon: Puzzle },
   { id: 'about', name: t('settings.categories.about'), icon: Info },
 ]);
 
