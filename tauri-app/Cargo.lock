@@ -3450,11 +3450,17 @@ dependencies = [
 name = "micyou-plugin"
 version = "2.0.0"
 dependencies = [
+ "libloading 0.8.9",
  "log",
+ "micyou-plugin-fixture-native",
  "semver",
  "serde",
  "serde_json",
 ]
+
+[[package]]
+name = "micyou-plugin-fixture-native"
+version = "2.0.0"
 
 [[package]]
 name = "micyou-protocol"

@@ -5,6 +5,7 @@ members = [
     "crates/micyou-protocol",
     "crates/micyou-audio",
     "crates/micyou-plugin",
+    "crates/micyou-plugin/fixtures/native",
     "crates/micyou-cli",
     "crates/micyou-tui",
 ]

@@ -10,10 +10,12 @@
 //! platform-neutral so the same plugin works on the desktop app, the CLI/TUI
 //! and (in a future phase) Android with a different loading implementation.
 
+pub mod abi;
 pub mod error;
 pub mod host;
 pub mod manager;
 pub mod manifest;
+pub mod native;
 pub mod plugin;
 
 pub use error::{PluginError, PluginResult};
