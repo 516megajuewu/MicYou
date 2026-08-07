@@ -1,0 +1,16 @@
+[package]
+name = "micyou-example-native-gain"
+version = "1.0.0"
+edition = "2021"
+description = "MicYou native plugin example: configurable gain DSP node"
+license = "GPL-3.0-only"
+
+# A cdylib that MicYou loads at runtime — nothing is linked statically
+[lib]
+crate-type = ["cdylib"]
+
+# Standalone on purpose: plugin authors do not depend on micyou-plugin,
+# they just implement the ABI from include/micyou_plugin_abi.h
+[workspace]
+
+[dependencies]

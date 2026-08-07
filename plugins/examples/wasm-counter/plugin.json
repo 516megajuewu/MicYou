@@ -1,0 +1,20 @@
+{
+  "id": "dev.micyou.example.counter",
+  "name": "Example WASM Counter",
+  "version": "1.0.0",
+  "author": "MicYou",
+  "description": "示例 WASM 插件：事件计数 + 可配置增益（最佳努力 DSP）",
+  "runtime": "wasm",
+  "entry": "counter.wasm",
+  "platforms": ["linux", "windows", "macos", "android"],
+  "apiVersion": 1,
+  "capabilities": ["dsp.node", "config.read", "event.emit"],
+  "kind": "dsp",
+  "dsp": {
+    "insertAfter": "AEC",
+    "realtimeSafe": false
+  },
+  "config": {
+    "gain": 1.0
+  }
+}

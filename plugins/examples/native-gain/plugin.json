@@ -1,0 +1,20 @@
+{
+  "id": "dev.micyou.example.gain",
+  "name": "Example Native Gain",
+  "version": "1.0.0",
+  "author": "MicYou",
+  "description": "示例原生插件：可配置增益的 DSP 节点（读取 gain 配置，默认 2.0）",
+  "runtime": "native",
+  "entry": "libmicyou_example_native_gain.so",
+  "platforms": ["linux", "windows", "macos"],
+  "apiVersion": 1,
+  "capabilities": ["dsp.node", "config.read"],
+  "kind": "dsp",
+  "dsp": {
+    "insertAfter": "AEC",
+    "realtimeSafe": true
+  },
+  "config": {
+    "gain": 2.0
+  }
+}

@@ -287,3 +287,37 @@ fn wasm_plugin_missing_optional_exports_are_skipped() {
         .unwrap();
     plugin.handle_message("src", "topic", b"data").unwrap();
 }
+
+// ── Example plugin validation ─────────────────────────────────────────────
+
+/// The shipped example manifests must keep validating against the schema so
+/// docs and CI stay honest.
+#[test]
+fn example_manifests_validate() {
+    let workspace_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .and_then(|p| p.parent())
+        .expect("workspace layout");
+    // repo root is tauri-app/.. (two levels above crates/micyou-plugin)
+    let repo_root = workspace_root
+        .parent()
+        .expect("repo layout");
+    for (dir, id) in [
+        ("plugins/examples/native-gain", "dev.micyou.example.gain"),
+        ("plugins/examples/wasm-counter", "dev.micyou.example.counter"),
+    ] {
+        let path = repo_root.join(dir).join("plugin.json");
+        let text = std::fs::read_to_string(&path)
+            .unwrap_or_else(|e| panic!("read {path:?}: {e}"));
+        let manifest = micyou_plugin::manifest::PluginManifest::from_json(&text)
+            .unwrap_or_else(|e| panic!("manifest {id} invalid: {e}"));
+        assert_eq!(manifest.id, id);
+    }
+
+    // The example WAT must parse to valid wasm (toolchain-free check)
+    let wat_path = repo_root
+        .join("plugins/examples/wasm-counter/counter.wat");
+    let wat = std::fs::read_to_string(&wat_path).unwrap();
+    let bytes = wat::parse_str(&wat).expect("example counter.wat must parse");
+    assert!(!bytes.is_empty());
+}
