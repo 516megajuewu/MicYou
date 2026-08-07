@@ -73,6 +73,9 @@ typedef struct mpl_host_api {
     mpl_result_t (*play_sound)(void *ctx, const char *path);
     /* absolute path of the plugin install directory (read-only query) */
     mpl_result_t (*plugin_dir)(void *ctx, char *out, uint32_t *out_size);
+    /* register a global hotkey ("ctrl+shift+p"); the plugin receives
+     * handle_message with topic "hotkey:<id>" when pressed */
+    mpl_result_t (*register_hotkey)(void *ctx, const char *shortcut, uint64_t *out_id);
 } mpl_host_api_t;
 
 /* Static plugin identity. The id/version must match the manifest. */

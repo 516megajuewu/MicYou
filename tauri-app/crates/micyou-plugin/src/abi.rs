@@ -96,7 +96,16 @@ pub struct mpl_host_api_t {
     /// fields here stays ABI-compatible for them.
     pub ctx: *mut c_void,
     pub play_sound: unsafe extern "C" fn(ctx: *mut c_void, path: *const c_char) -> mpl_result_t,
-    pub plugin_dir: unsafe extern "C" fn(ctx: *mut c_void, out: *mut c_char, out_size: *mut u32) -> mpl_result_t,
+    pub plugin_dir: unsafe extern "C" fn(
+        ctx: *mut c_void,
+        out: *mut c_char,
+        out_size: *mut u32,
+    ) -> mpl_result_t,
+    pub register_hotkey: unsafe extern "C" fn(
+        ctx: *mut c_void,
+        shortcut: *const c_char,
+        out_id: *mut u64,
+    ) -> mpl_result_t,
 }
 
 // The table travels inside `NativePlugin` which is `Send`; the raw `ctx`
@@ -283,6 +292,31 @@ unsafe extern "C" fn shim_play_sound(ctx: *mut c_void, path: *const c_char) -> m
     }
 }
 
+unsafe extern "C" fn shim_register_hotkey(
+    ctx: *mut c_void,
+    shortcut: *const c_char,
+    out_id: *mut u64,
+) -> mpl_result_t {
+    unsafe {
+        let ctx = &*(ctx as *const NativeHostCtx);
+        let Some(out_id) = out_id.as_mut() else {
+            return mpl_result_t::MPL_ERR_INVALID_ARG;
+        };
+        let shortcut_str = if shortcut.is_null() {
+            String::new()
+        } else {
+            CStr::from_ptr(shortcut).to_string_lossy().into_owned()
+        };
+        match ctx.host.register_hotkey(&shortcut_str) {
+            Ok(id) => {
+                *out_id = id;
+                mpl_result_t::MPL_OK
+            }
+            Err(_) => mpl_result_t::MPL_ERR_RUNTIME,
+        }
+    }
+}
+
 unsafe extern "C" fn shim_plugin_dir(
     ctx: *mut c_void,
     out: *mut c_char,
@@ -349,6 +383,7 @@ pub fn host_table_for(ctx: Arc<NativeHostCtx>) -> mpl_host_api_t {
         ctx: ctx_ptr as *mut c_void,
         play_sound: shim_play_sound,
         plugin_dir: shim_plugin_dir,
+        register_hotkey: shim_register_hotkey,
     }
 }
 
