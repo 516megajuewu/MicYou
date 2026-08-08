@@ -43,6 +43,8 @@
   (data (i32.const 0x1A4) "pomodoro started (25 min)\00")
   ;; 0x1C0 "" (empty payload string for set_interval)
   (data (i32.const 0x1C0) "\00")
+  ;; 0x1D0 "开始工作"（start 即时反馈通知）
+  (data (i32.const 0x1D0) "\E5\BC\80\E5\A7\8B\E5\B7\A5\E4\BD\9C\00")
   ;; 0x1C1 "pomodoro tick"
   (data (i32.const 0x1C1) "pomodoro tick\00")
   ;; 0x1E0 "workMin" / 0x1E8 "breakMin" / 0x1F2 "mode" / 0x1F8 "work" / 0x1FE "break" / 0x204 "idle"
@@ -159,6 +161,7 @@
             (drop (call $set_config (i32.const 0x1F2) (i32.const 0x1F8)))
             (i64.store (i32.const 0x108)
               (call $set_interval (i64.const 1000) (i32.const 0x1C0)))
+            (call $notify (i32.const 0x110) (i32.const 0x1D0))
             (call $log (i32.const 2) (i32.const 0x1A4)))))
       (else
         ;; interval tick

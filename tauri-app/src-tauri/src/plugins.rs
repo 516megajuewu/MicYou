@@ -309,7 +309,14 @@ impl PluginHost {
     /// topic `ui:<action>` with the given payload (soundpad buttons etc).
     /// The plugin receives it through its `handle_message` entry.
     pub fn trigger(&self, plugin_id: &str, action: &str, payload: &[u8]) -> PluginResult<()> {
-        let msg = PluginMessage::new("ui", plugin_id, &format!("ui:{action}"), payload.to_vec());
+        // WASM 插件的 handle_message 收不到 topic，只有 payload bytes：
+        // payload 为空时注入 {"action":"<action>"}，保证所有运行时都能感知动作
+        let bytes = if payload.is_empty() {
+            format!(r#"{{"action":"{action}"}}"#).into_bytes()
+        } else {
+            payload.to_vec()
+        };
+        let msg = PluginMessage::new("ui", plugin_id, &format!("ui:{action}"), bytes);
         self.bus.handle_incoming(&msg);
         Ok(())
     }
@@ -918,5 +925,52 @@ impl HostApi for PluginHostApi {
         } else {
             Vec::new()
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 端到端验证：真实 PluginHost 链路 enable → trigger → config 落盘。
+    /// 环境需已安装 dev.micyou.example.pomodoro（本机 ~/.config/micyou/plugins）。
+    #[test]
+    fn pomodoro_trigger_end_to_end() {
+        let output = crate::audio_output::AudioOutputHandle::spawn();
+        let host = PluginHost::new(output);
+        let id = "dev.micyou.example.pomodoro";
+        {
+            let mut manager = host.manager.lock().unwrap();
+            manager.scan().expect("scan plugins");
+        }
+        // 插件未安装时跳过（CI/干净环境）
+        {
+            let manager = host.manager.lock().unwrap();
+            if manager.entry(id).unwrap().is_none() {
+                eprintln!("[test] pomodoro not installed, skipping");
+                return;
+            }
+        }
+        host.enable_plugin(id).expect("enable pomodoro");
+        // 触发 start：注入后的 payload 应为 {"action":"start"}
+        host.trigger(id, "start", b"").expect("trigger start");
+        std::thread::sleep(std::time::Duration::from_millis(300));
+        let cfg = {
+            let manager = host.manager.lock().unwrap();
+            manager.plugin_config(id).expect("plugin config")
+        };
+        eprintln!("[test] plugin logs after start: {:?}", host.logs.lines(id));
+        assert_eq!(cfg.get("mode").map(|v| v.as_str().unwrap_or("")), Some("work"),
+            "start action must persist mode=work; config={cfg:?}");
+        // 触发 stop
+        host.trigger(id, "stop", b"").expect("trigger stop");
+        std::thread::sleep(std::time::Duration::from_millis(300));
+        let cfg = {
+            let manager = host.manager.lock().unwrap();
+            manager.plugin_config(id).expect("plugin config")
+        };
+        assert_eq!(cfg.get("mode").map(|v| v.as_str().unwrap_or("")), Some("idle"),
+            "stop action must persist mode=idle; config={cfg:?}");
+        eprintln!("[test] POMODORO E2E OK: trigger -> handle_message -> set_config persisted");
     }
 }

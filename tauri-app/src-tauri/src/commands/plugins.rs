@@ -304,14 +304,8 @@ pub fn plugin_trigger(
     action: String,
     payload: Option<String>,
 ) -> Result<(), String> {
-    // WASM 插件的 handle_message 收不到 topic，只有 payload bytes：
-    // payload 为空时注入 {"action":"<action>"}，保证所有运行时都能感知动作
-    let raw = payload.unwrap_or_default();
-    let bytes = if raw.trim().is_empty() {
-        format!(r#"{{"action":"{action}"}}"#).into_bytes()
-    } else {
-        raw.into_bytes()
-    };
+    // 注入逻辑在 PluginHost::trigger（payload 为空时注入 {"action":...}）
+    let bytes = payload.unwrap_or_default().into_bytes();
     state
         .plugins
         .trigger(&pluginId, &action, &bytes)
