@@ -199,7 +199,11 @@ pub fn get_plugin_sync_status(state: State<'_, ServerState>) -> Result<PluginSyn
 /// Open the plugin directory in the system file manager (helper for manual
 /// installs: drop a plugin folder / .zip there).
 #[tauri::command]
-pub fn open_plugins_dir(state: State<'_, ServerState>) -> Result<String, String> {
+pub fn open_plugins_dir(
+    app: tauri::AppHandle,
+    state: State<'_, ServerState>,
+) -> Result<String, String> {
+    use tauri_plugin_opener::OpenerExt;
     let dir = state
         .plugins
         .manager
@@ -208,6 +212,13 @@ pub fn open_plugins_dir(state: State<'_, ServerState>) -> Result<String, String>
         .plugins_dir()
         .to_path_buf();
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    // 直接在 Rust 侧打开目录，不经过 IPC 的 ACL scope 检查。
+    // 插件目录是自定义的 %APPDATA%\micyou（config_dir() 用 "micyou" 而非应用标识符），
+    // 而 Tauri scope 的 $APPDATA 会拼上 com.lanrhyme.micyou，无法匹配该路径，
+    // 前端 openPath 会因此抛 "Not allowed to open path"。
+    app.opener()
+        .open_path(dir.display().to_string(), None::<&str>)
+        .map_err(|e| format!("open plugins dir: {e}"))?;
     Ok(dir.display().to_string())
 }
 
