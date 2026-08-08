@@ -30,7 +30,8 @@
       {
         "id": "stats",
         "label": "状态",
-        "entry": "stats.html"
+        "entry": "stats.html",
+        "sidebar": false
       }
     ]
   },

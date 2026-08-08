@@ -155,6 +155,15 @@ pub struct UiPanel {
     pub label: String,
     /// HTML file name inside the plugin directory.
     pub entry: String,
+    /// Whether this panel gets a sidebar entry in the settings dialog.
+    /// Panels meant only for standalone windows (opened by the plugin's own
+    /// actions) should set `sidebar: false`.
+    #[serde(default = "default_true")]
+    pub sidebar: bool,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 /// Optional DSP registration: where the node is inserted in the chain.

@@ -17,7 +17,7 @@ export interface PluginView {
     route: string;
     label?: string;
     entry?: string | null;
-    panels?: Array<{ id: string; label: string; entry: string }>;
+    panels?: Array<{ id: string; label: string; entry: string; sidebar?: boolean }>;
   } | null;
   enabled: boolean;
   loaded: boolean;

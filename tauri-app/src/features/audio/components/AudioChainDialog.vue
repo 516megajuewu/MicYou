@@ -82,8 +82,9 @@ const hasActiveDsp = computed(() =>
   ),
 );
 
-watch(() => props.isOpen, (newVal) => {
+watch(() => props.isOpen, async (newVal) => {
   if (newVal) {
+    await pluginsState.refresh(); // 确保 DSP 插件列表最新（未进过插件页时缓存为空）
     const chain = normalizeChain(props.chain);
     if (
       hasActiveDsp.value &&

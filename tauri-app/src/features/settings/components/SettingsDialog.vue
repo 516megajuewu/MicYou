@@ -1540,6 +1540,7 @@ const panelSections = computed(() => {
   const out: SettingsSection[] = [];
   for (const plugin of pluginsState.plugins.value) {
     for (const panel of plugin.ui?.panels ?? []) {
+      if (panel.sidebar === false) continue; // 仅窗口页面由插件自主开窗
       out.push({
         id: `panel:${plugin.id}:${panel.id}`,
         name: `${plugin.name} · ${panel.label}`,
