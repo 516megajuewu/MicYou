@@ -154,6 +154,19 @@ pub trait HostApi: Send + Sync {
     /// Cancel a timer previously returned by `set_timeout`. No-op for
     /// unknown/expired ids.
     fn clear_timeout(&self, id: u64) -> PluginResult<()>;
+
+    /// Issue an outbound HTTP request (requires `network.io`). The request
+    /// runs on a host-owned thread; the plugin is notified asynchronously via
+    /// a message on topic `http:response` whose JSON payload is
+    /// `{"request":<id>,"ok":bool,"status":u16,"body":"...","error":"..."}`.
+    /// Returns the request id.
+    fn http_request(
+        &self,
+        method: &str,
+        url: &str,
+        headers_json: &str,
+        body: &str,
+    ) -> PluginResult<u64>;
 }
 
 #[cfg(test)]

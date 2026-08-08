@@ -504,6 +504,7 @@ pub struct PluginHostApi {
     dir: std::path::PathBuf,
     timer_next: std::sync::atomic::AtomicU64,
     timers: std::sync::Mutex<std::collections::HashMap<u64, std::sync::Arc<std::sync::atomic::AtomicBool>>>,
+    http_next: std::sync::atomic::AtomicU64,
 }
 
 impl PluginHostApi {
@@ -528,6 +529,7 @@ impl PluginHostApi {
             dir,
             timer_next: std::sync::atomic::AtomicU64::new(1),
             timers: std::sync::Mutex::new(std::collections::HashMap::new()),
+            http_next: std::sync::atomic::AtomicU64::new(1),
         })
     }
 }
@@ -666,6 +668,65 @@ impl HostApi for PluginHostApi {
             cancel.store(true, std::sync::atomic::Ordering::Relaxed);
         }
         Ok(())
+    }
+
+    fn http_request(
+        &self,
+        method: &str,
+        url: &str,
+        headers_json: &str,
+        body: &str,
+    ) -> PluginResult<u64> {
+        use std::sync::atomic::Ordering;
+        let id = self.http_next.fetch_add(1, Ordering::Relaxed);
+        let bus = self.bus.clone();
+        let pid = self.plugin_id.clone();
+        let method = method.to_string();
+        let url = url.to_string();
+        let headers_json = headers_json.to_string();
+        let body = body.to_string();
+        std::thread::spawn(move || {
+            let result = (|| -> Result<(u16, String), String> {
+                let client = reqwest::blocking::Client::builder()
+                    .timeout(std::time::Duration::from_secs(10))
+                    .build()
+                    .map_err(|e| e.to_string())?;
+                let m = reqwest::Method::from_bytes(method.as_bytes()).map_err(|e| e.to_string())?;
+                let mut req = client.request(m, &url);
+                if let Ok(headers) =
+                    serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(&headers_json)
+                {
+                    for (k, v) in headers {
+                        if let Some(vs) = v.as_str() {
+                            req = req.header(&k, vs);
+                        }
+                    }
+                }
+                if !body.is_empty() {
+                    req = req.body(body);
+                }
+                let resp = req.send().map_err(|e| e.to_string())?;
+                let status = resp.status().as_u16();
+                let text = resp.text().map_err(|e| e.to_string())?;
+                Ok((status, text))
+            })();
+            let payload = match result {
+                Ok((status, text)) => serde_json::json!({
+                    "request": id, "ok": true, "status": status, "body": text, "error": null
+                }),
+                Err(e) => serde_json::json!({
+                    "request": id, "ok": false, "status": 0, "body": "", "error": e
+                }),
+            };
+            let msg = PluginMessage::new(
+                "host",
+                &pid,
+                "http:response",
+                payload.to_string().into_bytes(),
+            );
+            bus.handle_incoming(&msg);
+        });
+        Ok(id)
     }
 
     fn connected_devices(&self) -> Vec<DeviceSnapshot> {

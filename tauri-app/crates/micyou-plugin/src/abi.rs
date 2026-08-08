@@ -125,6 +125,14 @@ pub struct mpl_host_api_t {
         out_id: *mut u64,
     ) -> mpl_result_t,
     pub clear_timeout: unsafe extern "C" fn(ctx: *mut c_void, id: u64) -> mpl_result_t,
+    pub http_request: unsafe extern "C" fn(
+        ctx: *mut c_void,
+        method: *const c_char,
+        url: *const c_char,
+        headers_json: *const c_char,
+        body: *const c_char,
+        out_id: *mut u64,
+    ) -> mpl_result_t,
 }
 
 // The table travels inside `NativePlugin` which is `Send`; the raw `ctx`
@@ -440,6 +448,39 @@ unsafe extern "C" fn shim_clear_timeout(ctx: *mut c_void, id: u64) -> mpl_result
     }
 }
 
+unsafe extern "C" fn shim_http_request(
+    ctx: *mut c_void,
+    method: *const c_char,
+    url: *const c_char,
+    headers_json: *const c_char,
+    body: *const c_char,
+    out_id: *mut u64,
+) -> mpl_result_t {
+    unsafe {
+        let ctx = &*(ctx as *const NativeHostCtx);
+        if !has_capability(ctx, crate::manifest::capabilities::NETWORK_IO) {
+            return mpl_result_t::MPL_ERR_PERMISSION;
+        }
+        let Some(out_id) = out_id.as_mut() else {
+            return mpl_result_t::MPL_ERR_INVALID_ARG;
+        };
+        let cstr = |p: *const c_char| {
+            if p.is_null() {
+                String::new()
+            } else {
+                CStr::from_ptr(p).to_string_lossy().into_owned()
+            }
+        };
+        match ctx.host.http_request(&cstr(method), &cstr(url), &cstr(headers_json), &cstr(body)) {
+            Ok(id) => {
+                *out_id = id;
+                mpl_result_t::MPL_OK
+            }
+            Err(_) => mpl_result_t::MPL_ERR_RUNTIME,
+        }
+    }
+}
+
 unsafe extern "C" fn shim_plugin_dir(
     ctx: *mut c_void,
     out: *mut c_char,
@@ -512,6 +553,7 @@ pub fn host_table_for(ctx: Arc<NativeHostCtx>) -> mpl_host_api_t {
         fs_write: shim_fs_write,
         set_timeout: shim_set_timeout,
         clear_timeout: shim_clear_timeout,
+        http_request: shim_http_request,
     }
 }
 

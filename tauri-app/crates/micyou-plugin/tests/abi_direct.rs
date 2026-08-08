@@ -33,6 +33,16 @@ impl HostApi for DirectHost {
         Ok(7)
     }
 
+    fn http_request(
+        &self,
+        _method: &str,
+        _url: &str,
+        _headers_json: &str,
+        _body: &str,
+    ) -> PluginResult<u64> {
+        Ok(9)
+    }
+
     fn clear_timeout(&self, _id: u64) -> PluginResult<()> {
         Ok(())
     }

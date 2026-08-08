@@ -89,6 +89,10 @@ typedef struct mpl_host_api {
     mpl_result_t (*set_timeout)(void *ctx, uint64_t ms, const char *payload, uint64_t *out_id);
     /* Cancel a timer previously returned by set_timeout. */
     mpl_result_t (*clear_timeout)(void *ctx, uint64_t id);
+    /* Async HTTP request (requires network.io): returns immediately with a
+       request id; the response arrives on topic http:response. */
+    mpl_result_t (*http_request)(void *ctx, const char *method, const char *url,
+                                 const char *headers_json, const char *body, uint64_t *out_id);
 } mpl_host_api_t;
 
 /* Static plugin identity. The id/version must match the manifest. */
