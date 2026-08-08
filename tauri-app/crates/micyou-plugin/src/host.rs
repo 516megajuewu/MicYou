@@ -167,6 +167,27 @@ pub trait HostApi: Send + Sync {
         headers_json: &str,
         body: &str,
     ) -> PluginResult<u64>;
+
+    /// Arm a repeating timer. Every `ms` milliseconds the host delivers a
+    /// message on topic `interval:tick` whose JSON payload is
+    /// `{"interval":<id>,"payload":"<payload>"}`. Use `clear_interval` to stop.
+    fn set_interval(&self, ms: u64, payload: &str) -> PluginResult<u64>;
+
+    /// Stop a repeating timer previously returned by `set_interval`.
+    fn clear_interval(&self, id: u64) -> PluginResult<()>;
+
+    /// Open a URL in the system default browser (requires `open.url`).
+    fn open_url(&self, url: &str) -> PluginResult<()>;
+
+    /// Show a system notification (no capability required).
+    fn notify(&self, title: &str, body: &str) -> PluginResult<()>;
+
+    /// Current host UI locale, e.g. "zh-CN" or "en" (no capability).
+    fn locale(&self) -> String;
+
+    /// Host identity and API version as a JSON string, e.g.
+    /// `{"name":"micyou","version":"2.0.0","apiVersion":1}` (no capability).
+    fn host_info(&self) -> String;
 }
 
 #[cfg(test)]

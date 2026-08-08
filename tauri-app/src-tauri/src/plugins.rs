@@ -751,6 +751,87 @@ impl HostApi for PluginHostApi {
         Ok(id)
     }
 
+    fn set_interval(&self, ms: u64, payload: &str) -> PluginResult<u64> {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        let id = self.timer_next.fetch_add(1, Ordering::Relaxed);
+        let cancel = Arc::new(AtomicBool::new(false));
+        self.timers
+            .lock()
+            .map_err(lock_err)?
+            .insert(id, cancel.clone());
+        let bus = self.bus.clone();
+        let pid = self.plugin_id.clone();
+        let payload = payload.to_string();
+        std::thread::spawn(move || {
+            loop {
+                std::thread::sleep(std::time::Duration::from_millis(ms.max(1)));
+                if cancel.load(Ordering::Relaxed) {
+                    return;
+                }
+                let msg = PluginMessage::new(
+                    "host",
+                    &pid,
+                    "interval:tick",
+                    serde_json::json!({ "interval": id, "payload": payload })
+                        .to_string()
+                        .into_bytes(),
+                );
+                bus.handle_incoming(&msg);
+            }
+        });
+        Ok(id)
+    }
+
+    fn clear_interval(&self, id: u64) -> PluginResult<()> {
+        self.clear_timeout(id)
+    }
+
+    fn open_url(&self, url: &str) -> PluginResult<()> {
+        use tauri_plugin_opener::OpenerExt;
+        let app = self
+            .window
+            .handle
+            .lock()
+            .map_err(lock_err)?
+            .clone()
+            .ok_or_else(|| PluginError::Runtime("window service not initialized".into()))?;
+        app.opener()
+            .open_url(url, None::<&str>)
+            .map_err(|e| PluginError::Runtime(format!("open_url: {e}")))?;
+        Ok(())
+    }
+
+    fn notify(&self, title: &str, body: &str) -> PluginResult<()> {
+        use tauri_plugin_notification::NotificationExt;
+        let app = self
+            .window
+            .handle
+            .lock()
+            .map_err(lock_err)?
+            .clone()
+            .ok_or_else(|| PluginError::Runtime("window service not initialized".into()))?;
+        app.notification()
+            .builder()
+            .title(title)
+            .body(body)
+            .show()
+            .map_err(|e| PluginError::Runtime(format!("notify: {e}")))?;
+        Ok(())
+    }
+
+    fn locale(&self) -> String {
+        crate::app_config::load_ui_prefs().language
+    }
+
+    fn host_info(&self) -> String {
+        serde_json::json!({
+            "name": "micyou",
+            "version": env!("CARGO_PKG_VERSION"),
+            "apiVersion": micyou_plugin::manifest::HOST_API_VERSION,
+        })
+        .to_string()
+    }
+
     fn connected_devices(&self) -> Vec<DeviceSnapshot> {
         if self.bus.transport().is_connected() {
             vec![DeviceSnapshot {

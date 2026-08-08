@@ -98,6 +98,8 @@ pub mod capabilities {
     pub const DEVICE_LIST: &str = "device.list";
     /// Open outbound network connections.
     pub const NETWORK_IO: &str = "network.io";
+    /// Open URLs in the system default browser.
+    pub const OPEN_URL: &str = "open.url";
 }
 
 /// All capability identifiers the host currently recognizes.
@@ -113,6 +115,7 @@ pub const KNOWN_CAPABILITIES: &[&str] = &[
     capabilities::NETWORK_IO,
     capabilities::FS_READ,
     capabilities::FS_WRITE,
+    capabilities::OPEN_URL,
 ];
 
 /// Native platform tags used in `PluginManifest.platforms`.

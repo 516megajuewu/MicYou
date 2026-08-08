@@ -78,6 +78,30 @@ impl HostApi for MockHost {
         Ok(7)
     }
 
+    fn set_interval(&self, _ms: u64, _payload: &str) -> PluginResult<u64> {
+        Ok(8)
+    }
+
+    fn clear_interval(&self, _id: u64) -> PluginResult<()> {
+        Ok(())
+    }
+
+    fn open_url(&self, _url: &str) -> PluginResult<()> {
+        Ok(())
+    }
+
+    fn notify(&self, _title: &str, _body: &str) -> PluginResult<()> {
+        Ok(())
+    }
+
+    fn locale(&self) -> String {
+        "zh-CN".into()
+    }
+
+    fn host_info(&self) -> String {
+        "{\"name\":\"micyou\",\"version\":\"test\",\"apiVersion\":1}".into()
+    }
+
     fn http_request(
         &self,
         _method: &str,

@@ -133,6 +133,21 @@ pub struct mpl_host_api_t {
         body: *const c_char,
         out_id: *mut u64,
     ) -> mpl_result_t,
+    pub set_interval: unsafe extern "C" fn(
+        ctx: *mut c_void,
+        ms: u64,
+        payload: *const c_char,
+        out_id: *mut u64,
+    ) -> mpl_result_t,
+    pub clear_interval: unsafe extern "C" fn(ctx: *mut c_void, id: u64) -> mpl_result_t,
+    pub open_url: unsafe extern "C" fn(ctx: *mut c_void, url: *const c_char) -> mpl_result_t,
+    pub notify: unsafe extern "C" fn(
+        ctx: *mut c_void,
+        title: *const c_char,
+        body: *const c_char,
+    ) -> mpl_result_t,
+    pub locale: unsafe extern "C" fn(ctx: *mut c_void, out: *mut c_char, out_size: *mut u32) -> mpl_result_t,
+    pub host_info: unsafe extern "C" fn(ctx: *mut c_void, out: *mut c_char, out_size: *mut u32) -> mpl_result_t,
 }
 
 // The table travels inside `NativePlugin` which is `Send`; the raw `ctx`
@@ -481,6 +496,103 @@ unsafe extern "C" fn shim_http_request(
     }
 }
 
+unsafe extern "C" fn shim_set_interval(
+    ctx: *mut c_void,
+    ms: u64,
+    payload: *const c_char,
+    out_id: *mut u64,
+) -> mpl_result_t {
+    unsafe {
+        let ctx = &*(ctx as *const NativeHostCtx);
+        let Some(out_id) = out_id.as_mut() else {
+            return mpl_result_t::MPL_ERR_INVALID_ARG;
+        };
+        let payload = if payload.is_null() {
+            String::new()
+        } else {
+            CStr::from_ptr(payload).to_string_lossy().into_owned()
+        };
+        match ctx.host.set_interval(ms, &payload) {
+            Ok(id) => {
+                *out_id = id;
+                mpl_result_t::MPL_OK
+            }
+            Err(_) => mpl_result_t::MPL_ERR_RUNTIME,
+        }
+    }
+}
+
+unsafe extern "C" fn shim_clear_interval(ctx: *mut c_void, id: u64) -> mpl_result_t {
+    unsafe {
+        let ctx = &*(ctx as *const NativeHostCtx);
+        match ctx.host.clear_interval(id) {
+            Ok(()) => mpl_result_t::MPL_OK,
+            Err(_) => mpl_result_t::MPL_ERR_RUNTIME,
+        }
+    }
+}
+
+unsafe extern "C" fn shim_open_url(ctx: *mut c_void, url: *const c_char) -> mpl_result_t {
+    unsafe {
+        let ctx = &*(ctx as *const NativeHostCtx);
+        if !has_capability(ctx, crate::manifest::capabilities::OPEN_URL) {
+            return mpl_result_t::MPL_ERR_PERMISSION;
+        }
+        let url = if url.is_null() {
+            String::new()
+        } else {
+            CStr::from_ptr(url).to_string_lossy().into_owned()
+        };
+        match ctx.host.open_url(&url) {
+            Ok(()) => mpl_result_t::MPL_OK,
+            Err(_) => mpl_result_t::MPL_ERR_RUNTIME,
+        }
+    }
+}
+
+unsafe extern "C" fn shim_notify(
+    ctx: *mut c_void,
+    title: *const c_char,
+    body: *const c_char,
+) -> mpl_result_t {
+    unsafe {
+        let ctx = &*(ctx as *const NativeHostCtx);
+        let cstr = |p: *const c_char| {
+            if p.is_null() {
+                String::new()
+            } else {
+                CStr::from_ptr(p).to_string_lossy().into_owned()
+            }
+        };
+        match ctx.host.notify(&cstr(title), &cstr(body)) {
+            Ok(()) => mpl_result_t::MPL_OK,
+            Err(_) => mpl_result_t::MPL_ERR_RUNTIME,
+        }
+    }
+}
+
+unsafe extern "C" fn shim_locale(
+    ctx: *mut c_void,
+    out: *mut c_char,
+    out_size: *mut u32,
+) -> mpl_result_t {
+    unsafe {
+        let ctx = &*(ctx as *const NativeHostCtx);
+        write_json_to_buf(&ctx.host.locale(), out, out_size)
+    }
+}
+
+unsafe extern "C" fn shim_host_info(
+    ctx: *mut c_void,
+    out: *mut c_char,
+    out_size: *mut u32,
+) -> mpl_result_t {
+    unsafe {
+        let ctx = &*(ctx as *const NativeHostCtx);
+        write_json_to_buf(&ctx.host.host_info(), out, out_size)
+    }
+}
+
 unsafe extern "C" fn shim_plugin_dir(
     ctx: *mut c_void,
     out: *mut c_char,
@@ -554,6 +666,12 @@ pub fn host_table_for(ctx: Arc<NativeHostCtx>) -> mpl_host_api_t {
         set_timeout: shim_set_timeout,
         clear_timeout: shim_clear_timeout,
         http_request: shim_http_request,
+        set_interval: shim_set_interval,
+        clear_interval: shim_clear_interval,
+        open_url: shim_open_url,
+        notify: shim_notify,
+        locale: shim_locale,
+        host_info: shim_host_info,
     }
 }
 

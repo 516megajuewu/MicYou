@@ -93,6 +93,18 @@ typedef struct mpl_host_api {
        request id; the response arrives on topic http:response. */
     mpl_result_t (*http_request)(void *ctx, const char *method, const char *url,
                                  const char *headers_json, const char *body, uint64_t *out_id);
+    /* Repeating timer; fires topic interval:tick every ms until cleared. */
+    mpl_result_t (*set_interval)(void *ctx, uint64_t ms, const char *payload, uint64_t *out_id);
+    /* Stop a repeating timer. */
+    mpl_result_t (*clear_interval)(void *ctx, uint64_t id);
+    /* Open a URL in the default browser (requires open.url). */
+    mpl_result_t (*open_url)(void *ctx, const char *url);
+    /* Show a system notification. */
+    mpl_result_t (*notify)(void *ctx, const char *title, const char *body);
+    /* Current host UI locale ("zh-CN", "en", ...). String output contract. */
+    mpl_result_t (*locale)(void *ctx, char *out, uint32_t *out_size);
+    /* Host identity + API version as JSON. String output contract. */
+    mpl_result_t (*host_info)(void *ctx, char *out, uint32_t *out_size);
 } mpl_host_api_t;
 
 /* Static plugin identity. The id/version must match the manifest. */
