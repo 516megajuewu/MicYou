@@ -8,7 +8,7 @@
 
 设置-插件 → 点「插件市场」按钮 → 浏览列表 → 点「安装」→ 核对能力清单后确认
 
-- 市场读取 MicYou-Plugins 仓库的 index.json（GitHub raw）
+- 市场读取 MicYou-Plugins 仓库的 index.json（GitHub Pages 部署，根除 CDN 缓存）
 - 安装前先拉取远程 manifest 展示能力供确认，确认后才下载 zip 安装
 - 已安装的插件在市场列表显示「已安装」
 

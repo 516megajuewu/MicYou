@@ -105,7 +105,7 @@ cargo test -p micyou-app --lib soundpad_trigger_end_to_end
 ## 发布到市场（MicYou-Plugins 仓库）
 
 1. `micyou plugin validate <dir>` 通过
-2. 插件 zip 由插件仓库 CI 打包发布 GitHub Release（wasm 插件 wat2wasm 编译后 zip 上传 release，示例见主仓库 `.github/workflows/release.yml` 的 Package Market Plugin 步骤）
+2. 插件 zip 由插件仓库 CI 打包发布 GitHub Release（wasm 插件 wat2wasm/Rust 构建后 zip 上传，参考 `MicYou-Dev/MicYou-Plugins/.github/workflows/release-plugins.yml`：workflow_dispatch 或 plugins-* tag 触发，打包每个 plugin/*/ 上传 release）
 3. 推送 `MicYou-Dev/MicYou-Plugins` 的 `plugin/<id>/plugin.json`：含 downloadUrl（指向 release 资产）+ manifestUrl + preview.png（封面），**不提交 zip**
 4. manifest 里 `updateUrl` 指向市场的 raw plugin.json（应用内检查更新即对接市场）
 5. 修改后运行 `node --experimental-strip-types scripts/generate_catalog.ts` 重新生成 index.json（updatedAt 固定值，勿加时间戳否则 CI auto-commit 循环冲突）

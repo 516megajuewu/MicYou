@@ -639,16 +639,24 @@ micyou plugin package <插件目录> -o myplugin.zip
 # zip 根目录含 plugin.json，应用内可导入
 ```
 
-### 第 5 步：发布到市场（MicYou-Plugins）
+### 第 5 步：发布到市场（MicYou-Plugins，llqqnt 模式）
 
-1. manifest 添加 `updateUrl`（指向市场 raw manifest），如：
-   `https://raw.githubusercontent.com/MicYou-Dev/MicYou-Plugins/main/plugin/<id>/plugin.json`
-2. 推送仓库 `MicYou-Dev/MicYou-Plugins`，`plugin/<id>/` 下放：
-   - `plugin.json`（manifest）
-   - `plugin.zip`（第 4 步产物）
-   - 源码（开源要求）与 README
-3. 仓库 CI（scripts/generate_catalog.ts）自动生成 index.json，应用内市场与检查更新即生效
-4. 用户路径：设置-插件 → 插件市场 → 预览能力 → 安装；或 检查更新 → 一键更新
+市场仓库只维护**元数据**，二进制 zip 由插件仓库 CI 发布为 GitHub Release 资产：
+
+1. 在插件仓库配 CI：打包 zip（wasm 插件 wat2wasm/Rust 构建后打包）并上传到
+   GitHub Release 资产（参考 `MicYou-Dev/MicYou-Plugins` 的
+   `.github/workflows/release-plugins.yml`：wat2wasm 每个 `plugin/*/*.wat` → zip 上传）
+2. manifest 添加 `updateUrl`（指向市场 manifest），如：
+   `https://micyou-dev.github.io/MicYou-Plugins/plugin/<id>/plugin.json`
+3. 向 `MicYou-Dev/MicYou-Plugins` PR 一个目录 `plugin/<id>/`，放：
+   - `plugin.json`：manifest + `downloadUrl`（指向第 1 步的 release 资产 URL）
+   - `preview.png`（可选，640x360 封面）
+   - 源码与 README（开源要求）
+   - **不提交 zip 二进制**
+4. 仓库 CI（scripts/generate_catalog.ts）自动生成 index.json 并部署到
+   GitHub Pages（micyou-dev.github.io/MicYou-Plugins/index.json），应用内市场与
+   检查更新即生效
+5. 用户路径：设置-插件 → 插件市场 → 预览能力 → 安装；或 检查更新 → 一键更新
 
 ### 第 6 步：迭代与维护
 
@@ -656,8 +664,9 @@ micyou plugin package <插件目录> -o myplugin.zip
 micyou plugin bump <插件目录>        # patch +1
 micyou plugin bump <插件目录> 2.0.0  # 指定版本
 micyou plugin package <插件目录> -o plugin.zip
-# 重新推送市场即可发布新版本，用户应用内「检查更新」拉取
 ```
+发布新版本 = 插件仓库打新 release（新 zip 资产）+ 更新市场 `plugin/<id>/plugin.json`
+的 version 与 downloadUrl 并推送，用户应用内「检查更新」拉取
 
 ### 面板开发提示
 

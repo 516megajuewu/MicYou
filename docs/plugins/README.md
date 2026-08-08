@@ -68,7 +68,8 @@ micyou plugin list                          # 列出已安装插件（id/版本/
 
 应用内：设置-插件 → 插件市场（浏览 MicYou-Plugins 仓库：封面图/运行时/能力/平台/架构，
 安装前展示能力确认，一键安装；插件 zip 由各插件仓库 CI 打包发布 GitHub Release，
-市场仓库只维护元数据 index.json，不直接提交二进制）
+市场仓库只维护元数据 index.json（CI 自动生成并部署到 GitHub Pages，
+不直接提交二进制）
 ```
 
 ## 代码结构
