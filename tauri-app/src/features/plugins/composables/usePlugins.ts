@@ -9,6 +9,13 @@ export interface PluginDependency {
   optional?: boolean;
 }
 
+export interface PluginUpdate {
+  id: string;
+  currentVersion: string;
+  latestVersion: string;
+  updateUrl: string;
+}
+
 export interface PluginPreview {
   id: string;
   name: string;
@@ -173,6 +180,29 @@ export function usePlugins() {
     return await invoke('preview_plugin_zip', { zipPath: path });
   }
 
+  async function checkUpdates(): Promise<PluginUpdate[]> {
+    try {
+      return await invoke<PluginUpdate[]>('check_plugin_updates');
+    } catch {
+      return [];
+    }
+  }
+
+  async function updatePlugin(id: string): Promise<boolean> {
+    try {
+      busyId.value = id + ':update';
+      error.value = null;
+      await invoke('update_plugin', { id });
+      await refresh();
+      return true;
+    } catch (e) {
+      error.value = String(e);
+      return false;
+    } finally {
+      busyId.value = null;
+    }
+  }
+
   async function importPlugin(): Promise<boolean> {
     try {
       const picked = await open({
@@ -217,5 +247,7 @@ export function usePlugins() {
     openDir,
     previewPlugin,
     importPlugin,
+    checkUpdates,
+    updatePlugin,
   };
 }

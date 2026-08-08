@@ -557,6 +557,9 @@
     "installHintDir": "或把插件文件夹放入插件目录",
     "soundpad": "音效板",
     "soundpadEmpty": "在插件配置中添加 sounds 数组以显示按钮",
-    "openWindow": "在新窗口打开"
+    "openWindow": "在新窗口打开",
+    "checkUpdates": "检查更新",
+    "updating": "更新中…",
+    "updateNow": "更新"
   }
 }

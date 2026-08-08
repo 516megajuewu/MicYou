@@ -89,6 +89,22 @@ async function saveConfig(plugin: PluginView) {
   }
 }
 
+const checking = ref(false);
+const updates = ref<{ id: string; currentVersion: string; latestVersion: string }[]>([]);
+
+async function checkUpdates() {
+  checking.value = true;
+  updates.value = await p.checkUpdates();
+  checking.value = false;
+}
+
+async function applyUpdate(id: string) {
+  const ok = await p.updatePlugin(id);
+  if (ok) {
+    updates.value = updates.value.filter((u) => u.id !== id);
+  }
+}
+
 function onAutoSaved() {
   configSaved.value = true;
   setTimeout(() => (configSaved.value = false), 2000);
@@ -161,6 +177,32 @@ function confirmUninstall(plugin: PluginView) {
           <FolderOpen class="w-4 h-4" />
           {{ $t('plugins.openDir') }}
         </button>
+        <button
+          @click="checkUpdates()"
+          :disabled="checking"
+          class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-surface-variant/40 hover:bg-surface-variant text-on-surface-variant text-sm font-medium disabled:opacity-50"
+        >
+          <RefreshCw :class="checking ? 'animate-spin' : ''" class="w-4 h-4" />
+          {{ $t('plugins.checkUpdates') }}
+        </button>
+      </div>
+      <!-- Update banner -->
+      <div
+        v-if="updates.length"
+        class="mt-3 rounded-lg border border-sky-500/30 bg-sky-500/10 px-4 py-3 text-xs text-sky-300 space-y-2"
+      >
+        <div v-for="u in updates" :key="u.id" class="flex items-center justify-between gap-3">
+          <span>
+            {{ u.id }}: {{ u.currentVersion }} → {{ u.latestVersion }}
+          </span>
+          <button
+            @click="applyUpdate(u.id)"
+            :disabled="p.busyId.value === u.id + ':update'"
+            class="px-3 py-1 rounded-full bg-sky-500/20 hover:bg-sky-500/30 text-sky-200 text-xs font-medium disabled:opacity-50"
+          >
+            {{ p.busyId.value === u.id + ':update' ? $t('plugins.updating') : $t('plugins.updateNow') }}
+          </button>
+        </div>
       </div>
     </div>
 

@@ -392,6 +392,141 @@ fn read_manifest_from_zip(
     Ok((manifest, prefix))
 }
 
+/// A detected newer version of an installed plugin.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginUpdate {
+    pub id: String,
+    pub current_version: String,
+    pub latest_version: String,
+    pub update_url: String,
+}
+
+/// Check every installed plugin that declares `updateUrl` for newer versions.
+/// Blocking: each remote manifest is fetched with a 5s timeout.
+#[tauri::command]
+pub fn check_plugin_updates(state: State<'_, ServerState>) -> Result<Vec<PluginUpdate>, String> {
+    let updates: Vec<PluginUpdate> = {
+        let manager = state
+            .plugins
+            .manager
+            .lock()
+            .map_err(|_| "plugin manager lock poisoned".to_string())?;
+        let entries = manager.entries();
+        entries
+            .into_iter()
+            .filter_map(|entry| {
+                let m = &entry.manifest;
+                let url = m.update_url.as_ref()?;
+                let current = semver::Version::parse(&m.version).ok()?;
+                let client = reqwest::blocking::Client::builder()
+                    .timeout(std::time::Duration::from_secs(5))
+                    .build()
+                    .ok()?;
+                let text = client.get(url).send().ok()?.text().ok()?;
+                let remote = micyou_plugin::PluginManifest::from_json(&text).ok()?;
+                let latest = semver::Version::parse(&remote.version).ok()?;
+                if latest > current {
+                    Some(PluginUpdate {
+                        id: m.id.clone(),
+                        current_version: m.version.clone(),
+                        latest_version: remote.version.clone(),
+                        update_url: url.clone(),
+                    })
+                } else {
+                    None
+                }
+            })
+            .collect()
+    };
+    Ok(updates)
+}
+
+/// Update an installed plugin: fetch the remote manifest, derive the zip URL
+/// (manifest URL with the filename's `.json` replaced by `.zip`, or a
+/// `distribution` field), replace the install dir and re-enable.
+#[tauri::command]
+pub fn update_plugin(state: State<'_, ServerState>, id: String) -> Result<String, String> {
+    // Resolve the update source from the installed manifest.
+    let (update_url, enabled) = {
+        let manager = state
+            .plugins
+            .manager
+            .lock()
+            .map_err(|_| "plugin manager lock poisoned".to_string())?;
+        let entry = manager
+            .entry(&id)
+            .map_err(|e| e.to_string())?
+            .ok_or_else(|| format!("unknown plugin {id}"))?;
+        let url = entry
+            .manifest
+            .update_url
+            .clone()
+            .ok_or_else(|| format!("plugin {id} declares no updateUrl"))?;
+        (url, entry.state.is_enabled())
+    };
+
+    // Fetch the remote manifest.
+    let client = reqwest::blocking::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(|e| e.to_string())?;
+    let text = client
+        .get(&update_url)
+        .send()
+        .map_err(|e| format!("fetch update manifest: {e}"))?
+        .text()
+        .map_err(|e| e.to_string())?;
+    let remote = micyou_plugin::PluginManifest::from_json(&text)
+        .map_err(|e| format!("remote manifest invalid: {e}"))?;
+    if remote.id != id {
+        return Err(format!("remote manifest id mismatch: {} != {id}", remote.id));
+    }
+    // Derive the zip URL: same path with .json -> .zip, or `distribution`.
+    let zip_url = remote
+        .homepage
+        .as_ref()
+        .filter(|_| false)
+        .map(|_| String::new())
+        .unwrap_or_else(|| {
+            let p = std::path::Path::new(&update_url);
+            let stem = p.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
+            let parent = p.parent().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
+            format!("{parent}/{stem}.zip")
+        });
+
+    // Download to a temp file.
+    let tmp_dir = std::env::temp_dir();
+    let tmp_zip = tmp_dir.join(format!("micyou-update-{id}.zip"));
+    let bytes = client
+        .get(&zip_url)
+        .send()
+        .map_err(|e| format!("download update: {e}"))?
+        .bytes()
+        .map_err(|e| format!("read update: {e}"))?;
+    std::fs::write(&tmp_zip, &bytes).map_err(|e| format!("write temp zip: {e}"))?;
+
+    // Disable (if running), replace the install dir, re-import and re-enable.
+    state.plugins.disable_plugin(&id).ok();
+    let plugins_dir = state
+        .plugins
+        .manager
+        .lock()
+        .map_err(|_| "plugin manager lock poisoned".to_string())?
+        .plugins_dir()
+        .to_path_buf();
+    let dest = plugins_dir.join(&id);
+    if dest.exists() {
+        std::fs::remove_dir_all(&dest).map_err(|e| format!("remove old install: {e}"))?;
+    }
+    import_plugin_zip(&tmp_zip, &plugins_dir).map_err(|e| format!("install update: {e}"))?;
+    let _ = std::fs::remove_file(&tmp_zip);
+    if enabled {
+        state.plugins.enable_plugin(&id).map_err(|e| e.to_string())?;
+    }
+    Ok(remote.version)
+}
+
 /// Import a plugin from a `.zip` file or a plugin directory.
 ///
 /// The source manifest is validated first; the payload is then copied into

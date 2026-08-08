@@ -339,6 +339,10 @@ pub struct PluginManifest {
     /// Declarative settings schema; the host renders an automatic form.
     #[serde(default)]
     pub config_schema: Option<ConfigSchema>,
+    /// URL of a remote manifest (JSON) used for update checks. The host
+    /// compares the remote version against the installed one.
+    #[serde(default)]
+    pub update_url: Option<String>,
 }
 
 impl PluginManifest {

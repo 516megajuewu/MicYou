@@ -233,6 +233,8 @@ pub fn run() {
             commands::plugins::get_plugin_sync_status,
             commands::plugins::open_plugins_dir,
             commands::plugins::preview_plugin_zip,
+            commands::plugins::check_plugin_updates,
+            commands::plugins::update_plugin,
             commands::plugins::import_plugin,
             commands::plugins::plugin_trigger,
             commands::plugins::get_plugin_panel,

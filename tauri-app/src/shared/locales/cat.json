@@ -555,6 +555,9 @@
     "installHintDir": "或把喵插件文件夹放进来喵",
     "soundpad": "喵音效板",
     "soundpadEmpty": "在喵插件配置里加 sounds 数组就能显示按钮喵",
-    "openWindow": "在新喵窗開啟"
+    "openWindow": "在新喵窗開啟",
+    "checkUpdates": "檢查喵插件更新",
+    "updating": "更新中…",
+    "updateNow": "更新"
   }
 }
