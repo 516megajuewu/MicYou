@@ -294,6 +294,17 @@ jobs:
         with:
           path: release-artifacts
           merge-multiple: true
+      - name: Package Market Plugin (wasm-audioinspector)
+        # 示例插件 zip 由 CI 打包：wat2wasm 编译 + zip 打包，随 release 发布
+        # 市场 index.json 的 downloadUrl 指向该 release 资产
+        run: |
+          sudo apt-get update >/dev/null 2>&1 && sudo apt-get install -y wabt zip >/dev/null 2>&1
+          id=dev.micyou.example.audioinspector
+          dir=plugins/examples/wasm-audioinspector
+          if [ ! -d "$dir" ]; then echo "market plugin dir missing, skipping"; exit 0; fi
+          wat2wasm "$dir/audioinspector.wat" -o "$dir/audioinspector.wasm"
+          (cd "$dir" && zip -r -q "/tmp/$id.zip" . -x "target/*" -x ".*" -x "Cargo.lock")
+          cp "/tmp/$id.zip" release-artifacts/
       - name: Get Last Contributor
         id: contributor
         run: |
