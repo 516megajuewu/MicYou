@@ -79,7 +79,7 @@ data class AudioPacketMessageOrdered(
 @Serializable
 data class MuteMessage(
     @ProtoNumber(1)
-    val isMuted: Boolean
+    val isMuted: Boolean = false
 )
 
 @OptIn(ExperimentalSerializationApi::class)
