@@ -144,6 +144,16 @@ pub trait HostApi: Send + Sync {
 
     /// Connected devices (requires `device.list` capability).
     fn connected_devices(&self) -> Vec<DeviceSnapshot>;
+
+    /// Arm a one-shot timer. After `ms` milliseconds the host delivers a
+    /// message on topic `timer:expired` whose JSON payload is
+    /// `{"timer":<id>,"payload":"<payload>"}`. Returns the timer id, usable
+    /// with `clear_timeout`.
+    fn set_timeout(&self, ms: u64, payload: &str) -> PluginResult<u64>;
+
+    /// Cancel a timer previously returned by `set_timeout`. No-op for
+    /// unknown/expired ids.
+    fn clear_timeout(&self, id: u64) -> PluginResult<()>;
 }
 
 #[cfg(test)]

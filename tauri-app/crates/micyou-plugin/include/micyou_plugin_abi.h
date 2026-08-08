@@ -84,6 +84,11 @@ typedef struct mpl_host_api {
     mpl_result_t (*fs_read)(void *ctx, const char *path, char *out, uint32_t *out_size);
     /* Write a UTF-8 file inside the plugin install dir (requires fs.write). */
     mpl_result_t (*fs_write)(void *ctx, const char *path, const char *content);
+    /* Arm a one-shot timer; fires topic timer:expired with JSON
+       {"timer":id,"payload":"..."}. Returns the id in out_id. */
+    mpl_result_t (*set_timeout)(void *ctx, uint64_t ms, const char *payload, uint64_t *out_id);
+    /* Cancel a timer previously returned by set_timeout. */
+    mpl_result_t (*clear_timeout)(void *ctx, uint64_t id);
 } mpl_host_api_t;
 
 /* Static plugin identity. The id/version must match the manifest. */

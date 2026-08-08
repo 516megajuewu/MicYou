@@ -118,6 +118,13 @@ pub struct mpl_host_api_t {
         path: *const c_char,
         content: *const c_char,
     ) -> mpl_result_t,
+    pub set_timeout: unsafe extern "C" fn(
+        ctx: *mut c_void,
+        ms: u64,
+        payload: *const c_char,
+        out_id: *mut u64,
+    ) -> mpl_result_t,
+    pub clear_timeout: unsafe extern "C" fn(ctx: *mut c_void, id: u64) -> mpl_result_t,
 }
 
 // The table travels inside `NativePlugin` which is `Send`; the raw `ctx`
@@ -397,6 +404,42 @@ unsafe extern "C" fn shim_fs_write(
     }
 }
 
+unsafe extern "C" fn shim_set_timeout(
+    ctx: *mut c_void,
+    ms: u64,
+    payload: *const c_char,
+    out_id: *mut u64,
+) -> mpl_result_t {
+    unsafe {
+        let ctx = &*(ctx as *const NativeHostCtx);
+        let Some(out_id) = out_id.as_mut() else {
+            return mpl_result_t::MPL_ERR_INVALID_ARG;
+        };
+        let payload = if payload.is_null() {
+            String::new()
+        } else {
+            CStr::from_ptr(payload).to_string_lossy().into_owned()
+        };
+        match ctx.host.set_timeout(ms, &payload) {
+            Ok(id) => {
+                *out_id = id;
+                mpl_result_t::MPL_OK
+            }
+            Err(_) => mpl_result_t::MPL_ERR_RUNTIME,
+        }
+    }
+}
+
+unsafe extern "C" fn shim_clear_timeout(ctx: *mut c_void, id: u64) -> mpl_result_t {
+    unsafe {
+        let ctx = &*(ctx as *const NativeHostCtx);
+        match ctx.host.clear_timeout(id) {
+            Ok(()) => mpl_result_t::MPL_OK,
+            Err(_) => mpl_result_t::MPL_ERR_RUNTIME,
+        }
+    }
+}
+
 unsafe extern "C" fn shim_plugin_dir(
     ctx: *mut c_void,
     out: *mut c_char,
@@ -467,6 +510,8 @@ pub fn host_table_for(ctx: Arc<NativeHostCtx>) -> mpl_host_api_t {
         open_window: shim_open_window,
         fs_read: shim_fs_read,
         fs_write: shim_fs_write,
+        set_timeout: shim_set_timeout,
+        clear_timeout: shim_clear_timeout,
     }
 }
 

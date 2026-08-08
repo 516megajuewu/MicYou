@@ -74,6 +74,14 @@ impl HostApi for MockHost {
         Ok("mock fs content".into())
     }
 
+    fn set_timeout(&self, _ms: u64, _payload: &str) -> PluginResult<u64> {
+        Ok(7)
+    }
+
+    fn clear_timeout(&self, _id: u64) -> PluginResult<()> {
+        Ok(())
+    }
+
     fn fs_write(&self, _path: &str, _content: &str) -> PluginResult<()> {
         Ok(())
     }

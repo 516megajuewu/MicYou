@@ -502,6 +502,8 @@ pub struct PluginHostApi {
     window: Arc<WindowService>,
     plugin_id: String,
     dir: std::path::PathBuf,
+    timer_next: std::sync::atomic::AtomicU64,
+    timers: std::sync::Mutex<std::collections::HashMap<u64, std::sync::Arc<std::sync::atomic::AtomicBool>>>,
 }
 
 impl PluginHostApi {
@@ -524,6 +526,8 @@ impl PluginHostApi {
             window,
             plugin_id,
             dir,
+            timer_next: std::sync::atomic::AtomicU64::new(1),
+            timers: std::sync::Mutex::new(std::collections::HashMap::new()),
         })
     }
 }
@@ -626,6 +630,42 @@ impl HostApi for PluginHostApi {
                 .map_err(|e| PluginError::Runtime(format!("fs_write mkdir: {e}")))?;
         }
         std::fs::write(&full, content).map_err(PluginError::from)
+    }
+
+    fn set_timeout(&self, ms: u64, payload: &str) -> PluginResult<u64> {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        let id = self.timer_next.fetch_add(1, Ordering::Relaxed);
+        let cancel = Arc::new(AtomicBool::new(false));
+        self.timers
+            .lock()
+            .map_err(lock_err)?
+            .insert(id, cancel.clone());
+        let bus = self.bus.clone();
+        let pid = self.plugin_id.clone();
+        let payload = payload.to_string();
+        std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(ms));
+            if cancel.load(Ordering::Relaxed) {
+                return;
+            }
+            let msg = PluginMessage::new(
+                "host",
+                &pid,
+                "timer:expired",
+                serde_json::json!({ "timer": id, "payload": payload })
+                    .to_string()
+                    .into_bytes(),
+            );
+            bus.handle_incoming(&msg);
+        });
+        Ok(id)
+    }
+
+    fn clear_timeout(&self, id: u64) -> PluginResult<()> {
+        if let Some(cancel) = self.timers.lock().map_err(lock_err)?.remove(&id) {
+            cancel.store(true, std::sync::atomic::Ordering::Relaxed);
+        }
+        Ok(())
     }
 
     fn connected_devices(&self) -> Vec<DeviceSnapshot> {
