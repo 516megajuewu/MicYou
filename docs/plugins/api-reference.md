@@ -4,6 +4,11 @@
 
 ## Host API（宿主向插件提供的服务）
 
+API 版本：`HOST_API_VERSION = 1`（见 manifest `apiVersion`）
+- 追加式演进：**新字段只能加在 `mpl_host_api_t` 的 `ctx` 之后**，禁止插入中间，旧插件按旧偏移仍能正确读取
+- manifest `minHostVersion` 声明插件所需的最低宿主 API 版本，major 超过宿主版本即拒绝加载
+- 插件能力（capabilities）在 manifest 中声明，宿主在每次调用时强制检查，越权返回 `MPL_ERR_PERMISSION`
+
 ### Native（C ABI，`mpl_host_api_t`）
 
 ```c
@@ -16,16 +21,27 @@ typedef struct mpl_host_api {
     mpl_result_t (*audio_state)(void *ctx, char *out, uint32_t *out_size);
     mpl_result_t (*connected_devices)(void *ctx, char *out, uint32_t *out_size);
     void *ctx;
-    /* 以下字段一律追加在 ctx 之后：旧插件按原偏移解释不受影响 */
+    /* 以下字段一律追加在 ctx 之后（追加式演进，见上） */
     mpl_result_t (*play_sound)(void *ctx, const char *path);
     mpl_result_t (*plugin_dir)(void *ctx, char *out, uint32_t *out_size);
+    mpl_result_t (*register_hotkey)(void *ctx, const char *shortcut, uint64_t *out_id);
+    mpl_result_t (*open_window)(void *ctx, const char *panel_id);
+    mpl_result_t (*fs_read)(void *ctx, const char *path, char *out, uint32_t *out_size);
+    mpl_result_t (*fs_write)(void *ctx, const char *path, const char *content);
+    mpl_result_t (*set_timeout)(void *ctx, uint64_t ms, const char *payload, uint64_t *out_id);
+    mpl_result_t (*clear_timeout)(void *ctx, uint64_t id);
+    mpl_result_t (*http_request)(void *ctx, const char *method, const char *url,
+                                 const char *headers_json, const char *body, uint64_t *out_id);
+    mpl_result_t (*set_interval)(void *ctx, uint64_t ms, const char *payload, uint64_t *out_id);
+    mpl_result_t (*clear_interval)(void *ctx, uint64_t id);
+    mpl_result_t (*open_url)(void *ctx, const char *url);
+    mpl_result_t (*notify)(void *ctx, const char *title, const char *body);
+    mpl_result_t (*locale)(void *ctx, char *out, uint32_t *out_size);
+    mpl_result_t (*host_info)(void *ctx, char *out, uint32_t *out_size);
+    mpl_result_t (*clipboard_read)(void *ctx, char *out, uint32_t *out_size);
+    mpl_result_t (*clipboard_write)(void *ctx, const char *text);
 } mpl_host_api_t;
 ```
-
-字段追加规则：**新字段只能加在 `ctx` 之后**，禁止插入中间
-- 旧插件（按旧布局编译）仍能读到正确的 `ctx`，保持二进制兼容
-- 新插件按新布局访问后置字段
-- 当前后置字段：`play_sound`、`plugin_dir`
 
 ### WASM（导入模块 `micyou`）
 
@@ -40,7 +56,21 @@ typedef struct mpl_host_api {
 | `connected_devices` | `() -> i32` | 返回宿主分配的 JSON 数组指针 |
 | `play_sound` | `(path_ptr: i32) -> i32` | 排队播放 WAV（需 audio.play），返回结果码 |
 | `plugin_dir` | `() -> i32` | 返回插件安装目录绝对路径字符串 |
-| `register_hotkey` | `(shortcut_ptr: i32) -> i64` | 注册全局快捷键，返回句柄 id（0 = 失败） |
+| `register_hotkey` | `(shortcut_ptr: i32) -> i64` | 注册全局快捷键（仅 X11 会话），返回句柄 id（0 = 失败） |
+| `open_window` | `(panel_ptr: i32) -> i32` | 打开插件自己的面板窗口 |
+| `fs_read` | `(path_ptr: i32) -> i32` | 读取插件目录内文本文件（需 fs.read），返回字符串指针 |
+| `fs_write` | `(path_ptr: i32, content_ptr: i32) -> ()` | 写文件（需 fs.write） |
+| `set_timeout` | `(ms: i64, payload_ptr: i32) -> i64` | 一次性定时器，返回 id |
+| `clear_timeout` | `(id: i64) -> ()` | 取消定时器 |
+| `http_request` | `(method_ptr, url_ptr, headers_ptr, body_ptr) -> i64` | 异步 HTTP（需 network.io），返回请求 id |
+| `set_interval` | `(ms: i64, payload_ptr: i32) -> i64` | 循环定时器，返回 id |
+| `clear_interval` | `(id: i64) -> ()` | 停止循环定时器 |
+| `open_url` | `(url_ptr: i32) -> ()` | 默认浏览器打开（需 open.url） |
+| `notify` | `(title_ptr: i32, body_ptr: i32) -> ()` | 系统通知 |
+| `locale` | `() -> i32` | 宿主 UI 语言（如 zh-CN / en），字符串指针 |
+| `host_info` | `() -> i32` | 宿主身份 JSON 字符串指针 |
+| `clipboard_read` | `() -> i32` | 读剪贴板（需 clipboard.read） |
+| `clipboard_write` | `(text_ptr: i32) -> ()` | 写剪贴板（需 clipboard.write） |
 
 ### 缓冲区契约（out / out_size）
 
@@ -59,6 +89,12 @@ typedef struct mpl_host_api {
 [ { "mode": "wifi", "label": "MicYou Mobile", "audioActive": true } ]
 ```
 
+- `host_info` 返回：
+
+```json
+{ "name": "micyou", "version": "2.0.0", "apiVersion": 1 }
+```
+
 ### play_sound（音频播放）
 
 - 参数为 WAV 文件路径，相对路径解析到插件自己的安装目录（插件可自带或动态生成音效文件）
@@ -72,6 +108,55 @@ typedef struct mpl_host_api {
 - 按下时宿主经总线投递消息给插件：topic `hotkey:<id>`，payload `{"shortcut":"..."}`
 - 插件在 `handle_message` 中处理；进程退出自动注销
 - 快捷键格式由 global-hotkey 解析：修饰键 ctrl/alt/shift/super/cmd + 键名（字母、数字、f1-f12 等）
+- **平台限制**：仅 X11 会话可用；Wayland 会话注册返回明确错误（合成器不转发 X11 全局抓取），请改用面板按钮
+
+### fs_read / fs_write（文件访问）
+
+- 读写插件**自身安装目录内**的 UTF-8 文本文件（需 `fs.read` / `fs.write`）
+- 路径沙箱：绝对路径与 `..` 穿越一律拒绝（`sandbox_path`），插件无法触及目录外文件
+- `fs_write` 自动创建父目录
+- 常见用途：缓存、状态文件、生成资源（音效、脚本）、插件数据持久化
+
+### set_timeout / clear_timeout（一次性定时器）
+
+- `set_timeout(ms, payload)` 返回定时器 id，到期后宿主经总线投递：
+  topic `timer:expired`，payload `{"timer":<id>,"payload":"<payload>"}`
+- 异步事件模型：定时器线程投递消息，不阻塞插件调用线程
+- `clear_timeout(id)` 取消尚未到期的定时器
+
+### set_interval / clear_interval（循环定时器）
+
+- `set_interval(ms, payload)` 返回循环定时器 id，每隔 `ms` 毫秒投递：
+  topic `interval:tick`，payload `{"interval":<id>,"payload":"<payload>"}`
+- `clear_interval(id)` 停止；插件卸载时宿主自动停止其全部定时器
+
+### http_request（异步 HTTP）
+
+- `http_request(method, url, headersJson, body)` 返回请求 id（需 `network.io`）
+- 请求在宿主线程执行（10 秒超时），响应经总线异步投递：
+  topic `http:response`，payload `{"request":<id>,"ok":true,"status":200,"body":"...","error":null}`
+- 失败时 `ok=false` 且 `error` 含原因
+- 插件不得在实时音频线程（process）中发起请求
+
+### open_url / notify（外部动作）
+
+- `open_url(url)`：系统默认浏览器打开（需 `open.url`）
+- `notify(title, body)`：系统通知（无能力要求）
+
+### locale / host_info（环境查询）
+
+- `locale()`：宿主当前 UI 语言（如 `zh-CN`、`en`），插件面板据此切换自身文案
+- `host_info()`：宿主身份与 API 版本，用于运行时兼容判断
+
+### clipboard_read / clipboard_write（剪贴板）
+
+- 读/写系统剪贴板文本（需 `clipboard.read` / `clipboard.write`）
+- 常见用途：自动化复制粘贴、把插件生成内容送剪贴板
+
+### 事件投递（宿主 → 插件）
+
+- 设备连接/断开时宿主向所有已加载插件派发 `PluginEvent::DeviceConnected`（含 mode/label）与 `DeviceDisconnected`
+- 插件在 `handle_event` 中处理（native 为 `micyou_plugin_handle_event`，wasm 为 `handle_event` 导出）
 
 ## Plugin API（插件向宿主实现的接口）
 
@@ -166,9 +251,15 @@ Native 的 `mpl_result_t` 数值与此保持一致（0-5 子集）
 | `audio.state` | audio_state | 音频流状态快照 |
 | `audio.play` | play_sound | 播放 WAV 音效（异步，非实时） |
 | `device.list` | connected_devices | 已连接设备信息 |
-| `network.io` | 预留 | 出站网络 |
-| `register_hotkey` | 无需能力 | 全局快捷键（触发仅通知注册的插件） |
-| `fs.read` | 预留 | 沙箱内文件 |
+| `network.io` | http_request | 出站 HTTP（异步，10s 超时） |
+| `open.url` | open_url | 默认浏览器打开链接 |
+| `clipboard.read` | clipboard_read | 读取剪贴板文本 |
+| `clipboard.write` | clipboard_write | 写入剪贴板文本 |
+| `fs.read` | fs_read | 插件目录内文件读取（沙箱） |
+| `fs.write` | fs_write | 插件目录内文件写入（沙箱，自动建父目录） |
+| `register_hotkey` | 无需能力 | 全局快捷键（仅 X11，触发仅通知注册的插件） |
+| 无 | set_timeout/clear_timeout/set_interval/clear_interval | 定时器（不访问资源） |
+| 无 | notify/locale/host_info/plugin_dir/open_window | 通知与环境查询 |
 
 - 未知能力声明会被清单校验拒绝
 - 未声明能力的 API 调用被 host 回调层拒绝（`MPL_ERR_PERMISSION` / 错误码 8）

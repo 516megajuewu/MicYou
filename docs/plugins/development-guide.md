@@ -76,6 +76,84 @@
 - WASM DSP 插件不得声明 `realtimeSafe: true`
 - `ui` 类型插件必须声明 `ui` 描述
 
+### 运行时选择：WASM 优先
+
+- **WASM（默认推荐）**：沙箱隔离、内存与燃料受限、跨平台（同一 .wasm 在
+  Windows/macOS/Linux/未来 Android 通用）、能力由宿主授权
+  - 适用：逻辑、UI 面板、自动化、定时任务、HTTP、文件（插件沙箱内）、配置
+  - 性能：wasmi 解释器 100-500 Mops/s，48kHz 音频帧处理实测 ~70µs/帧（预算 10ms）
+- **Native（cdylib）**：宿主完整权限，用于实时 DSP 与深度系统集成
+  - 适用：自研降噪/变声算法、ONNX 推理、硬件交互
+  - 要求：按平台分别编译（.so / .dylib / .dll），须声明 `arches`
+  - 注意：process() 内禁止调用宿主 API（实时安全）
+
+### 开发工具（micyou plugin）
+
+```bash
+micyou plugin create dev.micyou.myplugin          # 生成 wasm 骨架（默认）
+micyou plugin create dev.micyou.mynative --runtime native
+micyou plugin validate ./myplugin                 # 校验 plugin.json 与入口产物
+micyou plugin package ./myplugin -o out.zip       # 打包为可导入 zip
+```
+
+- `create` 生成 plugin.json + 入口模板 + panel.html + README
+- wasm 骨架：编译 main.wat → main.wasm 后放入目录即完成构建
+- native 骨架：cargo build --release 后复制产物并按 entry 命名
+- `package` 自动跳过 target/ 与隐藏文件，产物根目录含 plugin.json，应用内可直接导入
+
+### 字段完整参考
+
+| 字段 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| `id` | string | ✅ | 反向域名（如 dev.micyou.eq），小写字母数字与点连字符，须含点 |
+| `name` | string | ✅ | 显示名 |
+| `version` | string | ✅ | semver |
+| `author` | string | | 作者（邮箱或昵称） |
+| `description` | string | | 简述 |
+| `license` | string | | SPDX 许可标识（如 MIT、GPL-3.0-only） |
+| `homepage` | string | | 项目主页 |
+| `repository` | string | | 源码仓库 |
+| `keywords` | string[] | | 搜索关键词 |
+| `runtime` | string | ✅ | `wasm` \| `native` |
+| `entry` | string | ✅ | 入口产物文件名（相对插件目录） |
+| `platforms` | string[] | | 支持系统，空 = 全部（linux / windows / macos / android） |
+| `arches` | string[] | | **native 插件支持的 CPU 架构**（x86_64 / aarch64 / i686 / armv7 / riscv64），空 = 全部 |
+| `apiVersion` | number | ✅ | 宿主 API 版本（当前 1） |
+| `minHostVersion` | string | | 最低宿主 API 版本（semver，major 超过宿主即拒绝） |
+| `capabilities` | string[] | | 请求的能力（见 API 参考权限清单） |
+| `kind` | string | | `dsp` \| `utility` \| `ui` \| `bridge`，默认 utility |
+| `ui` | object | | ui 描述（route / label / panels） |
+| `dsp` | object | | dsp 描述（insertAfter / first / frameSize / realtimeSafe） |
+| `config` | object | | 默认配置（首次启用时合入状态） |
+| `icon` | string | | 图标文件名（PNG，相对插件目录） |
+| `nameI18n` | object | | 本地化名称（BCP-47 标签 → 名称） |
+| `descriptionI18n` | object | | 本地化描述（BCP-47 标签 → 描述） |
+
+示例（带新字段）：
+
+```json
+{
+  "id": "dev.micyou.example.demo",
+  "name": "Demo",
+  "version": "1.0.0",
+  "author": "you@example.com",
+  "description": "示例插件",
+  "license": "MIT",
+  "homepage": "https://example.com",
+  "keywords": ["demo", "utility"],
+  "runtime": "wasm",
+  "entry": "main.wasm",
+  "platforms": ["linux", "windows", "macos"],
+  "arches": ["x86_64", "aarch64"],
+  "apiVersion": 1,
+  "minHostVersion": "1.0.0",
+  "capabilities": ["config.read", "config.write", "network.io"],
+  "kind": "utility",
+  "config": {},
+  "nameI18n": { "zh-CN": "演示" }
+}
+```
+
 ## 编写 Native 插件
 
 Native 插件是平台 cdylib，通过版本化 C ABI 与宿主交互，ABI 定义在

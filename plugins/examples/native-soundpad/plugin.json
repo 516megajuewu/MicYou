@@ -37,5 +37,15 @@
   },
   "config": {
     "sounds": []
+  },
+  "license": "GPL-3.0-only",
+  "homepage": "https://github.com/LanRhyme/MicYou",
+  "keywords": [
+    "soundpad",
+    "example",
+    "utility"
+  ],
+  "nameI18n": {
+    "zh-CN": "音效板"
   }
 }

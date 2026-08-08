@@ -21,8 +21,38 @@ MicYou 插件系统允许第三方为桌面端与（未来）安卓端扩展能�
 
 | 示例 | 运行时 | 类型 | 位置 |
 | --- | --- | --- | --- |
-| native-soundpad | Native (cdylib) | 音效板：按钮面板 + 专属设置页 + 全局快捷键 + 音频播放 | `plugins/examples/native-soundpad/` |
-| native-noisegate | Native (cdylib) | 降噪引擎（RMS 噪声门 DSP 节点） | `plugins/examples/native-noisegate/` |
+| native-soundpad | Native (cdylib) | 音效板：按钮面板 + 专属设置页 + 快捷键 + 音频播放 + 插件自主开窗 | `plugins/examples/native-soundpad/` |
+| wasm-voicechanger | WASM | 变声器（实时 DSP in wasmi）：专属设置页 + 配置热更新 | `plugins/examples/wasm-voicechanger/` |
+
+## Host API 能力总表
+
+| 类别 | API | 能力 |
+| --- | --- | --- |
+| 日志 | `log` | 无 |
+| 配置 | `get_config` / `set_config` | config.read / config.write |
+| 事件 | `emit_event` | event.emit |
+| 消息 | `send_message` | message.send |
+| 音频 | `audio_state` / `play_sound` | audio.state / audio.play |
+| 设备 | `connected_devices` | device.list |
+| 文件 | `fs_read` / `fs_write`（插件目录沙箱） | fs.read / fs.write |
+| 定时器 | `set_timeout` / `clear_timeout` / `set_interval` / `clear_interval` | 无 |
+| 网络 | `http_request`（异步回调） | network.io |
+| 浏览器 | `open_url` | open.url |
+| 通知 | `notify` | 无 |
+| 剪贴板 | `clipboard_read` / `clipboard_write` | clipboard.read / clipboard.write |
+| 环境 | `locale` / `host_info` / `plugin_dir` | 无 |
+| UI | `open_window` / 专属设置页（iframe 桥） | 无 |
+| 快捷键 | `register_hotkey` | 无（仅 X11） |
+| 宿主事件 | 设备连接/断开 → `handle_event` | 无 |
+
+## 开发工具
+
+```bash
+micyou plugin create dev.micyou.myplugin          # wasm 骨架（默认，推荐）
+micyou plugin create dev.micyou.mynative --runtime native
+micyou plugin validate ./myplugin
+micyou plugin package ./myplugin -o out.zip
+```
 
 ## 代码结构
 
