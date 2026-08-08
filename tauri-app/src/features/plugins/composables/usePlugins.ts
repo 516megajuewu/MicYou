@@ -45,6 +45,19 @@ export interface PluginView {
   nameI18n?: Record<string, string>;
   descriptionI18n?: Record<string, string>;
   dependencies?: PluginDependency[];
+  configSchema?: {
+    fields: Array<{
+      key: string;
+      fieldType: string;
+      label?: string | null;
+      description?: string | null;
+      default?: unknown;
+      min?: number;
+      max?: number;
+      step?: number;
+      options?: Array<{ value: string; label?: string | null }>;
+    }>;
+  };
 }
 
 export interface PluginSyncStatus {
@@ -100,9 +113,10 @@ export function usePlugins() {
     }
   }
 
-  async function saveConfig(plugin: PluginView, key: string, value: unknown) {
+  async function saveConfig(plugin: PluginView | string, key: string, value: unknown) {
     try {
-      await invoke('set_plugin_config', { id: plugin.id, key, value });
+      const pluginId = typeof plugin === 'string' ? plugin : plugin.id;
+  await invoke('set_plugin_config', { id: pluginId, key, value });
       return true;
     } catch (e) {
       error.value = String(e);
@@ -110,9 +124,10 @@ export function usePlugins() {
     }
   }
 
-  async function getConfig(plugin: PluginView): Promise<Record<string, unknown>> {
+  async function getConfig(plugin: PluginView | string): Promise<Record<string, unknown>> {
     try {
-      const v = await invoke<Record<string, unknown>>('get_plugin_config', { id: plugin.id });
+      const pluginId = typeof plugin === 'string' ? plugin : plugin.id;
+      const v = await invoke<Record<string, unknown>>('get_plugin_config', { id: pluginId });
       return v ?? {};
     } catch {
       return {};

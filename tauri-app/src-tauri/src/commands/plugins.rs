@@ -39,6 +39,9 @@ pub struct PluginView {
     /// Declared dependencies on other plugins (id, version requirement).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub dependencies: Vec<micyou_plugin::manifest::PluginDependency>,
+    /// Declarative settings schema for automatic form generation.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub config_schema: Option<micyou_plugin::manifest::ConfigSchema>,
 }
 
 /// Cross-device sync status for the plugins page.
@@ -77,6 +80,7 @@ pub fn list_plugins(state: State<'_, ServerState>) -> Result<Vec<PluginView>, St
                 name_i18n: m.name_i18n.clone(),
                 description_i18n: m.description_i18n.clone(),
                 dependencies: m.dependencies.clone(),
+                config_schema: m.config_schema.clone(),
                 version: m.version.clone(),
                 author: m.author.clone(),
                 description: m.description.clone(),

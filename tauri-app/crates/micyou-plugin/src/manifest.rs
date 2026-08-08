@@ -198,6 +198,57 @@ pub struct DspDescriptor {
     pub realtime_safe: bool,
 }
 
+/// A single configurable field; the host renders an automatic form from
+/// `configSchema` so plugins do not need a hand-written settings page.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ConfigField {
+    /// Config key (used with get_config / set_config).
+    pub key: String,
+    /// number | boolean | string | select
+    #[serde(default = "default_field_type")]
+    pub field_type: String,
+    /// UI label (falls back to the key).
+    #[serde(default)]
+    pub label: Option<String>,
+    /// Help text.
+    #[serde(default)]
+    pub description: Option<String>,
+    /// Default value (JSON).
+    #[serde(default)]
+    pub default: Option<serde_json::Value>,
+    /// number: min / max / step
+    #[serde(default)]
+    pub min: Option<f64>,
+    #[serde(default)]
+    pub max: Option<f64>,
+    #[serde(default)]
+    pub step: Option<f64>,
+    /// select: choices [{value, label}]
+    #[serde(default)]
+    pub options: Vec<ConfigOption>,
+}
+
+fn default_field_type() -> String {
+    "string".into()
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ConfigOption {
+    pub value: String,
+    #[serde(default)]
+    pub label: Option<String>,
+}
+
+/// Declarative settings schema for automatic form generation.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ConfigSchema {
+    #[serde(default)]
+    pub fields: Vec<ConfigField>,
+}
+
 /// A dependency on another plugin: the dependency must be installed,
 /// enabled and satisfy the semver requirement before this plugin can be
 /// enabled. Enables plugin-to-plugin composition (forward-declared links).
@@ -285,6 +336,9 @@ pub struct PluginManifest {
     /// before this plugin can be enabled).
     #[serde(default)]
     pub dependencies: Vec<PluginDependency>,
+    /// Declarative settings schema; the host renders an automatic form.
+    #[serde(default)]
+    pub config_schema: Option<ConfigSchema>,
 }
 
 impl PluginManifest {
@@ -326,6 +380,38 @@ impl PluginManifest {
                 plugin: self.api_version,
                 host: HOST_API_VERSION,
             });
+        }
+        if let Some(schema) = &self.config_schema {
+            for field in &schema.fields {
+                if field.key.is_empty() {
+                    return Err(PluginError::Validation(
+                        "configSchema field key must not be empty".into(),
+                    ));
+                }
+                match field.field_type.as_str() {
+                    "number" | "boolean" | "string" | "select" => {}
+                    other => {
+                        return Err(PluginError::Validation(format!(
+                            "configSchema field {:?} has unknown type {other:?}",
+                            field.key
+                        )));
+                    }
+                }
+                if field.field_type == "select" && field.options.is_empty() {
+                    return Err(PluginError::Validation(format!(
+                        "configSchema select field {:?} needs options",
+                        field.key
+                    )));
+                }
+                if let (Some(lo), Some(hi)) = (field.min, field.max) {
+                    if lo > hi {
+                        return Err(PluginError::Validation(format!(
+                            "configSchema field {:?} min > max",
+                            field.key
+                        )));
+                    }
+                }
+            }
         }
         for dep in &self.dependencies {
             if !validate_plugin_id(&dep.id) {
@@ -541,6 +627,43 @@ fn dependency_validation_rejects_bad_version_req() {
         r#"{"id":"a.b.c","name":"C","version":"1.0.0","runtime":"wasm",
             "entry":"x.wasm","apiVersion":1,
             "dependencies":[{"id":"a.b.dep","version":"not-a-version"}]}"#,
+    )
+    .expect("parse");
+    assert!(m.validate().is_err());
+}
+
+#[test]
+fn config_schema_validation_accepts_valid_schema() {
+    let m = serde_json::from_str::<PluginManifest>(
+        r#"{"id":"a.b.c","name":"C","version":"1.0.0","runtime":"wasm",
+            "entry":"x.wasm","apiVersion":1,
+            "configSchema":{"fields":[
+                {"key":"gain","fieldType":"number","min":0,"max":10,"step":0.1,"default":1},
+                {"key":"enabled","fieldType":"boolean","default":true},
+                {"key":"mode","fieldType":"select","options":[{"value":"a","label":"A"}]}
+            ]}}"#,
+    )
+    .expect("parse");
+    m.validate().expect("valid");
+}
+
+#[test]
+fn config_schema_validation_rejects_unknown_type() {
+    let m = serde_json::from_str::<PluginManifest>(
+        r#"{"id":"a.b.c","name":"C","version":"1.0.0","runtime":"wasm",
+            "entry":"x.wasm","apiVersion":1,
+            "configSchema":{"fields":[{"key":"x","fieldType":"color"}]}}"#,
+    )
+    .expect("parse");
+    assert!(m.validate().is_err());
+}
+
+#[test]
+fn config_schema_validation_rejects_select_without_options() {
+    let m = serde_json::from_str::<PluginManifest>(
+        r#"{"id":"a.b.c","name":"C","version":"1.0.0","runtime":"wasm",
+            "entry":"x.wasm","apiVersion":1,
+            "configSchema":{"fields":[{"key":"mode","fieldType":"select"}]}}"#,
     )
     .expect("parse");
     assert!(m.validate().is_err());

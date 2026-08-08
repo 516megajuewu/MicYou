@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
+import PluginConfigForm from './PluginConfigForm.vue';
 import { ref, onMounted, watch } from 'vue';
 import {
   RefreshCw,
@@ -86,6 +87,11 @@ async function saveConfig(plugin: PluginView) {
   } catch (e) {
     p.error.value = String(e);
   }
+}
+
+function onAutoSaved() {
+  configSaved.value = true;
+  setTimeout(() => (configSaved.value = false), 2000);
 }
 
 function confirmUninstall(plugin: PluginView) {
@@ -304,7 +310,7 @@ function confirmUninstall(plugin: PluginView) {
           </p>
         </div>
 
-        <!-- Config editor -->
+        <!-- Config editor: automatic form when the manifest declares a schema -->
         <div
           v-if="openConfigFor === plugin.id"
           class="mt-3 pt-3 border-t border-surface-variant/20"
@@ -317,21 +323,30 @@ function confirmUninstall(plugin: PluginView) {
               $t('plugins.configSaved')
             }}</span>
           </div>
-          <textarea
-            v-model="configJson"
-            rows="3"
-            spellcheck="false"
-            class="w-full bg-surface-variant/20 rounded-lg p-2 text-xs font-mono text-on-surface outline-none focus:ring-1 focus:ring-primary/40"
-            placeholder='{ "key": "value" }'
-          ></textarea>
-          <div class="flex justify-end mt-2">
-            <button
-              @click="saveConfig(plugin)"
-              class="px-4 py-1.5 rounded-full bg-primary/20 text-primary hover:bg-primary/30 text-xs font-medium"
-            >
-              {{ $t('plugins.save') }}
-            </button>
-          </div>
+          <PluginConfigForm
+            v-if="plugin.configSchema && plugin.configSchema.fields?.length"
+            :key="plugin.id"
+            :plugin-id="plugin.id"
+            :schema="plugin.configSchema"
+            @saved="onAutoSaved"
+          />
+          <template v-else>
+            <textarea
+              v-model="configJson"
+              rows="3"
+              spellcheck="false"
+              class="w-full bg-surface-variant/20 rounded-lg p-2 text-xs font-mono text-on-surface outline-none focus:ring-1 focus:ring-primary/40"
+              placeholder='{ "key": "value" }'
+            ></textarea>
+            <div class="flex justify-end mt-2">
+              <button
+                @click="saveConfig(plugin)"
+                class="px-4 py-1.5 rounded-full bg-primary/20 text-primary hover:bg-primary/30 text-xs font-medium"
+              >
+                {{ $t('plugins.save') }}
+              </button>
+            </div>
+          </template>
         </div>
 
         <!-- Logs -->
