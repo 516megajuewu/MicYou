@@ -198,11 +198,26 @@ pub struct DspDescriptor {
     pub realtime_safe: bool,
 }
 
+/// A dependency on another plugin: the dependency must be installed,
+/// enabled and satisfy the semver requirement before this plugin can be
+/// enabled. Enables plugin-to-plugin composition (forward-declared links).
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginDependency {
+    /// Plugin id of the dependency.
+    pub id: String,
+    /// Semver requirement, e.g. "^1.0.0" or ">=1.2, <2".
+    #[serde(default)]
+    pub version: String,
+    /// When true, a missing/unmet dependency only warns instead of blocking.
+    #[serde(default)]
+    pub optional: bool,
+}
+
 /// The unified plugin manifest. Field names use camelCase to mirror the
 /// wire/protocol style used across MicYou.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
-#[derive(Default)]
 pub struct PluginManifest {
     /// Reverse-DNS id, e.g. `dev.micyou.eq`.
     pub id: String,
@@ -266,6 +281,10 @@ pub struct PluginManifest {
     /// Localized descriptions, keyed by locale tag.
     #[serde(default)]
     pub description_i18n: std::collections::HashMap<String, String>,
+    /// Dependencies on other plugins (installed, enabled, version-satisfied
+    /// before this plugin can be enabled).
+    #[serde(default)]
+    pub dependencies: Vec<PluginDependency>,
 }
 
 impl PluginManifest {
@@ -307,6 +326,22 @@ impl PluginManifest {
                 plugin: self.api_version,
                 host: HOST_API_VERSION,
             });
+        }
+        for dep in &self.dependencies {
+            if !validate_plugin_id(&dep.id) {
+                return Err(PluginError::Validation(format!(
+                    "invalid dependency plugin id {:?}",
+                    dep.id
+                )));
+            }
+            if !dep.version.is_empty() {
+                semver::VersionReq::parse(&dep.version).map_err(|e| {
+                    PluginError::Validation(format!(
+                        "invalid dependency version requirement {:?}: {e}",
+                        dep.version
+                    ))
+                })?;
+            }
         }
         if let Some(min) = &self.min_host_version {
             let parsed = semver::Version::parse(min).map_err(|e| {
@@ -476,4 +511,37 @@ mod tests {
         assert!(json.get("insertAfter").is_none()); // nested struct not flattened
         assert_eq!(json["kind"], "dsp");
     }
+}
+
+#[test]
+fn dependency_validation_accepts_valid_deps() {
+    let m = serde_json::from_str::<PluginManifest>(
+        r#"{"id":"a.b.c","name":"C","version":"1.0.0","runtime":"wasm",
+            "entry":"x.wasm","apiVersion":1,
+            "dependencies":[{"id":"a.b.dep","version":"^1.0.0"}]}"#,
+    )
+    .expect("parse");
+    m.validate().expect("valid");
+}
+
+#[test]
+fn dependency_validation_rejects_bad_id() {
+    let m = serde_json::from_str::<PluginManifest>(
+        r#"{"id":"a.b.c","name":"C","version":"1.0.0","runtime":"wasm",
+            "entry":"x.wasm","apiVersion":1,
+            "dependencies":[{"id":"NO_DOTS"}]}"#,
+    )
+    .expect("parse");
+    assert!(m.validate().is_err());
+}
+
+#[test]
+fn dependency_validation_rejects_bad_version_req() {
+    let m = serde_json::from_str::<PluginManifest>(
+        r#"{"id":"a.b.c","name":"C","version":"1.0.0","runtime":"wasm",
+            "entry":"x.wasm","apiVersion":1,
+            "dependencies":[{"id":"a.b.dep","version":"not-a-version"}]}"#,
+    )
+    .expect("parse");
+    assert!(m.validate().is_err());
 }

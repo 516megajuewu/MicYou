@@ -36,6 +36,9 @@ pub struct PluginView {
     /// Localized descriptions, keyed by BCP-47 locale tag.
     #[serde(default, skip_serializing_if = "std::collections::HashMap::is_empty")]
     pub description_i18n: std::collections::HashMap<String, String>,
+    /// Declared dependencies on other plugins (id, version requirement).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub dependencies: Vec<micyou_plugin::manifest::PluginDependency>,
 }
 
 /// Cross-device sync status for the plugins page.
@@ -73,6 +76,7 @@ pub fn list_plugins(state: State<'_, ServerState>) -> Result<Vec<PluginView>, St
                 name: m.name.clone(),
                 name_i18n: m.name_i18n.clone(),
                 description_i18n: m.description_i18n.clone(),
+                dependencies: m.dependencies.clone(),
                 version: m.version.clone(),
                 author: m.author.clone(),
                 description: m.description.clone(),

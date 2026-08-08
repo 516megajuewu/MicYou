@@ -3,6 +3,12 @@ import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import { openPath } from '@tauri-apps/plugin-opener';
 
+export interface PluginDependency {
+  id: string;
+  version?: string;
+  optional?: boolean;
+}
+
 export interface PluginPreview {
   id: string;
   name: string;
@@ -38,6 +44,7 @@ export interface PluginView {
   error?: string | null;
   nameI18n?: Record<string, string>;
   descriptionI18n?: Record<string, string>;
+  dependencies?: PluginDependency[];
 }
 
 export interface PluginSyncStatus {

@@ -313,6 +313,42 @@ impl PluginHost {
 
     /// Load + start one plugin: instantiate the runtime, init it, register the
     /// instance and (for DSP plugins) its processing node.
+    /// Verify every declared plugin dependency is installed, enabled and
+    /// version-satisfied. Returns the first unmet dependency as an error.
+    pub fn check_dependencies(&self, manifest: &micyou_plugin::PluginManifest) -> PluginResult<()> {
+        for dep in &manifest.dependencies {
+            if dep.optional {
+                continue;
+            }
+            let manager = self.manager.lock().map_err(lock_err)?;
+            let Some(entry) = manager.entry(&dep.id)? else {
+                return Err(PluginError::Runtime(format!(
+                    "dependency {} is not installed (required by {})",
+                    dep.id, manifest.id
+                )));
+            };
+            if !entry.state.is_enabled() {
+                return Err(PluginError::Runtime(format!(
+                    "dependency {} is disabled (enable it first, required by {})",
+                    dep.id, manifest.id
+                )));
+            }
+            if !dep.version.is_empty() {
+                let req = semver::VersionReq::parse(&dep.version)
+                    .map_err(|e| PluginError::Runtime(format!("invalid version req: {e}")))?;
+                let installed = semver::Version::parse(&entry.manifest.version)
+                    .map_err(|e| PluginError::Runtime(format!("dep version parse: {e}")))?;
+                if !req.matches(&installed) {
+                    return Err(PluginError::Runtime(format!(
+                        "dependency {} version {} does not satisfy {} (required by {})",
+                        dep.id, entry.manifest.version, dep.version, manifest.id
+                    )));
+                }
+            }
+        }
+        Ok(())
+    }
+
     pub fn enable_plugin(&self, id: &str) -> PluginResult<()> {
         let entry = {
             let manager = self.manager.lock().map_err(lock_err)?;
@@ -323,6 +359,7 @@ impl PluginHost {
                 .entry(id)?
                 .ok_or_else(|| PluginError::UnknownPlugin(id.to_string()))?
         };
+        self.check_dependencies(&entry.manifest)?;
 
         let host_api: Arc<dyn HostApi> = PluginHostApi::new(
             self.bus.clone(),
