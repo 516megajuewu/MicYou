@@ -23,6 +23,7 @@ MicYou 插件系统允许第三方为桌面端与（未来）安卓端扩展能�
 | --- | --- | --- | --- |
 | native-soundpad | Native (cdylib) | 音效板：按钮面板 + 专属设置页 + 快捷键 + 音频播放 + 插件自主开窗 | `plugins/examples/native-soundpad/` |
 | wasm-voicechanger | WASM | 变声器（实时 DSP in wasmi）：专属设置页 + 配置热更新 | `plugins/examples/wasm-voicechanger/` |
+| wasm-pomodoro | WASM | 番茄钟（定时器 + 系统通知 + configSchema 自动表单） | `plugins/examples/wasm-pomodoro/` |
 
 ## Host API 能力总表
 
@@ -44,6 +45,13 @@ MicYou 插件系统允许第三方为桌面端与（未来）安卓端扩展能�
 | UI | `open_window` / 专属设置页（iframe 桥） | 无 |
 | 快捷键 | `register_hotkey` | 无（仅 X11） |
 | 宿主事件 | 设备连接/断开 → `handle_event` | 无 |
+| 依赖联动 | `dependencies`（前置插件声明） | 无 |
+
+## 安装与更新
+
+- 导入 zip 前展示**权限预览**（能力清单/作者/许可），确认后才安装
+- manifest 声明 `updateUrl` 后可**检查更新**（semver 对比）并一键更新
+- manifest `configSchema` 声明字段后宿主**自动生成配置表单**（滑杆/开关/下拉）
 
 ## 开发工具
 

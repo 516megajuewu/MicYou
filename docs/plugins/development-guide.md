@@ -76,6 +76,38 @@
 - WASM DSP 插件不得声明 `realtimeSafe: true`
 - `ui` 类型插件必须声明 `ui` 描述
 
+### 配置表单自动生成（configSchema）
+
+```json
+"configSchema": {
+  "fields": [
+    { "key": "workMin", "fieldType": "number", "label": "工作时长", "min": 1, "max": 120, "step": 1, "default": 25 },
+    { "key": "enabled", "fieldType": "boolean", "label": "启用", "default": true },
+    { "key": "mode", "fieldType": "select", "options": [{ "value": "a", "label": "A" }] }
+  ]
+}
+```
+
+- 插件声明 schema 后无需手写设置页，宿主在插件卡片渲染原生风格表单
+- 支持 number（滑杆）/ boolean（开关）/ string（输入）/ select（下拉）
+- 保存走 set_plugin_config，配置热更新链路自动生效
+
+### 插件依赖（dependencies）
+
+```json
+"dependencies": [
+  { "id": "dev.micyou.effect", "version": "^1.0.0", "optional": false }
+]
+```
+
+- 启用前宿主校验：依赖须已安装、已启用、版本满足 semver 约束
+- optional=true 时缺失仅警告不阻塞；插件间调用复用 send_message 路由
+
+### 更新机制（updateUrl）
+
+- 声明 `updateUrl` 指向远端 manifest JSON，应用内「检查更新」做 semver 对比
+- 有新版时一键更新：下载 zip → 替换安装目录 → 按原状态重新启用
+
 ### 运行时选择：WASM 优先
 
 - **WASM（默认推荐）**：沙箱隔离、内存与燃料受限、跨平台（同一 .wasm 在
@@ -128,6 +160,9 @@ micyou plugin package ./myplugin -o out.zip       # 打包为可导入 zip
 | `icon` | string | | 图标文件名（PNG，相对插件目录） |
 | `nameI18n` | object | | 本地化名称（BCP-47 标签 → 名称） |
 | `descriptionI18n` | object | | 本地化描述（BCP-47 标签 → 描述） |
+| `dependencies` | object[] | | 前置插件依赖 [{id, version, optional}]，启用前校验 |
+| `configSchema` | object | | 声明式配置 schema，宿主自动生成设置表单 |
+| `updateUrl` | string | | 远端 manifest JSON（更新检查与一键更新） |
 
 示例（带新字段）：
 
