@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
-import PluginConfigForm from './PluginConfigForm.vue';
+import PluginDetailsDialog from './PluginDetailsDialog.vue';
 import PluginMarketDialog from './PluginMarketDialog.vue';
 import { ref, onMounted, watch } from 'vue';
 import {
@@ -32,8 +32,6 @@ onMounted(() => {
   p.refresh();
 });
 
-const showLogsFor = ref<string | null>(null);
-const logLines = ref<string[]>([]);
 const uiConfigs = ref<Record<string, Record<string, unknown>>>({});
 
 // 对声明了按钮面板（ui.route === 'buttons'）的插件加载其配置（音效列表）
@@ -50,10 +48,6 @@ watch(
   () => [p.plugins.value, p.syncStatus.value],
   () => loadUiConfigs(),
 );
-const openConfigFor = ref<string | null>(null);
-const configJson = ref('{}');
-const configSaved = ref(false);
-
 function runtimeLabel(runtime: string) {
   return runtime === 'wasm' ? 'WASM' : 'Native';
 }
@@ -62,33 +56,12 @@ function kindLabel(kind: string) {
   return `plugins.kind.${kind}`;
 }
 
-async function showLogs(plugin: PluginView) {
-  if (showLogsFor.value === plugin.id) {
-    showLogsFor.value = null;
-    return;
-  }
-  showLogsFor.value = plugin.id;
-  logLines.value = await p.logs(plugin);
-}
+const detailsPlugin = ref<PluginView | null>(null);
+const detailsTab = ref<'config' | 'logs'>('config');
 
-function openConfig(plugin: PluginView) {
-  openConfigFor.value = plugin.id;
-  configSaved.value = false;
-  configJson.value = '{}';
-}
-
-async function saveConfig(plugin: PluginView) {
-  try {
-    const parsed = JSON.parse(configJson.value);
-    // write each top-level key
-    for (const [key, value] of Object.entries(parsed)) {
-      await p.saveConfig(plugin, key, value);
-    }
-    configSaved.value = true;
-    p.error.value = null;
-  } catch (e) {
-    p.error.value = String(e);
-  }
+function openDetails(plugin: PluginView, tab: 'config' | 'logs') {
+  detailsPlugin.value = plugin;
+  detailsTab.value = tab;
 }
 
 const checking = ref(false);
@@ -108,11 +81,6 @@ async function applyUpdate(id: string) {
   }
 }
 
-function onAutoSaved() {
-  configSaved.value = true;
-  setTimeout(() => (configSaved.value = false), 2000);
-}
-
 function confirmUninstall(plugin: PluginView) {
   if (window.confirm(`Uninstall ${plugin.name} (${plugin.id})?`)) {
     p.uninstall(plugin);
@@ -122,23 +90,8 @@ function confirmUninstall(plugin: PluginView) {
 
 <template>
   <div class="space-y-4">
-    <!-- Toolbar: sync status + refresh -->
-    <div class="flex items-center justify-between">
-      <span
-        class="px-3 py-1 rounded-full text-xs font-medium"
-        :title="$t('plugins.sync.tip')"
-        :class="
-          p.syncStatus.value.deviceConnected
-            ? 'bg-green-500/15 text-green-400'
-            : 'bg-surface-variant/40 text-on-surface-variant'
-        "
-      >
-        {{
-          p.syncStatus.value.deviceConnected
-            ? $t('plugins.sync.connected')
-            : $t('plugins.sync.disconnected')
-        }}
-      </span>
+    <!-- Toolbar -->
+    <div class="flex items-center justify-end">
       <div class="flex items-center gap-2">
         <button
           @click="marketOpen = true"
@@ -300,14 +253,14 @@ function confirmUninstall(plugin: PluginView) {
 
           <div class="flex items-center gap-2 shrink-0">
             <button
-              @click="showLogs(plugin)"
+              @click="openDetails(plugin, 'logs')"
               class="w-9 h-9 rounded-full bg-surface-variant/40 hover:bg-surface-variant flex items-center justify-center transition-colors"
               :title="$t('plugins.logs')"
             >
               <TerminalSquare class="w-4 h-4 text-on-surface-variant" />
             </button>
             <button
-              @click="openConfig(plugin)"
+              @click="openDetails(plugin, 'config')"
               class="w-9 h-9 rounded-full bg-surface-variant/40 hover:bg-surface-variant flex items-center justify-center transition-colors"
               :title="$t('plugins.config')"
             >
@@ -366,52 +319,8 @@ function confirmUninstall(plugin: PluginView) {
           </p>
         </div>
 
-        <!-- Config editor: automatic form when the manifest declares a schema -->
-        <div
-          v-if="openConfigFor === plugin.id"
-          class="mt-3 pt-3 border-t border-surface-variant/20"
-        >
-          <div class="flex items-center justify-between mb-2">
-            <span class="text-xs font-medium text-on-surface-variant">{{
-              $t('plugins.config')
-            }}</span>
-            <span v-if="configSaved" class="text-xs text-green-400">{{
-              $t('plugins.configSaved')
-            }}</span>
-          </div>
-          <PluginConfigForm
-            v-if="plugin.configSchema && plugin.configSchema.fields?.length"
-            :key="plugin.id"
-            :plugin-id="plugin.id"
-            :schema="plugin.configSchema"
-            @saved="onAutoSaved"
-          />
-          <template v-else>
-            <textarea
-              v-model="configJson"
-              rows="3"
-              spellcheck="false"
-              class="w-full bg-surface-variant/20 rounded-lg p-2 text-xs font-mono text-on-surface outline-none focus:ring-1 focus:ring-primary/40"
-              placeholder='{ "key": "value" }'
-            ></textarea>
-            <div class="flex justify-end mt-2">
-              <button
-                @click="saveConfig(plugin)"
-                class="px-4 py-1.5 rounded-full bg-primary/20 text-primary hover:bg-primary/30 text-xs font-medium"
-              >
-                {{ $t('plugins.save') }}
-              </button>
-            </div>
-          </template>
-        </div>
-
-        <!-- Logs -->
-        <div v-if="showLogsFor === plugin.id" class="mt-3 pt-3 border-t border-surface-variant/20">
-          <span class="text-xs font-medium text-on-surface-variant">{{ $t('plugins.logs') }}</span>
-          <pre
-            class="mt-2 max-h-40 overflow-y-auto bg-black/30 rounded-lg p-3 text-[11px] font-mono text-green-300/90 whitespace-pre-wrap"
-            >{{ logLines.join('\n') || $t('plugins.noLogs') }}</pre>
-        </div>
+        <!-- Details dialog: config + logs -->
+        <PluginDetailsDialog :plugin="detailsPlugin" :tab="detailsTab" @close="detailsPlugin = null" />
       </div>
     </template>
   </div>
