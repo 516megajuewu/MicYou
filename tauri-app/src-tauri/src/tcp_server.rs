@@ -447,6 +447,10 @@ async fn handle_client(
         .unwrap()
         .as_millis() as u64;
     run_if_active(&active_connection, &takeover_token, connection_id, || {
+        plugins.broadcast_event(&micyou_plugin::PluginEvent::DeviceConnected {
+            mode: "wifi".to_string(),
+            label: device_info.name.clone(),
+        });
         events.device_connected(device_info);
         stats.mark_tcp_connected(current_time);
     })
@@ -607,6 +611,7 @@ async fn handle_client(
             *active_audio = ActiveAudioSession::default();
         }
         events.device_disconnected();
+        plugins.broadcast_event(&micyou_plugin::PluginEvent::DeviceDisconnected);
     }
     // Release the plugin sync slot if it still points at this session.
     plugins.sync.clear_if(&tx);

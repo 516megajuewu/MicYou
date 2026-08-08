@@ -379,6 +379,28 @@ impl PluginHost {
         Ok(())
     }
 
+    /// Deliver a host lifecycle event (device connected/disconnected, ...) to
+    /// every loaded plugin. Short-locks the manager only to collect instance
+    /// handles, then try_locks each instance so a busy plugin (e.g. the audio
+    /// thread) is skipped instead of blocking.
+    pub fn broadcast_event(&self, event: &micyou_plugin::PluginEvent) {
+        let handles = {
+            let Ok(manager) = self.manager.lock() else {
+                return;
+            };
+            manager
+                .loaded_ids()
+                .into_iter()
+                .filter_map(|id| manager.instance_handle(&id).ok().flatten())
+                .collect::<Vec<_>>()
+        };
+        for handle in handles {
+            if let Ok(mut inst) = handle.try_lock() {
+                let _ = inst.handle_event(event);
+            }
+        }
+    }
+
     /// Uninstall: disable, remove from registry and delete the directory.
     pub fn uninstall_plugin(&self, id: &str) -> PluginResult<()> {
         self.dsp_registry.unregister(id)?;
