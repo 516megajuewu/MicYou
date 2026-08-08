@@ -3539,8 +3539,10 @@ dependencies = [
  "libc",
  "micyou-app",
  "micyou-audio",
+ "micyou-plugin",
  "serde_json",
  "tokio",
+ "zip",
 ]
 
 [[package]]
