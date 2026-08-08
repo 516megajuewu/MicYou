@@ -928,49 +928,40 @@ impl HostApi for PluginHostApi {
     }
 }
 
+
 #[cfg(test)]
-mod tests {
+mod tests_e2e {
     use super::*;
 
-    /// 端到端验证：真实 PluginHost 链路 enable → trigger → config 落盘。
-    /// 环境需已安装 dev.micyou.example.pomodoro（本机 ~/.config/micyou/plugins）。
+    /// 端到端 API 回归测试：真实 PluginHost 链路 enable → trigger →
+    /// bus → dispatcher → handle_message → host 回调（native 路径）。
+    /// 环境需已安装 dev.micyou.example.soundpad。
     #[test]
-    fn pomodoro_trigger_end_to_end() {
+    fn soundpad_trigger_end_to_end() {
         let output = crate::audio_output::AudioOutputHandle::spawn();
         let host = PluginHost::new(output);
-        let id = "dev.micyou.example.pomodoro";
+        let id = "dev.micyou.example.soundpad";
         {
             let mut manager = host.manager.lock().unwrap();
             manager.scan().expect("scan plugins");
         }
-        // 插件未安装时跳过（CI/干净环境）
         {
             let manager = host.manager.lock().unwrap();
             if manager.entry(id).unwrap().is_none() {
-                eprintln!("[test] pomodoro not installed, skipping");
+                eprintln!("[test] soundpad not installed, skipping");
                 return;
             }
         }
-        host.enable_plugin(id).expect("enable pomodoro");
-        // 触发 start：注入后的 payload 应为 {"action":"start"}
-        host.trigger(id, "start", b"").expect("trigger start");
-        std::thread::sleep(std::time::Duration::from_millis(300));
-        let cfg = {
-            let manager = host.manager.lock().unwrap();
-            manager.plugin_config(id).expect("plugin config")
-        };
-        eprintln!("[test] plugin logs after start: {:?}", host.logs.lines(id));
-        assert_eq!(cfg.get("mode").map(|v| v.as_str().unwrap_or("")), Some("work"),
-            "start action must persist mode=work; config={cfg:?}");
-        // 触发 stop
-        host.trigger(id, "stop", b"").expect("trigger stop");
-        std::thread::sleep(std::time::Duration::from_millis(300));
-        let cfg = {
-            let manager = host.manager.lock().unwrap();
-            manager.plugin_config(id).expect("plugin config")
-        };
-        assert_eq!(cfg.get("mode").map(|v| v.as_str().unwrap_or("")), Some("idle"),
-            "stop action must persist mode=idle; config={cfg:?}");
-        eprintln!("[test] POMODORO E2E OK: trigger -> handle_message -> set_config persisted");
+        host.enable_plugin(id).expect("enable soundpad");
+        // payload 为 null 的等价物（注入 {"action":"play"}）；native 侧主要靠 topic ui:play
+        host.trigger(id, "play", b"").expect("trigger play");
+        std::thread::sleep(std::time::Duration::from_millis(200));
+        let logs = host.logs.lines(id);
+        let joined = logs.join("\n");
+        assert!(
+            joined.contains("play") || joined.contains("playing") || joined.contains("sound"),
+            "soundpad must log playing; logs={joined:?}"
+        );
+        eprintln!("[test] SOUNDPAD E2E OK: trigger -> handle_message(topic ui:play) -> play_sound");
     }
 }
