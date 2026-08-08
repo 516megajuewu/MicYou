@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
 import { ref, onMounted, watch } from 'vue';
 import {
   RefreshCw,
@@ -15,6 +16,15 @@ import { usePlugins, type PluginView } from '../composables/usePlugins';
 // 可复用的插件管理面板：用于设置对话框的「插件」页面
 // 首次挂载即拉取插件列表（单例状态，两个入口共享）
 const p = usePlugins();
+const { locale } = useI18n();
+function displayName(plugin: { name: string; nameI18n?: Record<string, string> }): string {
+  const loc = locale.value;
+  if (plugin.nameI18n && plugin.nameI18n[loc]) return plugin.nameI18n[loc];
+  // 匹配前缀（如 zh-CN → zh）
+  const base = loc.split('-')[0];
+  if (plugin.nameI18n && plugin.nameI18n[base]) return plugin.nameI18n[base];
+  return plugin.name;
+}
 onMounted(() => {
   p.refresh();
 });
@@ -184,7 +194,7 @@ function confirmUninstall(plugin: PluginView) {
         <div class="flex items-start justify-between gap-3">
           <div class="min-w-0">
             <div class="flex items-center gap-2 flex-wrap">
-              <h3 class="font-bold text-on-surface">{{ plugin.name }}</h3>
+              <h3 class="font-bold text-on-surface">{{ displayName(plugin) }}</h3>
               <span
                 class="px-2 py-0.5 rounded-md text-[10px] font-semibold tracking-wide"
                 :class="

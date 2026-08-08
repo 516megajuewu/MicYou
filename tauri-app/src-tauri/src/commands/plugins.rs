@@ -30,6 +30,12 @@ pub struct PluginView {
     /// Load/enable error surfaced to the user (e.g. artifact missing).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
+    /// Localized names, keyed by BCP-47 locale tag.
+    #[serde(default, skip_serializing_if = "std::collections::HashMap::is_empty")]
+    pub name_i18n: std::collections::HashMap<String, String>,
+    /// Localized descriptions, keyed by BCP-47 locale tag.
+    #[serde(default, skip_serializing_if = "std::collections::HashMap::is_empty")]
+    pub description_i18n: std::collections::HashMap<String, String>,
 }
 
 /// Cross-device sync status for the plugins page.
@@ -65,6 +71,8 @@ pub fn list_plugins(state: State<'_, ServerState>) -> Result<Vec<PluginView>, St
                 error: None,
                 id: m.id.clone(),
                 name: m.name.clone(),
+                name_i18n: m.name_i18n.clone(),
+                description_i18n: m.description_i18n.clone(),
                 version: m.version.clone(),
                 author: m.author.clone(),
                 description: m.description.clone(),

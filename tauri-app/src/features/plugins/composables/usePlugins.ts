@@ -23,6 +23,8 @@ export interface PluginView {
   loaded: boolean;
   dspNode: boolean;
   error?: string | null;
+  nameI18n?: Record<string, string>;
+  descriptionI18n?: Record<string, string>;
 }
 
 export interface PluginSyncStatus {
