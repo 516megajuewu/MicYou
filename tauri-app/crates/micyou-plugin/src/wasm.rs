@@ -734,7 +734,7 @@ fn register_host_functions(linker: &mut Linker<WasmHostCtx>) {
         .func_wrap(
             WASM_IMPORT_MODULE,
             "clear_timeout",
-            |mut caller: wasmi::Caller<'_, WasmHostCtx>, id: i64| -> Result<(), wasmi::Error> {
+            |caller: wasmi::Caller<'_, WasmHostCtx>, id: i64| -> Result<(), wasmi::Error> {
                 caller
                     .data()
                     .host
@@ -797,7 +797,7 @@ fn register_host_functions(linker: &mut Linker<WasmHostCtx>) {
         .func_wrap(
             WASM_IMPORT_MODULE,
             "clear_interval",
-            |mut caller: wasmi::Caller<'_, WasmHostCtx>, id: i64| -> Result<(), wasmi::Error> {
+            |caller: wasmi::Caller<'_, WasmHostCtx>, id: i64| -> Result<(), wasmi::Error> {
                 caller
                     .data()
                     .host
