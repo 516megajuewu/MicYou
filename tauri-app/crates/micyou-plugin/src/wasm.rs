@@ -63,6 +63,10 @@ pub struct WasmPlugin {
     f_message: Option<TypedFunc<(i32, i32), i32>>,
     f_alloc: TypedFunc<(i32,), i32>,
     f_dealloc: TypedFunc<(i32, i32), ()>,
+    /// Reused per-frame buffer (ptr, capacity bytes) so bump-allocator
+    /// plugins do not exhaust linear memory: `process_audio` allocates once
+    /// and reuses the same region for every frame.
+    frame_buf: Option<(i32, usize)>,
 }
 
 // wasmi Store<T> is Send when T is Send; our ctx is an Arc + Vec.
@@ -143,6 +147,7 @@ impl WasmPlugin {
             f_message,
             f_alloc,
             f_dealloc,
+            frame_buf: None,
         })
     }
 
@@ -326,7 +331,26 @@ impl PluginRuntime for WasmPlugin {
             for sample in ctx.data.iter() {
                 bytes.extend_from_slice(&sample.to_le_bytes());
             }
-            let ptr = this.write_bytes(&bytes)?;
+            // Reuse a cached frame buffer (alloc once; bump allocators never
+            // free, so a fresh alloc per frame exhausts linear memory)
+            let need = bytes.len();
+            let (ptr, cap) = match this.frame_buf {
+                Some((p, c)) if c >= need => (p, c),
+                _ => {
+                    if let Some((old, c)) = this.frame_buf.take() {
+                        let _ = this.f_dealloc.call(&mut this.store, (old, c as i32));
+                    }
+                    let p = this
+                        .f_alloc
+                        .call(&mut this.store, (need as i32,))
+                        .map_err(|e| PluginError::Runtime(format!("alloc bytes: {e}")))?;
+                    this.frame_buf = Some((p, need));
+                    (p, need)
+                }
+            };
+            this.memory
+                .write(&mut this.store, ptr as usize, &bytes)
+                .map_err(|e| PluginError::Runtime(format!("frame write: {e}")))?;
             let code = f_process
                 .call(
                     &mut this.store,
@@ -338,9 +362,10 @@ impl PluginRuntime for WasmPlugin {
                     ),
                 )
                 .map_err(|e| PluginError::Runtime(format!("process: {e}")))?;
-            let processed = this.read_bytes(ptr, bytes.len())?;
-            this.f_dealloc
-                .call(&mut this.store, (ptr, bytes.len() as i32))?;
+            let mut processed = vec![0u8; bytes.len()];
+            this.memory
+                .read(&mut this.store, ptr as usize, &mut processed)
+                .map_err(|e| PluginError::Runtime(format!("frame read: {e}")))?;
             for (sample, chunk) in ctx.data.iter_mut().zip(processed.chunks_exact(4)) {
                 *sample = f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
             }
