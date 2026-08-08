@@ -138,6 +138,16 @@ impl HotkeyService {
 
     /// Register a global hotkey for a plugin; returns the handle id
     pub fn register(&self, plugin_id: &str, shortcut: &str) -> PluginResult<u64> {
+        // global-hotkey only has an X11 backend on Linux; under Wayland the
+        // compositor owns key handling and X11 grab keys (XGrabKey) via
+        // XWayland are ignored (niri/wlroots behave this way), so a
+        // registration would silently never fire. Fail loudly instead.
+        let session = std::env::var("XDG_SESSION_TYPE").unwrap_or_default();
+        if session == "wayland" || std::env::var("WAYLAND_DISPLAY").is_ok() {
+            return Err(PluginError::Runtime(format!(
+                "global hotkey unavailable on Wayland (X11-only backend);                  use the plugin panel buttons instead (plugin {plugin_id})"
+            )));
+        }
         let wrapper: ShortcutWrapper = shortcut
             .try_into()
             .map_err(|_| PluginError::Validation(format!("invalid hotkey: {shortcut}")))?;
