@@ -122,7 +122,7 @@ export function usePlugins() {
   async function saveConfig(plugin: PluginView | string, key: string, value: unknown) {
     try {
       const pluginId = typeof plugin === 'string' ? plugin : plugin.id;
-  await invoke('set_plugin_config', { id: pluginId, key, value });
+      await invoke('set_plugin_config', { id: pluginId, key, value });
       return true;
     } catch (e) {
       error.value = String(e);

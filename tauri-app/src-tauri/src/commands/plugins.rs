@@ -273,10 +273,10 @@ pub(crate) fn open_plugin_window_impl(
 #[tauri::command]
 pub fn open_plugin_window(
     app: tauri::AppHandle,
-    pluginId: String,
-    panelId: String,
+    plugin_id: String,
+    panel_id: String,
 ) -> Result<(), String> {
-    open_plugin_window_impl(&app, &pluginId, &panelId)
+    open_plugin_window_impl(&app, &plugin_id, &panel_id)
 }
 
 /// Read a plugin-authored settings page (self-contained HTML file inside
@@ -284,8 +284,8 @@ pub fn open_plugin_window(
 #[tauri::command]
 pub fn get_plugin_panel(
     state: State<'_, ServerState>,
-    pluginId: String,
-    panelId: String,
+    plugin_id: String,
+    panel_id: String,
 ) -> Result<String, String> {
     let manager = state
         .plugins
@@ -293,15 +293,15 @@ pub fn get_plugin_panel(
         .lock()
         .map_err(|_| "plugin manager lock poisoned".to_string())?;
     let entry = manager
-        .entry(&pluginId)
+        .entry(&plugin_id)
         .map_err(|e| e.to_string())?
-        .ok_or_else(|| format!("unknown plugin {pluginId}"))?;
+        .ok_or_else(|| format!("unknown plugin {plugin_id}"))?;
     let panel = entry
         .manifest
         .ui
         .as_ref()
-        .and_then(|u| u.panels.iter().find(|p| p.id == panelId))
-        .ok_or_else(|| format!("unknown panel {panelId}"))?;
+        .and_then(|u| u.panels.iter().find(|p| p.id == panel_id))
+        .ok_or_else(|| format!("unknown panel {panel_id}"))?;
     let path = entry.dir.join(&panel.entry);
     std::fs::read_to_string(&path).map_err(|e| format!("read {}: {e}", path.display()))
 }
