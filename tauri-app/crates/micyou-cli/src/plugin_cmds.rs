@@ -44,6 +44,9 @@ pub enum PluginAction {
         /// 能力列表（逗号分隔，如 config.read,config.write）
         #[arg(long, value_delimiter = ',')]
         capabilities: Vec<String>,
+        /// WASM 源码语言：rust（默认，推荐从高级语言编译）| wat
+        #[arg(long, value_parser = ["rust", "wat"], default_value = "rust")]
+        lang: String,
         /// 输出目录（默认 ./<id 最后一段>）
         #[arg(short, long)]
         out: Option<String>,
@@ -82,6 +85,7 @@ pub fn run(action: PluginAction) -> Result<(), String> {
             name,
             kind,
             capabilities,
+            lang,
             out,
         } => create(
             &id,
@@ -89,6 +93,7 @@ pub fn run(action: PluginAction) -> Result<(), String> {
             name.as_deref(),
             &kind,
             &capabilities,
+            &lang,
             out.as_deref(),
         ),
         PluginAction::Install { dir } => install(&dir),
@@ -303,6 +308,156 @@ const WASM_PLUGIN_JSON: &str = r#"{
 }
 "#;
 
+const WASM_TEMPLATE_RUST: &str = r#"#![no_main]
+//! MicYou WASM 插件模板（Rust）
+//!
+//! 构建（需 wasm32-unknown-unknown 目标，见 README）：
+//!   cargo build --release
+//! 产物：target/wasm32-unknown-unknown/release/<crate>.wasm -> 复制为 main.wasm
+//!
+//! 无 WASI：所有 IO 走宿主 API（module "micyou"，能力在 plugin.json 声明）
+
+use core::alloc::{GlobalAlloc, Layout};
+
+// ─────────── 分配器：bump（宿主要求导出 alloc/dealloc）───────────
+static mut HEAP: usize = 0x8000;
+
+struct BumpAlloc;
+
+unsafe impl GlobalAlloc for BumpAlloc {
+    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+        let align = layout.align().max(4) as usize;
+        let size = layout.size().max(1);
+        let base = (HEAP + align - 1) & !(align - 1);
+        HEAP = base + size;
+        base as *mut u8
+    }
+    unsafe fn dealloc(&self, _ptr: *mut u8, _layout: Layout) {}
+}
+
+#[global_allocator]
+static ALLOC: BumpAlloc = BumpAlloc;
+
+// ─────────── 宿主导入（签名必须与宿主一致，见 docs/plugins/api-reference.md）───────────
+#[link(wasm_import_module = "micyou")]
+extern "C" {
+    fn log(level: i32, msg_ptr: *const u8);
+    fn get_config(key_ptr: *const u8) -> i32;
+    fn set_config(key_ptr: *const u8, value_ptr: *const u8) -> i32;
+    fn set_panel_icon(panel_id_ptr: *const u8, icon_ptr: *const u8);
+    // 按需启用更多宿主 API（audio_state/notify/fs_read/http_request/...）
+}
+
+// ─────────── 内存工具 ───────────
+/// 把 &str 写入插件内存并返回 NUL 终止指针（宿主按 NUL 读取）
+fn push_cstr(s: &str) -> *const u8 {
+    let bytes = s.as_bytes();
+    let buf: &'static mut [u8] = unsafe {
+        core::slice::from_raw_parts_mut(alloc(bytes.len() as u32 + 1) as *mut u8, bytes.len() + 1)
+    };
+    buf[..bytes.len()].copy_from_slice(bytes);
+    buf[bytes.len()] = 0;
+    buf.as_ptr()
+}
+
+/// 从宿主返回的指针读 NUL 终止字符串（宿主用插件的 alloc 分配，无需释放）
+fn read_cstr(ptr: *const u8) -> &'static str {
+    if ptr.is_null() {
+        return "";
+    }
+    let mut len = 0usize;
+    unsafe {
+        while *ptr.add(len) != 0 {
+            len += 1;
+        }
+    }
+    unsafe { core::str::from_utf8_unchecked(core::slice::from_raw_parts(ptr, len)) }
+}
+
+/// 从 handle_message 的 (ptr, len) 读 payload 字节
+fn read_payload(ptr: *const u8, len: i32) -> &'static [u8] {
+    if ptr.is_null() || len <= 0 {
+        return &[];
+    }
+    unsafe { core::slice::from_raw_parts(ptr, len as usize) }
+}
+
+// ─────────── 宿主契约导出 ───────────
+#[no_mangle]
+pub extern "C" fn alloc(n: u32) -> *mut u8 {
+    unsafe { ALLOC.alloc(Layout::from_size_align(n as usize, 4).unwrap()) }
+}
+
+#[no_mangle]
+pub extern "C" fn dealloc(_ptr: *mut u8, _n: u32) {}
+
+#[no_mangle]
+pub extern "C" fn api_version() -> i32 {
+    1
+}
+
+static PANEL_ID: &[u8] = b"control\0";
+static ICON: &[u8] = "\u{1F9E9}".as_bytes(); // 🧩 侧边栏面板图标（可改文本/emoji/图片文件名）
+
+#[no_mangle]
+pub extern "C" fn init() -> i32 {
+    unsafe {
+        set_panel_icon(PANEL_ID.as_ptr(), ICON.as_ptr());
+        log(2, push_cstr("plugin initialized (rust)"));
+    }
+    0
+}
+
+/// 返回 0 = 已处理；返回 1 = 直通（bypass）
+#[no_mangle]
+pub extern "C" fn process(_data: *mut f32, _samples: i32, _channels: i32, _queued_ms: f64) -> i32 {
+    // TODO: 实时安全 DSP 在这里写（禁止调用任何宿主 API，禁止分配）
+    // 例：把 data 的前 samples*channels 个采样放大两倍
+    // let n = (samples * channels) as usize;
+    // for i in 0..n { unsafe { *data.add(i) *= 2.0; } }
+    0
+}
+
+/// 接收面板 trigger / 定时器 / 配置变更等消息（payload 自描述，含动作文本）
+#[no_mangle]
+pub extern "C" fn handle_message(ptr: *const u8, len: i32) -> i32 {
+    let payload = read_payload(ptr, len);
+    let text = core::str::from_utf8(payload).unwrap_or("");
+    if text.contains("ping") {
+        // 演示：回复一条宿主日志
+        unsafe { log(2, push_cstr("pong")) };
+    } else if text.contains("echo") {
+        // 演示：把收到的内容写进配置（面板可轮询 get_config 看到它）
+        let key = push_cstr("lastEcho");
+        let value = push_cstr(text);
+        unsafe { set_config(key, value) };
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn deinit() {}
+"#;
+
+const WASM_RUST_CARGO: &str = r#"[package]
+name = "myplugin"
+version = "1.0.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[profile.release]
+panic = "abort"
+lto = true
+opt-level = "s"
+"#;
+
+const WASM_RUST_CONFIG: &str = r#"[build]
+target = "wasm32-unknown-unknown"
+rustflags = ["-C", "link-arg=--export-memory"]
+"#;
+
 const WASM_TEMPLATE_WAT: &str = r#";; MicYou WASM plugin template
 ;; Build: micyou plugin package <dir> (or compile with wat2wasm)
 ;; Host API 一览见 docs/plugins/api-reference.md（WASM import 表）
@@ -512,6 +667,7 @@ fn create(
     name: Option<&str>,
     kind: &str,
     capabilities: &[String],
+    lang: &str,
     out: Option<&str>,
 ) -> Result<(), String> {
     let last = id.rsplit('.').next().unwrap_or(id);
@@ -552,7 +708,8 @@ fn create(
         let lib = NATIVE_TEMPLATE_LIB.replace("dev.micyou.example.mynative", id);
         std::fs::create_dir_all(dir.join("src")).map_err(|e| format!("mkdir src: {e}"))?;
         write_file(&dir.join("src"), "lib.rs", &lib)?;
-    } else {
+    } else if lang == "wat" {
+        // 保留 WAT 路径：高级场景（体积最小/无工具链）才手写 WAT
         let mut plugin_json = WASM_PLUGIN_JSON
             .replace("dev.micyou.example.myplugin", id)
             .replace("My Plugin", &display_name)
@@ -564,14 +721,50 @@ fn create(
         write_file(dir, "README.md", WASM_README)?;
         write_file(dir, "main.wat", WASM_TEMPLATE_WAT)?;
         write_file(dir, "panel.html", WASM_PANEL_HTML)?;
-        // 内置 wat crate 直接编译入口，开箱即用
         let wat_path = dir.join("main.wat");
         let wasm_bytes = wat::parse_file(&wat_path)
             .map_err(|e| format!("compile main.wat: {e}"))?;
         std::fs::write(dir.join("main.wasm"), &wasm_bytes)
             .map_err(|e| format!("write main.wasm: {e}"))?;
         println!("  compiled main.wat -> main.wasm ({} bytes)", wasm_bytes.len());
-        let _ = micyou_plugin::manifest::RuntimeKind::Wasm; // keep import alive
+    } else {
+        // 推荐路径：Rust 高级语言编译（wasm32-unknown-unknown）
+        let mut plugin_json = WASM_PLUGIN_JSON
+            .replace("dev.micyou.example.myplugin", id)
+            .replace("My Plugin", &display_name)
+            .replace("\"utility\"", kind_json)
+            .replace("\"entry\": \"main.wasm\"", "\"entry\": \"main.wasm\"");
+        if !capabilities.is_empty() {
+            plugin_json = plugin_json.replacen("[]", &caps_json, 1);
+        }
+        write_file(dir, "plugin.json", &plugin_json)?;
+        write_file(dir, "README.md", WASM_RUST_README)?;
+        write_file(dir, "Cargo.toml", WASM_RUST_CARGO)?;
+        write_file(dir, "panel.html", WASM_PANEL_HTML)?;
+        std::fs::create_dir_all(dir.join("src")).map_err(|e| format!("mkdir src: {e}"))?;
+        write_file(&dir.join("src"), "lib.rs", WASM_TEMPLATE_RUST)?;
+        std::fs::create_dir_all(dir.join(".cargo")).map_err(|e| format!("mkdir .cargo: {e}"))?;
+        write_file(&dir.join(".cargo"), "config.toml", WASM_RUST_CONFIG)?;
+        // 尝试本地编译（有 wasm32 目标时）；失败仅提示，不阻断
+        let build = std::process::Command::new("cargo")
+            .arg("build")
+            .arg("--release")
+            .current_dir(&dir)
+            .output();
+        match build {
+            Ok(out) if out.status.success() => {
+                let wasm = dir
+                    .join("target/wasm32-unknown-unknown/release/myplugin.wasm");
+                if wasm.exists() {
+                    let bytes = std::fs::read(&wasm).unwrap_or_default();
+                    println!("  compiled src/lib.rs -> main.wasm ({} bytes)", bytes.len());
+                    let _ = std::fs::copy(&wasm, dir.join("main.wasm"));
+                }
+            }
+            _ => {
+                println!("  (未检测到 wasm32 目标，跳过编译：cargo build --release 后复制 main.wasm)");
+            }
+        }
     }
     println!(
         "created {runtime} plugin skeleton in {}/  \n  next: `micyou plugin dev {out_dir}` (watch) or `micyou plugin install {out_dir}`",
@@ -594,6 +787,33 @@ panel.html 通过 postMessage 桥调用宿主 API（get_config/set_config/trigge
 
 ## 能力
 在 plugin.json 的 capabilities 中声明所需能力（config.read/config.write/dsp.node/...）
+"#;
+
+const WASM_RUST_README: &str = r#"# WASM 插件骨架（Rust）
+
+## 构建（推荐：从高级语言编译，不要手写 WAT）
+1. 安装 wasm32 目标：`rustup target add wasm32-unknown-unknown`
+2. 构建：`cargo build --release`
+3. 复制产物为入口：`cp target/wasm32-unknown-unknown/release/myplugin.wasm main.wasm`
+
+## 开发循环
+`micyou plugin dev .` 监听变更自动重装（可先执行一次构建）
+
+## 安装
+- 开发：`micyou plugin install .`
+- 分发：`micyou plugin package . -o out.zip` 后在应用内导入
+
+## 模板说明
+- `src/lib.rs`：宿主导入（module "micyou"）与宿主契约导出（alloc/dealloc/
+  api_version/init/process/handle_message/deinit），字符串经插件内存传递
+- 无 WASI：所有 IO（日志/配置/通知/网络/定时器...）走宿主 API，
+  能力在 plugin.json 的 capabilities 中声明
+- `process` 内禁止调用宿主 API（实时音频线程）
+- 面板：panel.html 通过 postMessage 桥调用宿主 API
+
+## 手动 WAT 路径（不推荐）
+`micyou plugin create <id> --runtime wasm --lang wat` 生成 WAT 骨架，
+仅适合体积极致/无工具链的高级场景
 "#;
 
 const NATIVE_README: &str = r#"# Native 插件骨架

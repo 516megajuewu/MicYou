@@ -56,7 +56,8 @@ MicYou 插件系统允许第三方为桌面端与（未来）安卓端扩展能�
 ## 开发工具
 
 ```bash
-micyou plugin create dev.micyou.myplugin --kind utility --capabilities config.read
+micyou plugin create dev.micyou.myplugin --kind utility --capabilities config.read   # wasm 骨架默认 Rust（自动编译）
+micyou plugin create dev.micyou.myplugin --lang wat                                 # 高级场景才手写 WAT
 micyou plugin create dev.micyou.mynative --runtime native --kind dsp
 micyou plugin validate ./myplugin
 micyou plugin install ./myplugin            # 一键部署到应用插件目录

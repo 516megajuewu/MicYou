@@ -130,7 +130,7 @@ micyou plugin package ./myplugin -o out.zip       # 打包为可导入 zip
 ```
 
 - `create` 生成 plugin.json + 入口模板 + panel.html + README
-- wasm 骨架：编译 main.wat → main.wasm 后放入目录即完成构建
+- wasm 骨架（默认 Rust 高级语言）：cargo build --release 产出 main.wasm（create 已内置编译）
 - native 骨架：cargo build --release 后复制产物并按 entry 命名
 - `package` 自动跳过 target/ 与隐藏文件，产物根目录含 plugin.json，应用内可直接导入
 
@@ -302,6 +302,11 @@ C 插件直接 `#include "micyou_plugin_abi.h"` 实现符号即可，导出宏�
 
 WASM 插件是 core wasm 模块（无需 WASI），在 `wasmi` 纯 Rust 解释器中沙箱执行
 
+> **用高级语言写，别手写 WAT**
+> 推荐用 Rust 编译到 `wasm32-unknown-unknown`（`micyou plugin create --runtime wasm`
+> 默认就生成 Rust 骨架并自动编译），类型安全、可维护、标准库可用
+> WAT 手写仅保留给体积极致或零工具链的高级场景（`--lang wat`）
+
 ### 导出（宿主期望）
 
 | 导出 | 签名 | 必填 | 说明 |
@@ -331,33 +336,75 @@ WASM 插件是 core wasm 模块（无需 WASI），在 `wasmi` 纯 Rust 解释�
 | `plugin_dir` | `() -> i32` | -> 插件安装目录绝对路径字符串 |
 | `register_hotkey` | `(i32) -> i64` | 快捷键字符串指针 -> 句柄 id（0 = 失败） |
 
-### 完整最小示例（WAT）
+### 完整最小示例（Rust）
 
-`plugins/examples/wasm-counter/counter.wat` 是完整示例，构建用 `wat2wasm counter.wat -o counter.wasm`（见 `build.sh`）
+`micyou plugin create dev.micyou.hello --runtime wasm` 生成完整 Rust 骨架（推荐路径）
 
-核心骨架：
+#### 构建
 
-```wat
-(module
-  (import "micyou" "log" (func $log (param i32 i32)))
-  (import "micyou" "emit_event" (func $emit_event (param i32 i32) (result i32)))
+```bash
+rustup target add wasm32-unknown-unknown   # 一次性
+cargo build --release                      # 骨架内执行（.cargo/config.toml 已配置目标）
+cp target/wasm32-unknown-unknown/release/myplugin.wasm main.wasm
+```
 
-  (memory (export "memory") 1)
-  (data (i32.const 0) "hello from wasm\00")
+`micyou plugin create` 已内置编译：检测到 wasm32 目标时自动产出 `main.wasm`
 
-  ;; bump 分配器
-  (global $bump (mut i32) (i32.const 1024))
-  (func (export "alloc") (param $size i32) (result i32)
-    (local $ptr i32)
-    (local.set $ptr (global.get $bump))
-    (global.set $bump (i32.add (global.get $bump) (i32.and (i32.add (local.get $size) (i32.const 7)) (i32.const -8))))
-    (local.get $ptr))
-  (func (export "dealloc") (param $ptr i32) (param $size i32))
+#### 核心骨架（src/lib.rs）
 
-  (func (export "init") (result i32)
-    (call $log (i32.const 2) (i32.const 0))  ;; INFO
-    (i32.const 0))
-)
+```rust
+#![no_main]
+use core::alloc::{GlobalAlloc, Layout};
+
+// 宿主要求导出 alloc/dealloc：bump 分配器
+#[global_allocator]
+static ALLOC: BumpAlloc = BumpAlloc;
+struct BumpAlloc;
+unsafe impl GlobalAlloc for BumpAlloc {
+    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+        static mut HEAP: usize = 0x8000;
+        let align = layout.align().max(4) as usize;
+        let base = (HEAP + align - 1) & !(align - 1);
+        HEAP = base + layout.size().max(1);
+        base as *mut u8
+    }
+    unsafe fn dealloc(&self, _p: *mut u8, _l: Layout) {}
+}
+
+// 宿主导入：模块名 micyou，签名见上方导入表
+#[link(wasm_import_module = "micyou")]
+extern "C" {
+    fn log(level: i32, msg_ptr: *const u8);
+    fn set_config(key_ptr: *const u8, value_ptr: *const u8) -> i32;
+    fn set_panel_icon(panel_id_ptr: *const u8, icon_ptr: *const u8);
+}
+
+// 契约导出：alloc/dealloc/api_version/init/process/handle_message/deinit
+#[no_mangle] pub extern "C" fn api_version() -> i32 { 1 }
+#[no_mangle] pub extern "C" fn alloc(n: u32) -> *mut u8 { /* bump */ }
+#[no_mangle] pub extern "C" fn dealloc(_p: *mut u8, _n: u32) {}
+
+#[no_mangle]
+pub extern "C" fn init() -> i32 {
+    unsafe { set_panel_icon(b"control\0".as_ptr(), "🧩".as_bytes().as_ptr()) }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn handle_message(ptr: *const u8, len: i32) -> i32 {
+    // payload 自描述（含动作文本），按需解析
+    0
+}
+```
+
+> 完整模板含全部工具函数（字符串写入/读取、payload 读取）与 `process` DSP 示例，
+> 见 `micyou plugin create --runtime wasm` 生成的骨架
+
+### 高级场景：手写 WAT（不推荐）
+
+仅当需要极致体积或无法引入工具链时，用 `micyou plugin create <id> --runtime wasm --lang wat`
+生成 WAT 骨架（内置 wat crate 直接编译 main.wasm）
+
 ```
 
 要点：
@@ -434,7 +481,7 @@ host->send_message(host->ctx,
 - 宿主侧 scratch 缓冲区复用：高频采样不产生线性内存泄漏
 - `set_config` 持久化 audioState/devices，面板轮询 `get_config` 展示
 - `set_panel_icon` 📊 + 双语面板
-- 完整 WAT 源码：`plugins/examples/wasm-audioinspector/audioinspector.wat`
+- 源码：`plugins/examples/wasm-audioinspector/`（WAT 手写示例，演示零依赖极限；新插件开发推荐用 Rust 骨架）
 - `set_interval` 每 2 秒采样 `audio_state` / `connected_devices`
 - `set_config` 持久化状态，面板轮询 `get_config` 实时显示
 - `set_panel_icon` 📊 + `locale` 本地化
@@ -554,7 +601,7 @@ await call('play', { id: 'beep' });
 ### 第 1 步：生成骨架
 
 ```bash
-# WASM 插件（默认，自动编译 main.wat -> main.wasm）
+# WASM 插件（默认 Rust 骨架，自动编译 main.wasm）
 micyou plugin create dev.yourname.myplugin \
   --kind utility --capabilities config.read,config.write
 

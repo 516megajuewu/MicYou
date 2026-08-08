@@ -63,7 +63,7 @@ locale（宿主 UI 语言）/ host_info / clipboard_read / clipboard_write / set
 | handle_message | 收 (source, topic, payload) | 只收 (payload bytes)，**无 topic**，payload 须自描述 |
 | 能力 | 全权限进程内代码 | 沙箱 + 燃料计量（100k/调用） |
 | 适用 | 实时 DSP、系统集成 | 逻辑 / 面板 / 定时 / 网络 / 文件 |
-| 语言 | Rust + C ABI | WAT 手写（本机无 rustup，用 wat crate 编译）或标准 wasm32 |
+| 语言 | Rust + C ABI | Rust（wasm32-unknown-unknown，推荐，create 默认生成并自动编译）；WAT 仅高级场景（--lang wat） |
 
 宿主触发插件动作时：`plugin_trigger` 命令在 payload 为空时自动注入 `{"action":"<action>"}`，
 WASM 插件用字符串包含判断即可
