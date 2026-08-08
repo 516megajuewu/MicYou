@@ -25,7 +25,7 @@ pub mod wasm;
 pub use bus::{error_code, error_message_for, PluginBus, PluginMessage, PluginSyncTransport};
 pub use dsp::{DspNode, PluginDspBridge, PluginDspRegistry};
 pub use error::{PluginError, PluginResult};
-pub use host::{AudioStateSnapshot, DeviceSnapshot, HostApi, MessageTarget, PluginLogLevel};
+pub use host::{sandbox_path, AudioStateSnapshot, DeviceSnapshot, HostApi, MessageTarget, PluginLogLevel};
 pub use manager::{PluginEntry, PluginManager, PluginPersistedState, ScanReport};
 pub use manifest::{
     capabilities, platforms, DspDescriptor, PluginKind, PluginManifest, UiPanel, RuntimeKind, UiDescriptor,

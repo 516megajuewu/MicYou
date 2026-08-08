@@ -78,6 +78,12 @@ typedef struct mpl_host_api {
     mpl_result_t (*register_hotkey)(void *ctx, const char *shortcut, uint64_t *out_id);
     /* open one of the plugin's own ui.panels in an independent host window */
     mpl_result_t (*open_window)(void *ctx, const char *panel_id);
+    /* Read a UTF-8 file inside the plugin install dir (requires fs.read).
+       String output contract: out/out_size, returns MPL_ERR_BUFFER_TOO_SMALL
+       with the required size when out_size is too small. */
+    mpl_result_t (*fs_read)(void *ctx, const char *path, char *out, uint32_t *out_size);
+    /* Write a UTF-8 file inside the plugin install dir (requires fs.write). */
+    mpl_result_t (*fs_write)(void *ctx, const char *path, const char *content);
 } mpl_host_api_t;
 
 /* Static plugin identity. The id/version must match the manifest. */

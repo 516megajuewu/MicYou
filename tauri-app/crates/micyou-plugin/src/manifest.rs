@@ -90,12 +90,14 @@ pub mod capabilities {
     pub const AUDIO_STATE: &str = "audio.state";
     /// Play an audio file (wav) through the host output device.
     pub const AUDIO_PLAY: &str = "audio.play";
+    /// Read files inside the plugin's install directory (sandboxed).
+    pub const FS_READ: &str = "fs.read";
+    /// Write files inside the plugin's install directory (sandboxed).
+    pub const FS_WRITE: &str = "fs.write";
     /// Enumerate connected devices (phones, web clients).
     pub const DEVICE_LIST: &str = "device.list";
     /// Open outbound network connections.
     pub const NETWORK_IO: &str = "network.io";
-    /// Read plugin-local files (already inside the plugin sandbox).
-    pub const FS_READ: &str = "fs.read";
 }
 
 /// All capability identifiers the host currently recognizes.
@@ -110,6 +112,7 @@ pub const KNOWN_CAPABILITIES: &[&str] = &[
     capabilities::DEVICE_LIST,
     capabilities::NETWORK_IO,
     capabilities::FS_READ,
+    capabilities::FS_WRITE,
 ];
 
 /// Native platform tags used in `PluginManifest.platforms`.

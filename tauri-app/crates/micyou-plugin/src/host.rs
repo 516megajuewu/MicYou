@@ -7,8 +7,36 @@
 //! Keeping one logical contract means a plugin written against it behaves the
 //! same on desktop and (later) on Android.
 
-use crate::error::PluginResult;
+use std::path::{Component, Path, PathBuf};
+
+use crate::{error::PluginError, PluginResult};
 use serde::{Deserialize, Serialize};
+
+/// Resolve `rel` inside `dir`, rejecting absolute paths and `..` traversal.
+/// The result stays inside `dir`; symlinks inside the sandbox are not
+/// followed by the caller (documented limitation for plugin-owned files).
+pub fn sandbox_path(dir: &Path, rel: &str) -> PluginResult<PathBuf> {
+    let p = Path::new(rel);
+    if p.is_absolute() {
+        return Err(PluginError::Validation(format!(
+            "absolute path not allowed: {rel}"
+        )));
+    }
+    let mut out = dir.to_path_buf();
+    for comp in p.components() {
+        match comp {
+            Component::ParentDir => {
+                return Err(PluginError::Validation(format!(
+                    "path traversal not allowed: {rel}"
+                )))
+            }
+            Component::CurDir => {}
+            Component::Normal(c) => out.push(c),
+            _ => return Err(PluginError::Validation(format!("invalid path: {rel}"))),
+        }
+    }
+    Ok(out)
+}
 
 /// Log levels a plugin can emit through the host.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -104,6 +132,49 @@ pub trait HostApi: Send + Sync {
     /// on a host-owned thread and never real-time safe.
     fn play_sound(&self, path: &str) -> PluginResult<()>;
 
+    /// Read a UTF-8 text file inside the plugin's own install directory
+    /// (requires `fs.read`). Paths are sandboxed: `..` traversal and absolute
+    /// paths are rejected.
+    fn fs_read(&self, path: &str) -> PluginResult<String>;
+
+    /// Write a UTF-8 text file inside the plugin's own install directory
+    /// (requires `fs.write`). Parent directories are created as needed and
+    /// the same sandbox rules as `fs_read` apply.
+    fn fs_write(&self, path: &str, content: &str) -> PluginResult<()>;
+
     /// Connected devices (requires `device.list` capability).
     fn connected_devices(&self) -> Vec<DeviceSnapshot>;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::sandbox_path;
+    use std::path::Path;
+
+    fn dir() -> &'static Path {
+        Path::new("/tmp/plugin-dir")
+    }
+
+    #[test]
+    fn sandbox_accepts_normal_relative_paths() {
+        let p = sandbox_path(dir(), "data/file.txt").expect("ok");
+        assert_eq!(p, Path::new("/tmp/plugin-dir/data/file.txt"));
+    }
+
+    #[test]
+    fn sandbox_rejects_parent_traversal() {
+        assert!(sandbox_path(dir(), "../evil.txt").is_err());
+        assert!(sandbox_path(dir(), "a/../../evil.txt").is_err());
+    }
+
+    #[test]
+    fn sandbox_rejects_absolute_paths() {
+        assert!(sandbox_path(dir(), "/etc/passwd").is_err());
+    }
+
+    #[test]
+    fn sandbox_allows_curdir_and_nested() {
+        let p = sandbox_path(dir(), "./sub/./file.txt").expect("ok");
+        assert_eq!(p, Path::new("/tmp/plugin-dir/sub/file.txt"));
+    }
 }

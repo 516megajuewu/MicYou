@@ -107,6 +107,17 @@ pub struct mpl_host_api_t {
         out_id: *mut u64,
     ) -> mpl_result_t,
     pub open_window: unsafe extern "C" fn(ctx: *mut c_void, panel_id: *const c_char) -> mpl_result_t,
+    pub fs_read: unsafe extern "C" fn(
+        ctx: *mut c_void,
+        path: *const c_char,
+        out: *mut c_char,
+        out_size: *mut u32,
+    ) -> mpl_result_t,
+    pub fs_write: unsafe extern "C" fn(
+        ctx: *mut c_void,
+        path: *const c_char,
+        content: *const c_char,
+    ) -> mpl_result_t,
 }
 
 // The table travels inside `NativePlugin` which is `Send`; the raw `ctx`
@@ -336,6 +347,56 @@ unsafe extern "C" fn shim_open_window(
     }
 }
 
+unsafe extern "C" fn shim_fs_read(
+    ctx: *mut c_void,
+    path: *const c_char,
+    out: *mut c_char,
+    out_size: *mut u32,
+) -> mpl_result_t {
+    unsafe {
+        let ctx = &*(ctx as *const NativeHostCtx);
+        if !has_capability(ctx, crate::manifest::capabilities::FS_READ) {
+            return mpl_result_t::MPL_ERR_PERMISSION;
+        }
+        let path = if path.is_null() {
+            String::new()
+        } else {
+            CStr::from_ptr(path).to_string_lossy().into_owned()
+        };
+        match ctx.host.fs_read(&path) {
+            Ok(text) => write_json_to_buf(&text, out, out_size),
+            Err(_) => mpl_result_t::MPL_ERR_RUNTIME,
+        }
+    }
+}
+
+unsafe extern "C" fn shim_fs_write(
+    ctx: *mut c_void,
+    path: *const c_char,
+    content: *const c_char,
+) -> mpl_result_t {
+    unsafe {
+        let ctx = &*(ctx as *const NativeHostCtx);
+        if !has_capability(ctx, crate::manifest::capabilities::FS_WRITE) {
+            return mpl_result_t::MPL_ERR_PERMISSION;
+        }
+        let path = if path.is_null() {
+            String::new()
+        } else {
+            CStr::from_ptr(path).to_string_lossy().into_owned()
+        };
+        let content = if content.is_null() {
+            String::new()
+        } else {
+            CStr::from_ptr(content).to_string_lossy().into_owned()
+        };
+        match ctx.host.fs_write(&path, &content) {
+            Ok(()) => mpl_result_t::MPL_OK,
+            Err(_) => mpl_result_t::MPL_ERR_RUNTIME,
+        }
+    }
+}
+
 unsafe extern "C" fn shim_plugin_dir(
     ctx: *mut c_void,
     out: *mut c_char,
@@ -404,6 +465,8 @@ pub fn host_table_for(ctx: Arc<NativeHostCtx>) -> mpl_host_api_t {
         plugin_dir: shim_plugin_dir,
         register_hotkey: shim_register_hotkey,
         open_window: shim_open_window,
+        fs_read: shim_fs_read,
+        fs_write: shim_fs_write,
     }
 }
 

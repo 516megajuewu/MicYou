@@ -71,6 +71,14 @@ impl HostApi for MockHost {
     fn plugin_dir(&self) -> String { "/tmp/plugin-dir".to_string() }
     fn register_hotkey(&self, _s: &str) -> PluginResult<u64> { Ok(7) }
     fn open_window(&self, _p: &str) -> PluginResult<()> { Ok(()) }
+    fn fs_read(&self, _path: &str) -> PluginResult<String> {
+        Ok("mock fs content".into())
+    }
+
+    fn fs_write(&self, _path: &str, _content: &str) -> PluginResult<()> {
+        Ok(())
+    }
+
     fn connected_devices(&self) -> Vec<DeviceSnapshot> {
         Vec::new()
     }

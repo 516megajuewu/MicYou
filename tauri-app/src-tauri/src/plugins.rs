@@ -614,6 +614,20 @@ impl HostApi for PluginHostApi {
         self.sound.play_wav(&full)
     }
 
+    fn fs_read(&self, path: &str) -> PluginResult<String> {
+        let full = micyou_plugin::sandbox_path(&self.dir, path)?;
+        std::fs::read_to_string(&full).map_err(PluginError::from)
+    }
+
+    fn fs_write(&self, path: &str, content: &str) -> PluginResult<()> {
+        let full = micyou_plugin::sandbox_path(&self.dir, path)?;
+        if let Some(parent) = full.parent() {
+            std::fs::create_dir_all(parent)
+                .map_err(|e| PluginError::Runtime(format!("fs_write mkdir: {e}")))?;
+        }
+        std::fs::write(&full, content).map_err(PluginError::from)
+    }
+
     fn connected_devices(&self) -> Vec<DeviceSnapshot> {
         if self.bus.transport().is_connected() {
             vec![DeviceSnapshot {
