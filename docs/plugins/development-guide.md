@@ -429,6 +429,12 @@ host->send_message(host->ctx,
 
 `plugins/examples/` 提供两个示例，覆盖核心能力
 
+### HTTP 测试器（wasm-http）：纯 WASM 网络示例（市场）
+- `http_request` 异步请求 https://api.github.com/zen，响应经 `http:response` 消息回传
+- `contains` 判断响应 JSON（ok/status），`notify` 系统通知 + `set_config` 持久化 lastCheck
+- `set_panel_icon` 🌐 + 面板轮询 `get_config` 显示上次结果
+- 完整 WAT 源码：`plugins/examples/wasm-http/http.wat`（编译见工具章节）
+
 ### 音频状态监视器（native-audioinspector）：标准示例（市场）
 - `set_interval` 每 2 秒采样 `audio_state` / `connected_devices`
 - `set_config` 持久化状态，面板轮询 `get_config` 实时显示

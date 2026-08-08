@@ -13,7 +13,7 @@ MicYou 插件系统：双运行时（Native cdylib + WASM wasmi 沙箱），宿�
 - 宿主接线：`tauri-app/src-tauri/src/plugins.rs`（PluginHost + PluginHostApi + dispatcher + HotkeyService + WindowService）、`src-tauri/src/commands/plugins.rs`（Tauri 命令）
 - ABI 定义：`crates/micyou-plugin/include/micyou_plugin_abi.h`（C 头）与 `src/abi.rs`（Rust 镜像）
 - 文档：`docs/plugins/`（overview / development-guide / api-reference / user-guide / architecture-extensibility / README）
-- 示例：`plugins/examples/`（native-soundpad、wasm-voicechanger、native-audioinspector）
+- 示例：`plugins/examples/`（native-soundpad、wasm-voicechanger、native-audioinspector、wasm-http）
 - 市场：`MicYou-Dev/MicYou-Plugins` 仓库（`plugin/<id>/` 目录：plugin.json + plugin.zip + 源码）
 
 ## 开发工具（micyou-cli plugin 子命令）

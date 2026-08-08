@@ -18,7 +18,10 @@ export interface MarketPlugin {
   homepage?: string;
   manifestUrl: string;
   downloadUrl: string;
+  previewUrl?: string;
   pageUrl?: string;
+  arches?: string[];
+  platforms?: string[];
 }
 
 export interface PluginCatalog {

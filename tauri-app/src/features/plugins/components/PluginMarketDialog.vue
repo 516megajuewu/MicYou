@@ -31,7 +31,10 @@
           {{ $t('plugins.marketLoading') }}
         </div>
 
-        <div v-else-if="catalog.plugins.length === 0" class="py-16 text-center text-sm text-on-surface-variant">
+        <div
+          v-else-if="catalog.plugins.length === 0"
+          class="py-16 text-center text-sm text-on-surface-variant"
+        >
           {{ $t('plugins.marketEmpty') }}
         </div>
 
@@ -41,107 +44,136 @@
           :key="plugin.id"
           class="rounded-xl border border-surface-variant/30 bg-surface-bright p-4"
         >
-          <div class="flex items-start justify-between gap-3">
-            <div class="min-w-0">
-              <div class="flex items-center gap-2 flex-wrap">
-                <span class="font-semibold text-sm">{{ marketPluginName(plugin, locale) }}</span>
-                <span class="text-xs px-2 py-0.5 rounded-full bg-primary/15 text-primary font-medium">
-                  {{ plugin.version }}
-                </span>
-                <span
-                  class="text-xs px-2 py-0.5 rounded-full"
+          <div class="flex gap-3">
+            <img
+              v-if="plugin.previewUrl"
+              :src="plugin.previewUrl"
+              alt=""
+              class="w-24 h-16 rounded-lg object-cover shrink-0 bg-surface-variant/30"
+              @error="onPreviewError"
+            />
+            <div class="min-w-0 flex-1">
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                  <div class="flex items-center gap-2 flex-wrap">
+                    <span class="font-semibold text-sm">{{ marketPluginName(plugin, locale) }}</span>
+                    <span class="text-xs px-2 py-0.5 rounded-full bg-primary/15 text-primary font-medium">
+                      {{ plugin.version }}
+                    </span>
+                    <span
+                      class="text-xs px-2 py-0.5 rounded-full"
+                      :class="
+                        plugin.runtime === 'wasm'
+                          ? 'bg-emerald-500/15 text-emerald-400'
+                          : 'bg-amber-500/15 text-amber-400'
+                      "
+                    >
+                      {{ plugin.runtime === 'wasm' ? 'WASM' : 'Native' }}
+                    </span>
+                    <span
+                      class="text-xs px-2 py-0.5 rounded-full"
+                      :class="
+                        plugin.kind === 'dsp'
+                          ? 'bg-sky-500/15 text-sky-400'
+                          : 'bg-surface-variant/50 text-on-surface-variant'
+                      "
+                    >
+                      {{ $t('plugins.kind.' + plugin.kind) }}
+                    </span>
+                  </div>
+                  <p class="text-xs text-on-surface-variant mt-1 truncate">{{ plugin.id }}</p>
+                  <p class="text-sm text-on-surface-variant mt-1 line-clamp-2">
+                    {{ plugin.description || '—' }}
+                  </p>
+                  <div class="flex flex-wrap gap-1.5 mt-2">
+                    <span
+                      v-for="cap in plugin.capabilities"
+                      :key="cap"
+                      class="text-[11px] px-2 py-0.5 rounded-full bg-surface-variant/40 text-on-surface-variant"
+                    >
+                      {{ cap }}
+                    </span>
+                    <span
+                      v-for="p in plugin.platforms || []"
+                      :key="'p' + p"
+                      class="text-[11px] px-2 py-0.5 rounded-full bg-indigo-500/15 text-indigo-400"
+                    >
+                      {{ p }}
+                    </span>
+                    <span
+                      v-for="a in plugin.arches || []"
+                      :key="'a' + a"
+                      class="text-[11px] px-2 py-0.5 rounded-full bg-indigo-500/15 text-indigo-400"
+                    >
+                      {{ a }}
+                    </span>
+                  </div>
+                  <p
+                    v-if="plugin.author || plugin.license"
+                    class="text-[11px] text-on-surface-variant mt-2"
+                  >
+                    {{ plugin.author ? plugin.author : '' }}
+                    <span v-if="plugin.author && plugin.license" class="mx-1">·</span>
+                    <span v-if="plugin.license">{{ plugin.license }}</span>
+                  </p>
+                </div>
+                <button
+                  class="shrink-0 inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-colors disabled:opacity-50"
                   :class="
-                    plugin.runtime === 'wasm'
-                      ? 'bg-emerald-500/15 text-emerald-400'
-                      : 'bg-amber-500/15 text-amber-400'
+                    installedIds.includes(plugin.id)
+                      ? 'bg-surface-variant/40 text-on-surface-variant cursor-default'
+                      : 'bg-primary text-on-primary hover:bg-primary/90'
                   "
+                  :disabled="installedIds.includes(plugin.id) || installingId === plugin.id"
+                  @click="install(plugin)"
                 >
-                  {{ plugin.runtime === 'wasm' ? 'WASM' : 'Native' }}
-                </span>
-                <span
-                  class="text-xs px-2 py-0.5 rounded-full"
-                  :class="
-                    plugin.kind === 'dsp'
-                      ? 'bg-sky-500/15 text-sky-400'
-                      : 'bg-surface-variant/50 text-on-surface-variant'
-                  "
-                >
-                  {{ $t('plugins.kind.' + plugin.kind) }}
-                </span>
+                  <Loader2 v-if="installingId === plugin.id" class="w-3.5 h-3.5 animate-spin" />
+                  <Check v-else-if="installedIds.includes(plugin.id)" class="w-3.5 h-3.5" />
+                  <span>
+                    {{
+                      installingId === plugin.id
+                        ? $t('plugins.marketInstalling')
+                        : installedIds.includes(plugin.id)
+                          ? $t('plugins.marketInstalled')
+                          : $t('plugins.marketInstall')
+                    }}
+                  </span>
+                </button>
               </div>
-              <p class="text-xs text-on-surface-variant mt-1 truncate">{{ plugin.id }}</p>
-              <p class="text-sm text-on-surface-variant mt-1 line-clamp-2">
-                {{ plugin.description || '—' }}
-              </p>
-              <!-- capabilities -->
-              <div class="flex flex-wrap gap-1.5 mt-2">
-                <span
-                  v-for="cap in plugin.capabilities"
-                  :key="cap"
-                  class="text-[11px] px-2 py-0.5 rounded-full bg-surface-variant/40 text-on-surface-variant"
-                >
-                  {{ cap }}
-                </span>
-              </div>
-              <p v-if="plugin.author || plugin.license" class="text-[11px] text-on-surface-variant mt-2">
-                {{ plugin.author ? plugin.author : '' }}
-                <span v-if="plugin.author && plugin.license" class="mx-1">·</span>
-                <span v-if="plugin.license">{{ plugin.license }}</span>
-              </p>
-            </div>
-            <button
-              class="shrink-0 inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-colors disabled:opacity-50"
-              :class="
-                installedIds.includes(plugin.id)
-                  ? 'bg-surface-variant/40 text-on-surface-variant cursor-default'
-                  : 'bg-primary text-on-primary hover:bg-primary/90'
-              "
-              :disabled="installedIds.includes(plugin.id) || installingId === plugin.id"
-              @click="install(plugin)"
-            >
-              <Loader2 v-if="installingId === plugin.id" class="w-3.5 h-3.5 animate-spin" />
-              <Check v-else-if="installedIds.includes(plugin.id)" class="w-3.5 h-3.5" />
-              <span>
-                {{
-                  installingId === plugin.id
-                    ? $t('plugins.marketInstalling')
-                    : installedIds.includes(plugin.id)
-                      ? $t('plugins.marketInstalled')
-                      : $t('plugins.marketInstall')
-                }}
-              </span>
-            </button>
-          </div>
 
-          <!-- inline permission confirm -->
-          <div
-            v-if="confirmingId === plugin.id && preview"
-            class="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3"
-          >
-            <p class="text-xs font-medium text-amber-300">{{ $t('plugins.marketConfirm') }}</p>
-            <div class="flex flex-wrap gap-1.5 mt-2">
-              <span
-                v-for="cap in preview.capabilities"
-                :key="cap"
-                class="text-[11px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300"
+              <!-- inline permission confirm -->
+              <div
+                v-if="confirmingId === plugin.id && preview"
+                class="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3"
               >
-                {{ cap }}
-              </span>
-            </div>
-            <p class="text-[11px] text-amber-200/80 mt-2">{{ $t('plugins.marketConfirmText') }}</p>
-            <div class="flex gap-2 mt-3">
-              <button
-                class="px-3 py-1.5 rounded-full text-xs bg-amber-500 text-amber-950 font-medium hover:bg-amber-400"
-                @click="confirmInstall(plugin)"
-              >
-                {{ $t('plugins.marketInstall') }}
-              </button>
-              <button
-                class="px-3 py-1.5 rounded-full text-xs bg-surface-variant/40 hover:bg-surface-variant"
-                @click="cancelConfirm"
-              >
-                {{ $t('plugins.cancel') }}
-              </button>
+                <p class="text-xs font-medium text-amber-300">{{ $t('plugins.marketConfirm') }}</p>
+                <div class="flex flex-wrap gap-1.5 mt-2">
+                  <span
+                    v-for="cap in preview.capabilities"
+                    :key="cap"
+                    class="text-[11px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300"
+                  >
+                    {{ cap }}
+                  </span>
+                </div>
+                <p class="text-[11px] text-amber-200/80 mt-2">
+                  {{ $t('plugins.marketConfirmText') }}
+                </p>
+                <div class="flex gap-2 mt-3">
+                  <button
+                    class="px-3 py-1.5 rounded-full text-xs bg-amber-500 text-amber-950 font-medium hover:bg-amber-400"
+                    @click="confirmInstall(plugin)"
+                  >
+                    {{ $t('plugins.marketInstall') }}
+                  </button>
+                  <button
+                    class="px-3 py-1.5 rounded-full text-xs bg-surface-variant/40 hover:bg-surface-variant"
+                    @click="cancelConfirm"
+                  >
+                    {{ $t('plugins.cancel') }}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -181,6 +213,11 @@ interface PluginPreview {
   kind: string;
 }
 
+function onPreviewError(e: Event) {
+  const img = e.target as HTMLImageElement;
+  img.style.display = 'none';
+}
+
 async function load() {
   isLoading.value = true;
   loadError.value = null;
@@ -208,7 +245,6 @@ async function install(plugin: MarketPlugin) {
   confirmingId.value = plugin.id;
   preview.value = null;
   try {
-    // 1. 预览远程 manifest（不下载 zip），展示能力供确认
     const p = await invoke<PluginPreview>('preview_plugin_from_url', {
       manifestUrl: plugin.manifestUrl,
     });
@@ -223,7 +259,8 @@ async function confirmInstall(plugin: MarketPlugin) {
   installingId.value = plugin.id;
   try {
     await invoke<string>('install_plugin_from_url', { zipUrl: plugin.downloadUrl });
-    await refreshInstalled();
+    if (!installedIds.value.includes(plugin.id)) installedIds.value.push(plugin.id);
+    void refreshInstalled();
   } catch (cause) {
     loadError.value = cause instanceof Error ? cause.message : String(cause);
   } finally {

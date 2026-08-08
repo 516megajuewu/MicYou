@@ -620,15 +620,21 @@ pub fn install_plugin_from_url(
             .plugins_dir()
             .to_path_buf();
         std::fs::create_dir_all(&plugins_dir).map_err(|e| e.to_string())?;
-        let id = import_plugin_zip(&tmp, &plugins_dir)?;
+        let id = match import_plugin_zip(&tmp, &plugins_dir) {
+            Ok(id) => id,
+            Err(e) if e.contains("already installed") => {
+                // 幂等：已安装视为成功，前端随后刷新列表
+                let manifest = read_manifest_from_zip(&tmp).map_err(|e| e.to_string())?.0;
+                manifest.id
+            }
+            Err(e) => return Err(e),
+        };
         let mut manager = state
             .plugins
             .manager
             .lock()
             .map_err(|_| "plugin manager lock poisoned".to_string())?;
-        manager
-            .discover_plugin(plugins_dir.join(&id))
-            .map_err(|e| e.to_string())?;
+        let _ = manager.discover_plugin(plugins_dir.join(&id));
         Ok::<String, String>(id)
     })();
     let _ = std::fs::remove_file(&tmp);
