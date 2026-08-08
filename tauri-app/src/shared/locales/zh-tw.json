@@ -231,7 +231,8 @@
       "Amplifier": "增益放大",
       "AGC": "自動增益 (AGC)",
       "VAD": "語音偵測 (VAD)",
-      "Equalizer": "均衡器 (EQ)"
+      "Equalizer": "均衡器 (EQ)",
+      "Plugins": "外掛程式"
     },
     "equalizer": {
       "title": "均衡器",

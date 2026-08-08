@@ -233,7 +233,8 @@
       "Amplifier": "Amplifier (Gain)",
       "AGC": "Auto Gain Control",
       "VAD": "Voice Activity Detection",
-      "Equalizer": "Equalizer (EQ)"
+      "Equalizer": "Equalizer (EQ)",
+      "Plugins": "Plugins"
     },
     "equalizer": {
       "title": "Equalizer",

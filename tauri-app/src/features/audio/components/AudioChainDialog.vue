@@ -52,7 +52,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onUnmounted } from 'vue';
+import { ref, watch, computed, onUnmounted } from 'vue';
+import { usePlugins } from '@/features/plugins/composables/usePlugins';
 import { invoke } from '@tauri-apps/api/core';
 import { X, GripVertical, RotateCcw, Lock } from '@lucide/vue';
 
@@ -73,9 +74,25 @@ const normalizeChain = (chain: string[]) => {
 
 const localChain = ref<string[]>([]);
 
+// DSP 插件启用时，链中注入 'Plugins' 合成节点（可拖拽调整插件处理位置）
+const pluginsState = usePlugins();
+const hasActiveDsp = computed(() =>
+  pluginsState.plugins.value.some(
+    (p) => p.kind === 'dsp' && p.enabled && p.loaded,
+  ),
+);
+
 watch(() => props.isOpen, (newVal) => {
   if (newVal) {
-    localChain.value = normalizeChain(props.chain);
+    const chain = normalizeChain(props.chain);
+    if (
+      hasActiveDsp.value &&
+      !chain.includes('Plugins')
+    ) {
+      const idx = chain.indexOf('AEC');
+      chain.splice(idx >= 0 ? idx + 1 : chain.length, 0, 'Plugins');
+    }
+    localChain.value = chain;
   }
 });
 

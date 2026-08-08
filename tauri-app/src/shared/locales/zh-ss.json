@@ -231,7 +231,8 @@
       "Amplifier": "放大倍增项",
       "AGC": "启用自动增益控制项",
       "VAD": "启用声音活动检测项",
-      "Equalizer": "启用均衡器项"
+      "Equalizer": "启用均衡器项",
+      "Plugins": "铁插件"
     },
     "equalizer": {
       "title": "均衡器部分项",

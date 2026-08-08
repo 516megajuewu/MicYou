@@ -231,7 +231,8 @@
       "Amplifier": "放大器（增益）喵~",
       "AGC": "自动增益喵~",
       "VAD": "语音检测喵~",
-      "Equalizer": "均衡器（EQ）喵~ 🎵"
+      "Equalizer": "均衡器（EQ）喵~ 🎵",
+      "Plugins": "喵插件"
     },
     "equalizer": {
       "title": "均衡器喵~ 🎵",

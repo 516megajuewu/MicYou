@@ -231,7 +231,8 @@
       "Amplifier": "增益放大",
       "AGC": "自動增益控制 (AGC)",
       "VAD": "語音活動偵測 (VAD)",
-      "Equalizer": "等化器 (EQ)"
+      "Equalizer": "等化器 (EQ)",
+      "Plugins": "插件"
     },
     "equalizer": {
       "title": "等化器",
