@@ -42,7 +42,7 @@
               {{ index + 1 }}
             </div>
             
-            <span class="text-sm font-bold text-on-surface flex-1 pointer-events-none">{{ $t(`settings.audioChain.${item}`) }}</span>
+            <span class="text-sm font-bold text-on-surface flex-1 pointer-events-none">{{ chainLabel(item) }}</span>
           </div>
         </div>
       </div>
@@ -56,6 +56,7 @@ import { ref, watch, computed, onUnmounted } from 'vue';
 import { usePlugins } from '@/features/plugins/composables/usePlugins';
 import { invoke } from '@tauri-apps/api/core';
 import { X, GripVertical, RotateCcw, Lock } from '@lucide/vue';
+import { useI18n } from 'vue-i18n';
 
 const props = defineProps<{ isOpen: boolean, chain: string[] }>();
 const emit = defineEmits(['close', 'update:chain']);
@@ -81,6 +82,21 @@ const hasActiveDsp = computed(() =>
     (p) => p.kind === 'dsp' && p.enabled && p.loaded,
   ),
 );
+// 处理链中插件节点的显示名（启用中的 DSP 插件）
+const activeDspNames = computed(() =>
+  pluginsState.plugins.value
+    .filter((p) => p.kind === 'dsp' && p.enabled && p.loaded)
+    .map((p) => p.name || p.id),
+);
+function chainLabel(item: string): string {
+  if (item === 'Plugins') {
+    const t = useI18n().t;
+    return activeDspNames.value.length > 0
+      ? `${t('settings.audioChain.Plugins')} · ${activeDspNames.value.join('、')}`
+      : t('settings.audioChain.Plugins');
+  }
+  return useI18n().t(`settings.audioChain.${item}`);
+}
 
 watch(() => props.isOpen, async (newVal) => {
   if (newVal) {
