@@ -141,14 +141,27 @@ pub fn set_plugin_config(
     key: String,
     value: serde_json::Value,
 ) -> Result<(), String> {
-    let manager = state
-        .plugins
-        .manager
-        .lock()
-        .map_err(|_| "plugin manager lock poisoned".to_string())?;
-    manager
-        .set_plugin_config(&id, &key, value)
-        .map_err(|e| e.to_string())
+    // 先持久化（释放 manager 锁后再 dispatch，dispatch 会再次锁 manager）
+    {
+        let manager = state
+            .plugins
+            .manager
+            .lock()
+            .map_err(|_| "plugin manager lock poisoned".to_string())?;
+        manager
+            .set_plugin_config(&id, &key, value.clone())
+            .map_err(|e| e.to_string())?;
+    }
+    // 通知插件配置已变更（config:changed 热更新，插件据此重新读取配置）
+    let payload = serde_json::json!({ "key": key, "value": value });
+    let msg = micyou_plugin::bus::PluginMessage::new(
+        "host",
+        &id,
+        "config:changed",
+        payload.to_string().into_bytes(),
+    );
+    state.plugins.bus.handle_incoming(&msg);
+    Ok(())
 }
 
 /// Recent log lines emitted by a plugin.

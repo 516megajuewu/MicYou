@@ -148,22 +148,27 @@
   (func (export "process") (param $data i32) (param $samples i32) (param $ch i32) (param $qms f64) (result i32)
     (local $i i32) (local $n i32) (local $p f64) (local $step f64) (local $pos f64)
     (local $i0 i32) (local $frac f64) (local $v0 f64) (local $v1 f64) (local $hl i32) (local $limit f64)
+    (local $per i32) (local $c i32) (local $v f32)
     (if (i32.load (i32.const 0x184)) (then (return (i32.const 0))))
+    (if (i32.eqz (local.get $ch)) (then (return (i32.const 0))))
+    ;; per-channel frame size; only channel 0 is processed and the result
+    ;; is copied to the other channels (interleaved stereo/multi-channel safe)
+    (local.set $per (i32.div_u (local.get $samples) (local.get $ch)))
     (local.set $p (f64.load (i32.const 0x120)))
     ;; 输出频率 = 输入频率 × pitch，故读取步长 = pitch
     (local.set $step (f64.max (f64.min (local.get $p) (f64.const 8.0)) (f64.const 0.1)))
     (local.set $hl (i32.load (i32.const 0x180)))
-    ;; append input frame to history
+    ;; append input frame (channel 0) to history
     (local.set $i (i32.const 0))
     (block $copy_done
       (loop $copy
-        (br_if $copy_done (i32.ge_u (local.get $i) (local.get $samples)))
+        (br_if $copy_done (i32.ge_u (local.get $i) (local.get $per)))
         (i32.store
           (i32.add (i32.const 0x2000) (i32.mul (i32.add (local.get $hl) (local.get $i)) (i32.const 4)))
-          (i32.load (i32.add (local.get $data) (i32.mul (local.get $i) (i32.const 4)))))
+          (i32.load (i32.add (local.get $data) (i32.mul (i32.mul (local.get $i) (local.get $ch)) (i32.const 4)))))
         (local.set $i (i32.add (local.get $i) (i32.const 1)))
         (br $copy)))
-    (local.set $hl (i32.add (local.get $hl) (local.get $samples)))
+    (local.set $hl (i32.add (local.get $hl) (local.get $per)))
     ;; trim to 1920 samples, adjusting read_pos
     (if (i32.gt_u (local.get $hl) (i32.const 1920))
       (then
@@ -185,22 +190,36 @@
     (i32.store (i32.const 0x180) (local.get $hl))
     (local.set $limit (f64.convert_i32_u (i32.sub (local.get $hl) (i32.const 1))))
     (if (f64.lt (local.get $limit) (f64.const 0.0)) (then (return (i32.const 0))))
-    ;; generate output via linear interpolation
+    ;; generate per outputs via linear interpolation on channel 0
     (local.set $i (i32.const 0))
     (block $out_done
       (loop $out
-        (br_if $out_done (i32.ge_u (local.get $i) (local.get $samples)))
+        (br_if $out_done (i32.ge_u (local.get $i) (local.get $per)))
         (local.set $pos (f64.load (i32.const 0x128)))
         (if (f64.gt (local.get $pos) (local.get $limit)) (then (local.set $pos (local.get $limit))))
         (local.set $i0 (i32.trunc_f64_s (local.get $pos)))
         (local.set $frac (f64.sub (local.get $pos) (f64.convert_i32_s (local.get $i0))))
         (local.set $v0 (f64.promote_f32 (f32.load (i32.add (i32.const 0x2000) (i32.mul (local.get $i0) (i32.const 4))))))
         (local.set $v1 (f64.promote_f32 (f32.load (i32.add (i32.const 0x2000) (i32.mul (i32.add (local.get $i0) (i32.const 1)) (i32.const 4))))))
-        (f32.store
-          (i32.add (local.get $data) (i32.mul (local.get $i) (i32.const 4)))
+        (local.set $v
           (f32.demote_f64
             (f64.add (f64.mul (local.get $v0) (f64.sub (f64.const 1.0) (local.get $frac)))
                      (f64.mul (local.get $v1) (local.get $frac)))))
+        ;; write channel 0
+        (f32.store
+          (i32.add (local.get $data) (i32.mul (i32.mul (local.get $i) (local.get $ch)) (i32.const 4)))
+          (local.get $v))
+        ;; copy to remaining channels
+        (local.set $c (i32.const 1))
+        (block $c_done
+          (loop $cl
+            (br_if $c_done (i32.ge_u (local.get $c) (local.get $ch)))
+            (f32.store
+              (i32.add (local.get $data)
+                (i32.mul (i32.add (i32.mul (local.get $i) (local.get $ch)) (local.get $c)) (i32.const 4)))
+              (local.get $v))
+            (local.set $c (i32.add (local.get $c) (i32.const 1)))
+            (br $cl)))
         (f64.store (i32.const 0x128) (f64.add (local.get $pos) (local.get $step)))
         (if (f64.ge (f64.load (i32.const 0x128)) (local.get $limit))
           (then (f64.store (i32.const 0x128) (f64.const 0.0))))
@@ -231,7 +250,7 @@
         (if (i32.gt_u (local.get $vstart) (i32.const 0))
           (then
             (f64.store (i32.const 0x120)
-              (call $parse_f64 (local.get $ptr) (i32.sub (local.get $len) (local.get $vstart))))
+              (call $parse_f64 (i32.add (local.get $ptr) (local.get $vstart)) (i32.sub (local.get $len) (local.get $vstart))))
             (call $log (i32.const 2) (i32.const 0x1D0))))))
     ;; bypass update: "true" -> 1, "false" -> 0, numeric -> !=0
     (if (call $contains (local.get $ptr) (local.get $len) (i32.const 0x110) (i32.const 6))
@@ -244,7 +263,7 @@
               (else
                 (if (i32.gt_u (local.get $vstart) (i32.const 0))
                   (then
-                    (if (f64.eq (call $parse_f64 (local.get $ptr) (i32.sub (local.get $len) (local.get $vstart))) (f64.const 0.0))
+                    (if (f64.eq (call $parse_f64 (i32.add (local.get $ptr) (local.get $vstart)) (i32.sub (local.get $len) (local.get $vstart))) (f64.const 0.0))
                       (then (i32.store (i32.const 0x184) (i32.const 0)))
                       (else (i32.store (i32.const 0x184) (i32.const 1))))))))))))
     (i32.const 0))
