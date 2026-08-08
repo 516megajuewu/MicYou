@@ -12,6 +12,7 @@
 6. [实时 DSP 插件规范](#实时-dsp-插件规范)
 7. [跨端通信 API](#跨端通信-api)
 8. [调试与测试](#调试与测试)
+9. [端到端开发流程](#端到端开发流程)
 
 ## 目录结构
 
@@ -529,3 +530,87 @@ await call('play', { id: 'beep' });
 - 失败定位：`list_plugins` 返回 `error` 字段（加载失败的详细原因）
 - 本地开发：把插件目录放入宿主插件目录，面板点「刷新」即可重扫
 - 测试夹具参考：`crates/micyou-plugin/tests/` 下的 native_loader / wasm_loader 集成测试
+
+
+## 端到端开发流程
+
+从零到市场发布的完整流程（配合 `micyou plugin` 工具链）
+
+### 第 0 步：规划
+
+| 决策 | 依据 |
+|---|---|
+| 插件 id | 反向域名，如 `dev.yourname.eq`，必须含点，小写字母数字与连字符 |
+| 运行时 | 逻辑/面板/定时/网络/文件用 **wasm**（沙箱安全）；实时 DSP、系统级集成用 **native**（需声明 arches） |
+| kind | utility（工具）/ dsp（处理链节点）/ ui（纯面板） |
+| capabilities | 只声明需要的：config.read/write、audio.state、device.list、network.io、open.url、clipboard.read/write、fs.read/write、audio.play |
+| 依赖 | 如依赖其他插件，声明 dependencies（id + semver 范围） |
+
+### 第 1 步：生成骨架
+
+```bash
+# WASM 插件（默认，自动编译 main.wat -> main.wasm）
+micyou plugin create dev.yourname.myplugin \
+  --kind utility --capabilities config.read,config.write
+
+# Native 插件
+micyou plugin create dev.yourname.mydsp \
+  --runtime native --kind dsp
+```
+
+骨架包含：plugin.json / 入口源文件 / panel.html（面板）/ README，manifest 已按参数预填
+
+### 第 2 步：开发循环（热重装）
+
+```bash
+micyou plugin dev <插件目录>
+```
+
+- 首次自动 validate + install（部署到 `~/.config/micyou/plugins/<id>/`）
+- 之后监听目录变更，保存即重新安装
+- 重启应用 → 设置-插件页启用 → 验证效果
+- 改面板 HTML 无需重启应用，重新打开面板即生效（HTML 运行时读取）
+
+### 第 3 步：验证
+
+```bash
+micyou plugin validate <插件目录>
+# 校验 manifest 结构 + 入口产物存在性
+```
+
+应用内验证：设置-插件 → 启用 → 看日志（面板有日志查看）；DSP 插件在处理链中确认节点位置
+
+### 第 4 步：打包
+
+```bash
+micyou plugin package <插件目录> -o myplugin.zip
+# zip 根目录含 plugin.json，应用内可导入
+```
+
+### 第 5 步：发布到市场（MicYou-Plugins）
+
+1. manifest 添加 `updateUrl`（指向市场 raw manifest），如：
+   `https://raw.githubusercontent.com/MicYou-Dev/MicYou-Plugins/main/plugin/<id>/plugin.json`
+2. 推送仓库 `MicYou-Dev/MicYou-Plugins`，`plugin/<id>/` 下放：
+   - `plugin.json`（manifest）
+   - `plugin.zip`（第 4 步产物）
+   - 源码（开源要求）与 README
+3. 仓库 CI（scripts/generate_catalog.ts）自动生成 index.json，应用内市场与检查更新即生效
+4. 用户路径：设置-插件 → 插件市场 → 预览能力 → 安装；或 检查更新 → 一键更新
+
+### 第 6 步：迭代与维护
+
+```bash
+micyou plugin bump <插件目录>        # patch +1
+micyou plugin bump <插件目录> 2.0.0  # 指定版本
+micyou plugin package <插件目录> -o plugin.zip
+# 重新推送市场即可发布新版本，用户应用内「检查更新」拉取
+```
+
+### 面板开发提示
+
+- 面板是自包含单文件 HTML（iframe srcdoc，不能引相对资源）
+- 复用宿主注入的 Material 3 主题变量：`hsl(var(--primary))` 等，切主题自动重载
+- 语言跟随宿主：`call('locale')` 后自行本地化
+- 面板状态不跨页面保留，加载时用 `get_config` 恢复
+- 调试：`call('log', {level:'debug', message:'...'})` 写宿主日志，应用插件页可查看

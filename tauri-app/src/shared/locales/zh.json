@@ -560,6 +560,18 @@
     "openWindow": "在新窗口打开",
     "checkUpdates": "检查更新",
     "updating": "更新中…",
-    "updateNow": "更新"
+    "updateNow": "更新",
+    "market": "插件市场",
+    "marketTitle": "插件市场",
+    "marketLoading": "加载市场目录…",
+    "marketEmpty": "市场暂无插件",
+    "marketFailed": "加载市场失败：{error}",
+    "marketInstall": "安装",
+    "marketInstalling": "安装中…",
+    "marketInstalled": "已安装",
+    "marketConfirm": "安装前请确认该插件请求的能力",
+    "marketConfirmText": "安装即代表信任该插件作者，请确认来源可信",
+    "retry": "重试",
+    "cancel": "取消"
   }
 }

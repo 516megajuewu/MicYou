@@ -560,6 +560,18 @@
     "openWindow": "Open in window",
     "checkUpdates": "Check updates",
     "updating": "Updating…",
-    "updateNow": "Update"
+    "updateNow": "Update",
+    "market": "Plugin Market",
+    "marketTitle": "Plugin Market",
+    "marketLoading": "Loading market catalog…",
+    "marketEmpty": "No plugins in the market yet",
+    "marketFailed": "Failed to load market: {error}",
+    "marketInstall": "Install",
+    "marketInstalling": "Installing…",
+    "marketInstalled": "Installed",
+    "marketConfirm": "This plugin requests the following capabilities",
+    "marketConfirmText": "Installing means you trust the plugin author. Please verify the source.",
+    "retry": "Retry",
+    "cancel": "Cancel"
   }
 }

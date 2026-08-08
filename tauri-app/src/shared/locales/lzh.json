@@ -558,6 +558,18 @@
     "openWindow": "另開新窗",
     "checkUpdates": "查更新",
     "updating": "方更新",
-    "updateNow": "即更"
+    "updateNow": "即更",
+    "market": "插件坊",
+    "marketTitle": "插件坊",
+    "marketLoading": "載坊中目錄…",
+    "marketEmpty": "坊中暫無插件",
+    "marketFailed": "載坊不成：{error}",
+    "marketInstall": "載之",
+    "marketInstalling": "載入中…",
+    "marketInstalled": "已載",
+    "marketConfirm": "載前請覽所請之權",
+    "marketConfirmText": "載之即信其作者，慎辨其源",
+    "retry": "再試",
+    "cancel": "罷之"
   }
 }

@@ -558,6 +558,83 @@ pub fn get_plugin_panel_icons(
         .unwrap_or_default()
 }
 
+/// Fetch a remote manifest (market) and return a preview without installing.
+#[tauri::command]
+pub fn preview_plugin_from_url(manifest_url: String) -> Result<PluginPreview, String> {
+    let client = reqwest::blocking::Client::builder()
+        .timeout(std::time::Duration::from_secs(5))
+        .build()
+        .map_err(|e| format!("http client: {e}"))?;
+    let text = client
+        .get(&manifest_url)
+        .send()
+        .map_err(|e| format!("fetch manifest: {e}"))?
+        .error_for_status()
+        .map_err(|e| format!("fetch manifest: {e}"))?
+        .text()
+        .map_err(|e| format!("read manifest: {e}"))?;
+    let manifest = micyou_plugin::PluginManifest::from_json(&text)
+        .map_err(|e| format!("invalid plugin manifest: {e}"))?;
+    Ok(PluginPreview {
+        id: manifest.id.clone(),
+        name: manifest.name.clone(),
+        version: manifest.version.clone(),
+        author: manifest.author.clone(),
+        description: manifest.description.clone(),
+        runtime: manifest.runtime.to_string(),
+        kind: format!("{:?}", manifest.kind).to_lowercase(),
+        capabilities: manifest.capabilities.clone(),
+        license: manifest.license.clone(),
+        homepage: manifest.homepage.clone(),
+    })
+}
+
+/// Download a plugin zip from the market and install it (permission prompt
+/// happens in the frontend via preview_plugin_from_url first).
+#[tauri::command]
+pub fn install_plugin_from_url(
+    state: State<'_, ServerState>,
+    zip_url: String,
+) -> Result<String, String> {
+    let client = reqwest::blocking::Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .build()
+        .map_err(|e| format!("http client: {e}"))?;
+    let bytes = client
+        .get(&zip_url)
+        .send()
+        .map_err(|e| format!("download zip: {e}"))?
+        .error_for_status()
+        .map_err(|e| format!("download zip: {e}"))?
+        .bytes()
+        .map_err(|e| format!("read zip: {e}"))?;
+    // 临时文件下载，随后走标准 zip 导入（含路径穿越防护）
+    let tmp = std::env::temp_dir().join(format!("micyou-market-{}.zip", std::process::id()));
+    std::fs::write(&tmp, &bytes).map_err(|e| format!("write temp zip: {e}"))?;
+    let result = (|| {
+        let plugins_dir = state
+            .plugins
+            .manager
+            .lock()
+            .map_err(|_| "plugin manager lock poisoned".to_string())?
+            .plugins_dir()
+            .to_path_buf();
+        std::fs::create_dir_all(&plugins_dir).map_err(|e| e.to_string())?;
+        let id = import_plugin_zip(&tmp, &plugins_dir)?;
+        let mut manager = state
+            .plugins
+            .manager
+            .lock()
+            .map_err(|_| "plugin manager lock poisoned".to_string())?;
+        manager
+            .discover_plugin(plugins_dir.join(&id))
+            .map_err(|e| e.to_string())?;
+        Ok::<String, String>(id)
+    })();
+    let _ = std::fs::remove_file(&tmp);
+    result
+}
+
 /// Import a plugin from a `.zip` file or a plugin directory.
 ///
 /// The source manifest is validated first; the payload is then copied into

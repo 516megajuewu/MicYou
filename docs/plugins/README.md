@@ -56,10 +56,15 @@ MicYou 插件系统允许第三方为桌面端与（未来）安卓端扩展能�
 ## 开发工具
 
 ```bash
-micyou plugin create dev.micyou.myplugin          # wasm 骨架（默认，推荐）
-micyou plugin create dev.micyou.mynative --runtime native
+micyou plugin create dev.micyou.myplugin --kind utility --capabilities config.read
+micyou plugin create dev.micyou.mynative --runtime native --kind dsp
 micyou plugin validate ./myplugin
+micyou plugin install ./myplugin            # 一键部署到应用插件目录
+micyou plugin dev ./myplugin                # 监听变更自动重装（开发循环）
 micyou plugin package ./myplugin -o out.zip
+micyou plugin bump ./myplugin               # 版本 patch +1
+
+应用内：设置-插件 → 插件市场（浏览 MicYou-Plugins 仓库并一键安装，安装前展示能力确认）
 ```
 
 ## 代码结构

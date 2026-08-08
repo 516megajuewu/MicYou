@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 import PluginConfigForm from './PluginConfigForm.vue';
+import PluginMarketDialog from './PluginMarketDialog.vue';
 import { ref, onMounted, watch } from 'vue';
 import {
   RefreshCw,
@@ -11,6 +12,7 @@ import {
   ToggleLeft,
   ToggleRight,
   TerminalSquare,
+  Store,
 } from '@lucide/vue';
 import { usePlugins, type PluginView } from '../composables/usePlugins';
 
@@ -90,6 +92,7 @@ async function saveConfig(plugin: PluginView) {
 }
 
 const checking = ref(false);
+const marketOpen = ref(false);
 const updates = ref<{ id: string; currentVersion: string; latestVersion: string }[]>([]);
 
 async function checkUpdates() {
@@ -136,17 +139,28 @@ function confirmUninstall(plugin: PluginView) {
             : $t('plugins.sync.disconnected')
         }}
       </span>
-      <button
-        @click="p.refresh"
-        class="w-9 h-9 rounded-full bg-surface-variant/40 hover:bg-surface-variant flex items-center justify-center transition-colors"
-        :title="$t('plugins.refresh')"
-      >
-        <RefreshCw
-          class="w-4 h-4 text-on-surface-variant"
-          :class="{ 'animate-spin': p.loading.value }"
-        />
-      </button>
+      <div class="flex items-center gap-2">
+        <button
+          @click="marketOpen = true"
+          class="inline-flex items-center gap-1.5 px-3 h-9 rounded-full bg-primary/15 text-primary hover:bg-primary/25 text-xs font-medium transition-colors"
+        >
+          <Store class="w-4 h-4" />
+          {{ $t('plugins.market') }}
+        </button>
+        <button
+          @click="p.refresh"
+          class="w-9 h-9 rounded-full bg-surface-variant/40 hover:bg-surface-variant flex items-center justify-center transition-colors"
+          :title="$t('plugins.refresh')"
+        >
+          <RefreshCw
+            class="w-4 h-4 text-on-surface-variant"
+            :class="{ 'animate-spin': p.loading.value }"
+          />
+        </button>
+      </div>
     </div>
+
+    <PluginMarketDialog :is-open="marketOpen" @close="marketOpen = false" />
 
     <p v-if="p.error.value" class="px-4 py-2 rounded-lg bg-red-500/10 text-red-400 text-sm">
       {{ p.error.value }}

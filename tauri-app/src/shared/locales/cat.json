@@ -558,6 +558,18 @@
     "openWindow": "在新喵窗開啟",
     "checkUpdates": "檢查喵插件更新",
     "updating": "更新中…",
-    "updateNow": "更新"
+    "updateNow": "更新",
+    "market": "喵插件商店",
+    "marketTitle": "喵插件商店",
+    "marketLoading": "加载喵商店目录中…",
+    "marketEmpty": "喵商店暂无插件",
+    "marketFailed": "加载喵商店失败：{error}",
+    "marketInstall": "装喵",
+    "marketInstalling": "装着喵…",
+    "marketInstalled": "装好喵",
+    "marketConfirm": "装前请确认这喵插件要啥能力",
+    "marketConfirmText": "装就是信任作者喵，来源要靠谱喵",
+    "retry": "再试喵",
+    "cancel": "取消喵"
   }
 }

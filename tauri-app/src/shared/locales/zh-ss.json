@@ -559,6 +559,18 @@
     "openWindow": "在新铁窗打开",
     "checkUpdates": "检查铁插件更新",
     "updating": "更新中…",
-    "updateNow": "更新"
+    "updateNow": "更新",
+    "market": "铁插件商店",
+    "marketTitle": "铁插件商店",
+    "marketLoading": "加载商店目录中…",
+    "marketEmpty": "商店暂无铁插件",
+    "marketFailed": "加载商店失败：{error}",
+    "marketInstall": "装它",
+    "marketInstalling": "装着…",
+    "marketInstalled": "已装",
+    "marketConfirm": "装之前看看这铁插件要啥能力",
+    "marketConfirmText": "装了就是信作者，来源要靠谱",
+    "retry": "再试",
+    "cancel": "算了"
   }
 }
