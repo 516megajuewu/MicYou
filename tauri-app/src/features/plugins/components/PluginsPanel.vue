@@ -2,7 +2,7 @@
 import { useI18n } from 'vue-i18n';
 import PluginDetailsDialog from './PluginDetailsDialog.vue';
 import PluginMarketDialog from './PluginMarketDialog.vue';
-import { ref, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import {
   RefreshCw,
   Puzzle,
@@ -13,6 +13,7 @@ import {
   ToggleRight,
   TerminalSquare,
   Store,
+  Search,
 } from '@lucide/vue';
 import { usePlugins, type PluginView } from '../composables/usePlugins';
 
@@ -64,6 +65,36 @@ function openDetails(plugin: PluginView, tab: 'config' | 'logs') {
   detailsTab.value = tab;
 }
 
+const searchQuery = ref('');
+const filteredPlugins = computed(() => {
+  const q = searchQuery.value.trim().toLowerCase();
+  if (!q) return p.plugins.value;
+  return p.plugins.value.filter(
+    (pl) =>
+      pl.name.toLowerCase().includes(q) ||
+      pl.id.toLowerCase().includes(q) ||
+      (pl.description ?? '').toLowerCase().includes(q),
+  );
+});
+
+const uninstallTarget = ref<string | null>(null);
+
+function requestUninstall(plugin: PluginView) {
+  uninstallTarget.value = plugin.id;
+}
+
+function cancelUninstall() {
+  uninstallTarget.value = null;
+}
+
+async function confirmUninstall() {
+  if (!uninstallTarget.value) return;
+  const target = uninstallTarget.value;
+  uninstallTarget.value = null;
+  const plugin = p.plugins.value.find((pl) => pl.id === target);
+  if (plugin) await p.uninstall(plugin);
+}
+
 const checking = ref(false);
 const marketOpen = ref(false);
 const updates = ref<{ id: string; currentVersion: string; latestVersion: string }[]>([]);
@@ -81,11 +112,6 @@ async function applyUpdate(id: string) {
   }
 }
 
-function confirmUninstall(plugin: PluginView) {
-  if (window.confirm(`Uninstall ${plugin.name} (${plugin.id})?`)) {
-    p.uninstall(plugin);
-  }
-}
 </script>
 
 <template>
@@ -201,8 +227,23 @@ function confirmUninstall(plugin: PluginView) {
         </div>
       </div>
 
+      <!-- Search -->
+      <div class="relative">
+        <Search class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant/60" />
+        <input
+          v-model="searchQuery"
+          type="text"
+          :placeholder="$t('plugins.search')"
+          class="w-full h-10 pl-9 pr-3 rounded-full bg-surface-variant/20 text-sm text-on-surface outline-none placeholder:text-on-surface-variant/60 focus:ring-1 focus:ring-primary/40"
+        />
+      </div>
+
+      <p v-if="filteredPlugins.length === 0" class="py-8 text-center text-sm text-on-surface-variant">
+        {{ $t('plugins.noPlugins') }}
+      </p>
+
       <div
-        v-for="plugin in p.plugins.value"
+        v-for="plugin in filteredPlugins"
         :key="plugin.id"
         class="rounded-xl bg-surface-container-lowest/60 border border-surface-variant/20 p-4"
       >
@@ -267,7 +308,7 @@ function confirmUninstall(plugin: PluginView) {
               <Puzzle class="w-4 h-4 text-on-surface-variant" />
             </button>
             <button
-              @click="confirmUninstall(plugin)"
+              @click="requestUninstall(plugin)"
               class="w-9 h-9 rounded-full bg-surface-variant/40 hover:bg-red-500/20 flex items-center justify-center transition-colors"
               :title="$t('plugins.uninstall')"
             >
@@ -286,6 +327,30 @@ function confirmUninstall(plugin: PluginView) {
               <ToggleRight v-if="plugin.enabled" class="w-4 h-4" />
               <ToggleLeft v-else class="w-4 h-4" />
               {{ plugin.enabled ? $t('plugins.enabled') : $t('plugins.disabled') }}
+            </button>
+          </div>
+        </div>
+
+        <!-- Uninstall confirm bar -->
+        <div
+          v-if="uninstallTarget === plugin.id"
+          class="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3"
+        >
+          <p class="text-xs text-red-300">
+            {{ $t('plugins.uninstallConfirm', { name: plugin.name }) }}
+          </p>
+          <div class="flex gap-2 mt-2">
+            <button
+              @click="confirmUninstall"
+              class="px-3 py-1.5 rounded-full text-xs bg-red-500 text-red-950 font-medium hover:bg-red-400"
+            >
+              {{ $t('plugins.uninstall') }}
+            </button>
+            <button
+              @click="cancelUninstall"
+              class="px-3 py-1.5 rounded-full text-xs bg-surface-variant/40 hover:bg-surface-variant"
+            >
+              {{ $t('plugins.cancel') }}
             </button>
           </div>
         </div>

@@ -570,6 +570,9 @@
     "marketConfirm": "装前请确认这喵插件要啥能力",
     "marketConfirmText": "装就是信任作者喵，来源要靠谱喵",
     "retry": "再试喵",
-    "cancel": "取消喵"
+    "cancel": "取消喵",
+    "search": "搜喵插件",
+    "uninstallConfirm": "卸載 {name} 喵？",
+    "marketSearch": "搜喵插件商店"
   }
 }

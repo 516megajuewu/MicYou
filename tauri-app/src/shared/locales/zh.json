@@ -572,6 +572,9 @@
     "marketConfirm": "安装前请确认该插件请求的能力",
     "marketConfirmText": "安装即代表信任该插件作者，请确认来源可信",
     "retry": "重试",
-    "cancel": "取消"
+    "cancel": "取消",
+    "search": "搜索插件",
+    "uninstallConfirm": "确定卸载 {name}？",
+    "marketSearch": "搜索插件市场"
   }
 }

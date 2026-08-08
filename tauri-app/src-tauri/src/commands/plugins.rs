@@ -638,7 +638,12 @@ pub fn install_plugin_from_url(
         Ok::<String, String>(id)
     })();
     let _ = std::fs::remove_file(&tmp);
-    result
+    let id = result?;
+    // 权限已在前端确认，安装成功后自动启用（失败不阻断安装，用户可手动启用）
+    if let Err(e) = state.plugins.enable_plugin(&id) {
+        log::warn!("[plugins] auto-enable after install failed for {id}: {e}");
+    }
+    Ok(id)
 }
 
 /// Import a plugin from a `.zip` file or a plugin directory.
@@ -674,14 +679,20 @@ pub fn import_plugin(state: State<'_, ServerState>, source: String) -> Result<St
     .map_err(|e| e.to_string())?;
 
     // Register the new entry so it appears immediately without a rescan.
-    let mut manager = state
-        .plugins
-        .manager
-        .lock()
-        .map_err(|_| "plugin manager lock poisoned".to_string())?;
-    manager
-        .discover_plugin(plugins_dir.join(&id))
-        .map_err(|e| e.to_string())?;
+    {
+        let mut manager = state
+            .plugins
+            .manager
+            .lock()
+            .map_err(|_| "plugin manager lock poisoned".to_string())?;
+        manager
+            .discover_plugin(plugins_dir.join(&id))
+            .map_err(|e| e.to_string())?;
+    }
+    // 权限已确认，安装成功后自动启用（失败不阻断安装）
+    if let Err(e) = state.plugins.enable_plugin(&id) {
+        log::warn!("[plugins] auto-enable after import failed for {id}: {e}");
+    }
     Ok(id)
 }
 

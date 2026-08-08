@@ -571,6 +571,9 @@
     "marketConfirm": "装之前看看这铁插件要啥能力",
     "marketConfirmText": "装了就是信作者，来源要靠谱",
     "retry": "再试",
-    "cancel": "算了"
+    "cancel": "算了",
+    "search": "搜铁插件",
+    "uninstallConfirm": "真卸 {name}？",
+    "marketSearch": "搜铁插件商店"
   }
 }

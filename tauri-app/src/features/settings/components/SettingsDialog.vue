@@ -1633,7 +1633,44 @@ async function loadPanel(pluginId: string, panelId: string) {
   try {
     const html = await invoke<string>('get_plugin_panel', { pluginId, panelId });
     // 注入当前主题 CSS 变量，使插件页面与软件整体风格一致并自动跟随主题
-    panelHtml.value = `<style>:root{${collectThemeVars()}}</style>${html}`;
+    // 同时 hook console，把面板的 log/warn/error 转发为插件日志（利于开发者调试面板）
+    const consoleHook = `<script>
+      (function () {
+        var orig = { log: console.log.bind(console), warn: console.warn.bind(console), error: console.error.bind(console) };
+        function send(level) {
+          return function () {
+            var parts = [];
+            for (var i = 0; i < arguments.length; i++) {
+              var a = arguments[i];
+              parts.push(typeof a === 'string' ? a : (function () { try { return JSON.stringify(a); } catch (e) { return String(a); } })());
+            }
+            try {
+              window.parent.postMessage({
+                __micyou: 1,
+                id: 'console-' + Math.random().toString(36).slice(2),
+                api: 'log',
+                args: { level: level, message: parts.join(' ') }
+              }, '*');
+            } catch (e) {}
+            orig[level === 'warn' ? 'warn' : level === 'error' ? 'error' : 'log'].apply(console, arguments);
+          };
+        }
+        console.log = send('info');
+        console.warn = send('warn');
+        console.error = send('error');
+        window.addEventListener('error', function (e) {
+          try {
+            window.parent.postMessage({
+              __micyou: 1,
+              id: 'console-' + Math.random().toString(36).slice(2),
+              api: 'log',
+              args: { level: 'error', message: 'uncaught: ' + (e.message || e.error) }
+            }, '*');
+          } catch (err) {}
+        });
+      })();
+    <\/script>`;
+    panelHtml.value = `<style>:root{${collectThemeVars()}}</style>${consoleHook}${html}`;
   } catch (e) {
     panelError.value = String(e);
     panelHtml.value = '';

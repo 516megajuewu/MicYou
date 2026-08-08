@@ -570,6 +570,9 @@
     "marketConfirm": "載前請覽所請之權",
     "marketConfirmText": "載之即信其作者，慎辨其源",
     "retry": "再試",
-    "cancel": "罷之"
+    "cancel": "罷之",
+    "search": "搜插件",
+    "uninstallConfirm": "欲卸 {name} 乎？",
+    "marketSearch": "搜插件坊"
   }
 }

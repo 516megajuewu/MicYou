@@ -31,6 +31,15 @@
 
       <!-- Body -->
       <div class="flex-1 overflow-y-auto p-4 space-y-3">
+        <div v-if="!isLoading && !loadError && catalog.plugins.length" class="relative">
+          <Search class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant/60" />
+          <input
+            v-model="marketQuery"
+            type="text"
+            :placeholder="$t('plugins.marketSearch')"
+            class="w-full h-10 pl-9 pr-3 rounded-full bg-surface-variant/20 text-sm text-on-surface outline-none placeholder:text-on-surface-variant/60 focus:ring-1 focus:ring-primary/40"
+          />
+        </div>
         <p v-if="loadError" class="text-sm text-error px-2 py-2">
           {{ $t('plugins.marketFailed', { error: loadError }) }}
           <button class="underline ml-2" @click="load">{{ $t('plugins.retry') }}</button>
@@ -47,10 +56,16 @@
         >
           {{ $t('plugins.marketEmpty') }}
         </div>
+        <div
+          v-else-if="filteredCatalog.length === 0"
+          class="py-16 text-center text-sm text-on-surface-variant"
+        >
+          {{ $t('plugins.noPlugins') }}
+        </div>
 
         <!-- Plugin cards -->
         <div
-          v-for="plugin in catalog.plugins"
+          v-for="plugin in filteredCatalog"
           :key="plugin.id"
           class="rounded-xl border border-surface-variant/30 bg-surface-bright p-4"
         >
@@ -197,10 +212,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import { useI18n } from 'vue-i18n';
-import { Check, Loader2, RefreshCw, Store, X } from '@lucide/vue';
+import { Check, Loader2, RefreshCw, Search, Store, X } from '@lucide/vue';
 import { loadPluginCatalog, marketPluginName, type MarketPlugin } from '../market';
 import { usePlugins } from '../composables/usePlugins';
 
@@ -211,6 +226,17 @@ const { locale } = useI18n();
 const pluginsState = usePlugins();
 
 const catalog = ref<{ plugins: MarketPlugin[] }>({ plugins: [] });
+const marketQuery = ref('');
+const filteredCatalog = computed(() => {
+  const q = marketQuery.value.trim().toLowerCase();
+  if (!q) return catalog.value.plugins;
+  return catalog.value.plugins.filter(
+    (pl) =>
+      pl.name.toLowerCase().includes(q) ||
+      pl.id.toLowerCase().includes(q) ||
+      (pl.description ?? '').toLowerCase().includes(q),
+  );
+});
 const isLoading = ref(false);
 const loadError = ref<string | null>(null);
 const installedIds = ref<string[]>([]);

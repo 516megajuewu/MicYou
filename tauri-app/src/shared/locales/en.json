@@ -572,6 +572,9 @@
     "marketConfirm": "This plugin requests the following capabilities",
     "marketConfirmText": "Installing means you trust the plugin author. Please verify the source.",
     "retry": "Retry",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "search": "Search plugins",
+    "uninstallConfirm": "Uninstall {name}?",
+    "marketSearch": "Search plugin market"
   }
 }

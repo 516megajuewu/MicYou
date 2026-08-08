@@ -570,6 +570,9 @@
     "marketConfirm": "安裝前請確認該外掛程式請求的能力",
     "marketConfirmText": "安裝即代表信任該外掛程式作者，請確認來源可信",
     "retry": "重試",
-    "cancel": "取消"
+    "cancel": "取消",
+    "search": "搜尋外掛程式",
+    "uninstallConfirm": "確定移除 {name}？",
+    "marketSearch": "搜尋外掛程式商店"
   }
 }
