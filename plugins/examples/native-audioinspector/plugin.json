@@ -20,14 +20,29 @@
   "entry": "libmicyou_example_audio_inspector.so",
   "apiVersion": 1,
   "kind": "utility",
-  "capabilities": ["config.read", "config.write", "audio.state", "device.list"],
-  "arches": ["x86_64"],
+  "capabilities": [
+    "config.read",
+    "config.write",
+    "audio.state",
+    "device.list"
+  ],
+  "arches": [
+    "x86_64"
+  ],
   "ui": {
     "label": "音频监视器",
     "panels": [
-      { "id": "inspector", "label": "监视器", "entry": "panel.html", "sidebar": true }
-    ]
+      {
+        "id": "inspector",
+        "label": "监视器",
+        "entry": "panel.html",
+        "sidebar": true
+      }
+    ],
+    "route": "plugin-panel"
   },
-  "config": { "state": "" },
+  "config": {
+    "state": ""
+  },
   "updateUrl": "https://raw.githubusercontent.com/MicYou-Dev/MicYou-Plugins/main/plugin/dev.micyou.example.audioinspector/plugin.json"
 }
