@@ -10,7 +10,7 @@
 ;;   0x100 "pitch\0"   0x110 "bypass\0"
 ;;   0x120 $PITCH (f64)  0x128 $READPOS (f64)
 ;;   0x180 $HLEN (i32)   0x184 $BYPASS (i32)
-;;   0x190 msg-init string  0x1A0 "\"value\":" needle
+;;   0x190 msg-init string  0x1C0 "\"value\":" needle
 ;;   0x2000 $HIST f32 history buffer (1920 samples = 7680 bytes)
 ;;   heap bump starts at 0x4000
 
@@ -27,8 +27,8 @@
   (data (i32.const 0x110) "bypass\00")
   (data (i32.const 0x190) "voicechanger initialized\00")
   (data (i32.const 0x1C0) "\"value\":")
-  (data (i32.const 0x1D0) "control\00")
-  (data (i32.const 0x1D8) "\F0\9F\8E\9A\EF\B8\8F\00")
+  (data (i32.const 0x1F8) "control\00")
+  (data (i32.const 0x208) "\F0\9F\8E\9A\EF\B8\8F\00")
   (data (i32.const 0x1D0) "config reloaded\00")
   (data (i32.const 0x1E0) "true\00")
   (data (i32.const 0x1F0) "false\00")
@@ -144,7 +144,7 @@
         (if (i32.eq (local.get $c) (i32.const 116))
           (then (i32.store (i32.const 0x184) (i32.const 1)))
           (else (i32.store (i32.const 0x184) (i32.const 0))))))
-    (call $set_panel_icon (i32.const 0x1D0) (i32.const 0x1D8))
+    (call $set_panel_icon (i32.const 0x1F8) (i32.const 0x208))
     (call $log (i32.const 2) (i32.const 0x190))
     (i32.const 0))
 

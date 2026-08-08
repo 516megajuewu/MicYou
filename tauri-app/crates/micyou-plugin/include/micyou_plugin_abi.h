@@ -109,6 +109,9 @@ typedef struct mpl_host_api {
     mpl_result_t (*clipboard_read)(void *ctx, char *out, uint32_t *out_size);
     /* Replace clipboard text (requires clipboard.write). */
     mpl_result_t (*clipboard_write)(void *ctx, const char *text);
+    /* Set the settings-sidebar panel icon: plugin-dir-relative image file
+     * name or short text/emoji. No capability required. */
+    mpl_result_t (*set_panel_icon)(void *ctx, const char *panel_id, const char *icon);
 } mpl_host_api_t;
 
 /* Static plugin identity. The id/version must match the manifest. */
