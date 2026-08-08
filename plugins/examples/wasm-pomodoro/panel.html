@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>番茄钟</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: system-ui, -apple-system, sans-serif; background: hsl(var(--surface)); color: hsl(var(--on-surface)); padding: 20px; min-height: 100vh; }
+  .card { background: hsl(var(--surface-bright)); border: 1px solid hsl(var(--border)); border-radius: 1rem; padding: 20px; }
+  h2 { color: hsl(var(--primary)); font-size: 1.1rem; margin-bottom: 16px; }
+  .status { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; font-size: 0.9rem; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: hsl(var(--surface-variant)); }
+  .dot.running { background: hsl(var(--primary)); box-shadow: 0 0 8px hsl(var(--primary)); }
+  .btns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  button { padding: 12px; border: none; border-radius: 999px; font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: opacity .15s; }
+  button:active { opacity: .7; }
+  .work { background: hsl(var(--primary)); color: hsl(var(--on-primary)); grid-column: 1 / -1; }
+  .break { background: hsl(var(--secondary-container)); color: hsl(var(--on-secondary-container)); }
+  .stop { background: hsl(var(--error-container)); color: hsl(var(--on-error-container)); }
+  .hint { margin-top: 14px; font-size: 0.75rem; color: hsl(var(--on-surface-variant)); line-height: 1.6; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h2>番茄钟</h2>
+  <div class="status">
+    <span id="dot" class="dot"></span>
+    <span id="status">空闲</span>
+  </div>
+  <div class="btns">
+    <button class="work" id="start">开始工作（25 分钟）</button>
+    <button class="break" id="break">休息 5 分钟</button>
+    <button class="stop" id="stop">停止</button>
+  </div>
+  <div class="hint">
+    通过宿主定时器每秒回调，时间到自动系统通知
+    <br>时长可在「配置」中调整（configSchema 自动表单）
+  </div>
+</div>
+<script>
+function call(api, args) {
+  return new Promise((resolve, reject) => {
+    const id = Math.random().toString(36).slice(2);
+    const on = (e) => {
+      if (e.data && e.data.__micyou === 1 && e.data.id === id) {
+        window.removeEventListener('message', on);
+        e.data.ok ? resolve(e.data.value) : reject(new Error(e.data.error));
+      }
+    };
+    window.addEventListener('message', on);
+    window.parent.postMessage({ __micyou: 1, id, api, args: args || {} }, '*');
+  });
+}
+const dot = document.getElementById('dot');
+const status = document.getElementById('status');
+function setRunning(running, label) {
+  dot.className = 'dot' + (running ? ' running' : '');
+  status.textContent = label;
+}
+document.getElementById('start').addEventListener('click', () => {
+  call('trigger', { action: 'start' }).then(() => setRunning(true, '工作中（25:00）')).catch(alert);
+});
+document.getElementById('break').addEventListener('click', () => {
+  call('trigger', { action: 'start' }).then(() => setRunning(true, '休息中（05:00）')).catch(alert);
+});
+document.getElementById('stop').addEventListener('click', () => {
+  call('trigger', { action: 'stop' }).then(() => setRunning(false, '已停止')).catch(alert);
+});
+</script>
+</body>
+</html>

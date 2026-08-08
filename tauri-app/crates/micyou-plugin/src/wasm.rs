@@ -666,6 +666,253 @@ fn register_host_functions(linker: &mut Linker<WasmHostCtx>) {
             },
         )
         .unwrap();
+
+    // fs_read(path_ptr) -> ptr (host-allocated text, or 0)
+    linker
+        .func_wrap(
+            WASM_IMPORT_MODULE,
+            "fs_read",
+            |mut caller: wasmi::Caller<'_, WasmHostCtx>, path_ptr: i32| -> Result<i32, wasmi::Error> {
+                caller
+                    .data()
+                    .require(crate::manifest::capabilities::FS_READ)
+                    .map_err(|e| wasmi::Error::new(e.to_string()))?;
+                let memory = export_memory(&caller)?;
+                let path = read_str_from_memory(&mut caller, &memory, path_ptr)?;
+                let text = caller
+                    .data()
+                    .host
+                    .fs_read(&path)
+                    .map_err(|e| wasmi::Error::new(e.to_string()))?;
+                write_str_to_memory(&mut caller, &memory, &text)
+            },
+        )
+        .unwrap();
+
+    // fs_write(path_ptr, content_ptr)
+    linker
+        .func_wrap(
+            WASM_IMPORT_MODULE,
+            "fs_write",
+            |mut caller: wasmi::Caller<'_, WasmHostCtx>, path_ptr: i32, content_ptr: i32| -> Result<(), wasmi::Error> {
+                caller
+                    .data()
+                    .require(crate::manifest::capabilities::FS_WRITE)
+                    .map_err(|e| wasmi::Error::new(e.to_string()))?;
+                let memory = export_memory(&caller)?;
+                let path = read_str_from_memory(&mut caller, &memory, path_ptr)?;
+                let content = read_str_from_memory(&mut caller, &memory, content_ptr)?;
+                caller
+                    .data()
+                    .host
+                    .fs_write(&path, &content)
+                    .map_err(|e| wasmi::Error::new(e.to_string()))
+            },
+        )
+        .unwrap();
+
+    // set_timeout(ms: i64, payload_ptr) -> i64 (timer id)
+    linker
+        .func_wrap(
+            WASM_IMPORT_MODULE,
+            "set_timeout",
+            |mut caller: wasmi::Caller<'_, WasmHostCtx>, ms: i64, payload_ptr: i32| -> Result<i64, wasmi::Error> {
+                let memory = export_memory(&caller)?;
+                let payload = read_str_from_memory(&mut caller, &memory, payload_ptr)?;
+                let id = caller
+                    .data()
+                    .host
+                    .set_timeout(ms.max(0) as u64, &payload)
+                    .map_err(|e| wasmi::Error::new(e.to_string()))?;
+                Ok(id as i64)
+            },
+        )
+        .unwrap();
+
+    // clear_timeout(id: i64)
+    linker
+        .func_wrap(
+            WASM_IMPORT_MODULE,
+            "clear_timeout",
+            |mut caller: wasmi::Caller<'_, WasmHostCtx>, id: i64| -> Result<(), wasmi::Error> {
+                caller
+                    .data()
+                    .host
+                    .clear_timeout(id.max(0) as u64)
+                    .map_err(|e| wasmi::Error::new(e.to_string()))
+            },
+        )
+        .unwrap();
+
+    // http_request(method_ptr, url_ptr, headers_ptr, body_ptr) -> i64 (request id)
+    linker
+        .func_wrap(
+            WASM_IMPORT_MODULE,
+            "http_request",
+            |mut caller: wasmi::Caller<'_, WasmHostCtx>,
+             method_ptr: i32,
+             url_ptr: i32,
+             headers_ptr: i32,
+             body_ptr: i32|
+             -> Result<i64, wasmi::Error> {
+                caller
+                    .data()
+                    .require(crate::manifest::capabilities::NETWORK_IO)
+                    .map_err(|e| wasmi::Error::new(e.to_string()))?;
+                let memory = export_memory(&caller)?;
+                let method = read_str_from_memory(&mut caller, &memory, method_ptr)?;
+                let url = read_str_from_memory(&mut caller, &memory, url_ptr)?;
+                let headers = read_str_from_memory(&mut caller, &memory, headers_ptr)?;
+                let body = read_str_from_memory(&mut caller, &memory, body_ptr)?;
+                let id = caller
+                    .data()
+                    .host
+                    .http_request(&method, &url, &headers, &body)
+                    .map_err(|e| wasmi::Error::new(e.to_string()))?;
+                Ok(id as i64)
+            },
+        )
+        .unwrap();
+
+    // set_interval(ms: i64, payload_ptr) -> i64
+    linker
+        .func_wrap(
+            WASM_IMPORT_MODULE,
+            "set_interval",
+            |mut caller: wasmi::Caller<'_, WasmHostCtx>, ms: i64, payload_ptr: i32| -> Result<i64, wasmi::Error> {
+                let memory = export_memory(&caller)?;
+                let payload = read_str_from_memory(&mut caller, &memory, payload_ptr)?;
+                let id = caller
+                    .data()
+                    .host
+                    .set_interval(ms.max(0) as u64, &payload)
+                    .map_err(|e| wasmi::Error::new(e.to_string()))?;
+                Ok(id as i64)
+            },
+        )
+        .unwrap();
+
+    // clear_interval(id: i64)
+    linker
+        .func_wrap(
+            WASM_IMPORT_MODULE,
+            "clear_interval",
+            |mut caller: wasmi::Caller<'_, WasmHostCtx>, id: i64| -> Result<(), wasmi::Error> {
+                caller
+                    .data()
+                    .host
+                    .clear_interval(id.max(0) as u64)
+                    .map_err(|e| wasmi::Error::new(e.to_string()))
+            },
+        )
+        .unwrap();
+
+    // open_url(url_ptr)
+    linker
+        .func_wrap(
+            WASM_IMPORT_MODULE,
+            "open_url",
+            |mut caller: wasmi::Caller<'_, WasmHostCtx>, url_ptr: i32| -> Result<(), wasmi::Error> {
+                caller
+                    .data()
+                    .require(crate::manifest::capabilities::OPEN_URL)
+                    .map_err(|e| wasmi::Error::new(e.to_string()))?;
+                let memory = export_memory(&caller)?;
+                let url = read_str_from_memory(&mut caller, &memory, url_ptr)?;
+                caller
+                    .data()
+                    .host
+                    .open_url(&url)
+                    .map_err(|e| wasmi::Error::new(e.to_string()))
+            },
+        )
+        .unwrap();
+
+    // notify(title_ptr, body_ptr)
+    linker
+        .func_wrap(
+            WASM_IMPORT_MODULE,
+            "notify",
+            |mut caller: wasmi::Caller<'_, WasmHostCtx>, title_ptr: i32, body_ptr: i32| -> Result<(), wasmi::Error> {
+                let memory = export_memory(&caller)?;
+                let title = read_str_from_memory(&mut caller, &memory, title_ptr)?;
+                let body = read_str_from_memory(&mut caller, &memory, body_ptr)?;
+                caller
+                    .data()
+                    .host
+                    .notify(&title, &body)
+                    .map_err(|e| wasmi::Error::new(e.to_string()))
+            },
+        )
+        .unwrap();
+
+    // locale() -> ptr
+    linker
+        .func_wrap(
+            WASM_IMPORT_MODULE,
+            "locale",
+            |mut caller: wasmi::Caller<'_, WasmHostCtx>| -> Result<i32, wasmi::Error> {
+                let memory = export_memory(&caller)?;
+                let text = caller.data().host.locale();
+                write_str_to_memory(&mut caller, &memory, &text)
+            },
+        )
+        .unwrap();
+
+    // host_info() -> ptr
+    linker
+        .func_wrap(
+            WASM_IMPORT_MODULE,
+            "host_info",
+            |mut caller: wasmi::Caller<'_, WasmHostCtx>| -> Result<i32, wasmi::Error> {
+                let memory = export_memory(&caller)?;
+                let text = caller.data().host.host_info();
+                write_str_to_memory(&mut caller, &memory, &text)
+            },
+        )
+        .unwrap();
+
+    // clipboard_read() -> ptr
+    linker
+        .func_wrap(
+            WASM_IMPORT_MODULE,
+            "clipboard_read",
+            |mut caller: wasmi::Caller<'_, WasmHostCtx>| -> Result<i32, wasmi::Error> {
+                caller
+                    .data()
+                    .require(crate::manifest::capabilities::CLIPBOARD_READ)
+                    .map_err(|e| wasmi::Error::new(e.to_string()))?;
+                let memory = export_memory(&caller)?;
+                let text = caller
+                    .data()
+                    .host
+                    .clipboard_read()
+                    .map_err(|e| wasmi::Error::new(e.to_string()))?;
+                write_str_to_memory(&mut caller, &memory, &text)
+            },
+        )
+        .unwrap();
+
+    // clipboard_write(text_ptr)
+    linker
+        .func_wrap(
+            WASM_IMPORT_MODULE,
+            "clipboard_write",
+            |mut caller: wasmi::Caller<'_, WasmHostCtx>, text_ptr: i32| -> Result<(), wasmi::Error> {
+                caller
+                    .data()
+                    .require(crate::manifest::capabilities::CLIPBOARD_WRITE)
+                    .map_err(|e| wasmi::Error::new(e.to_string()))?;
+                let memory = export_memory(&caller)?;
+                let text = read_str_from_memory(&mut caller, &memory, text_ptr)?;
+                caller
+                    .data()
+                    .host
+                    .clipboard_write(&text)
+                    .map_err(|e| wasmi::Error::new(e.to_string()))
+            },
+        )
+        .unwrap();
 }
 
 fn export_memory(caller: &wasmi::Caller<'_, WasmHostCtx>) -> Result<Memory, wasmi::Error> {

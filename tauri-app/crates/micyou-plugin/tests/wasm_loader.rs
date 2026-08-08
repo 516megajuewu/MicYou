@@ -368,6 +368,7 @@ fn example_manifests_validate() {
     for (dir, id) in [
         ("plugins/examples/native-soundpad", "dev.micyou.example.soundpad"),
         ("plugins/examples/wasm-voicechanger", "dev.micyou.example.voicechanger"),
+        ("plugins/examples/wasm-pomodoro", "dev.micyou.example.pomodoro"),
     ] {
         let path = repo_root.join(dir).join("plugin.json");
         let text = std::fs::read_to_string(&path)
@@ -392,6 +393,28 @@ fn example_manifests_validate() {
                     .join(&panel.entry);
                 assert!(html.exists(), "panel html must ship with the plugin");
             }
+        }
+        if id == "dev.micyou.example.pomodoro" {
+            // pomodoro is a pure-WASM utility with a declarative config schema
+            assert_eq!(
+                manifest.runtime,
+                micyou_plugin::manifest::RuntimeKind::Wasm,
+                "pomodoro demonstrates the WASM runtime"
+            );
+            assert_eq!(manifest.kind, micyou_plugin::manifest::PluginKind::Utility);
+            let schema = manifest
+                .config_schema
+                .as_ref()
+                .expect("pomodoro configSchema");
+            assert_eq!(schema.fields.len(), 2, "workMin + breakMin fields");
+            let panels = manifest.ui.as_ref().expect("ui").panels.clone();
+            assert_eq!(panels.len(), 1);
+            let html = repo_root
+                .join("plugins/examples/wasm-pomodoro")
+                .join(&panels[0].entry);
+            assert!(html.exists(), "panel html must ship");
+            let wasm = repo_root.join("plugins/examples/wasm-pomodoro/pomodoro.wasm");
+            assert!(wasm.exists(), "compiled wasm must ship");
         }
         if id == "dev.micyou.example.voicechanger" {
             // voicechanger is a WASM DSP plugin with a config page
