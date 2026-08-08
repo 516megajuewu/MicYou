@@ -17,6 +17,7 @@
 (module
   (import "micyou" "log" (func $log (param i32 i32)))
   (import "micyou" "get_config" (func $get_config (param i32) (result i32)))
+  (import "micyou" "set_panel_icon" (func $set_panel_icon (param i32 i32)))
   (import "micyou" "set_config" (func $set_config (param i32 i32) (result i32)))
 
   (memory (export "memory") 4)
@@ -26,6 +27,8 @@
   (data (i32.const 0x110) "bypass\00")
   (data (i32.const 0x190) "voicechanger initialized\00")
   (data (i32.const 0x1C0) "\"value\":")
+  (data (i32.const 0x1D0) "control\00")
+  (data (i32.const 0x1D8) "\F0\9F\8E\9A\EF\B8\8F\00")
   (data (i32.const 0x1D0) "config reloaded\00")
   (data (i32.const 0x1E0) "true\00")
   (data (i32.const 0x1F0) "false\00")
@@ -141,6 +144,7 @@
         (if (i32.eq (local.get $c) (i32.const 116))
           (then (i32.store (i32.const 0x184) (i32.const 1)))
           (else (i32.store (i32.const 0x184) (i32.const 0))))))
+    (call $set_panel_icon (i32.const 0x1D0) (i32.const 0x1D8))
     (call $log (i32.const 2) (i32.const 0x190))
     (i32.const 0))
 

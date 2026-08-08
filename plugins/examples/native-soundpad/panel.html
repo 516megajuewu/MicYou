@@ -2,7 +2,7 @@
 <html lang="zh">
 <head>
 <meta charset="utf-8">
-<title>Soundpad 控制台</title>
+<title>Soundpad</title>
 <style>
   /* 宿主注入当前主题 HSL CSS 变量（--primary / --surface 等），
      与软件 Material 3 风格完全一致并自动跟随主题 */
@@ -75,25 +75,23 @@
 </head>
 <body>
   <div class="head">
-    <h2>Soundpad 控制台</h2>
-    <span class="badge">示例插件</span>
+    <h2 id="title">Soundpad</h2>
+    <span class="badge" id="badge">示例插件</span>
   </div>
 
   <div class="card">
-    <div class="row"><span class="dot" id="dot"></span><span id="status">加载中…</span></div>
+    <div class="row"><span class="dot" id="dot"></span><span id="status">…</span></div>
     <div class="grid" id="sounds"><div class="loading">正在读取音效配置…</div></div>
-    <div class="hint">
-      全局快捷键 <span class="kbd">Ctrl</span>+<span class="kbd">Shift</span>+<span class="kbd">S</span> 播放第一个音效
-    </div>
+    <div class="hint" id="hotkeyHint"></div>
   </div>
 
   <div class="card">
     <div class="row">
-      <span>打开状态窗口</span>
+      <span id="openWinLabel">打开状态窗口</span>
       <span class="spacer"></span>
       <button class="primary" id="statbtn">状态</button>
     </div>
-    <div class="hint">插件可自主打开多个独立窗口，每个显示不同页面</div>
+    <div class="hint" id="winHint"></div>
   </div>
 
   <div id="err" class="err"></div>
@@ -114,6 +112,36 @@ function call(api, args) {
   });
 }
 
+// 本地化：根据宿主语言切换文案（locale API）
+const T = {
+  'zh-CN': {
+    title: 'Soundpad 音效板', badge: '示例插件', loading: '正在读取音效配置…',
+    status: (n) => '已连接宿主 · ' + n + ' 个音效', err: '无法读取配置',
+    empty: '没有音效，启用插件时已自动生成示例音效（在插件配置里可改）',
+    hotkey: '全局快捷键 Ctrl+Shift+S 播放第一个音效',
+    openWin: '打开状态窗口', statBtn: '状态', winHint: '插件可自主打开多个独立窗口，每个显示不同页面',
+  },
+  en: {
+    title: 'Soundpad', badge: 'Example plugin', loading: 'Loading sounds…',
+    status: (n) => 'Host connected · ' + n + ' sounds', err: 'Cannot read config',
+    empty: 'No sounds. Example sounds are generated on first enable (editable in config)',
+    hotkey: 'Global hotkey Ctrl+Shift+S plays the first sound',
+    openWin: 'Open stats window', statBtn: 'Stats', winHint: 'Plugins can open multiple independent windows, each showing a different page',
+  },
+};
+let t = T.en;
+const localeP = call('locale').catch(() => 'en');
+localeP.then((lang) => {
+  t = String(lang).startsWith('zh') ? T['zh-CN'] : T.en;
+  document.getElementById('title').textContent = t.title;
+  document.getElementById('badge').textContent = t.badge;
+  document.getElementById('hotkeyHint').innerHTML = t.hotkey;
+  document.getElementById('openWinLabel').textContent = t.openWin;
+  document.getElementById('statbtn').textContent = t.statBtn;
+  document.getElementById('winHint').textContent = t.winHint;
+  if (statusEl.textContent === '…') setStatus(t.loading, false);
+});
+
 const dot = document.getElementById('dot');
 const statusEl = document.getElementById('status');
 const errEl = document.getElementById('err');
@@ -128,9 +156,9 @@ async function init() {
     const cfg = await call('get_config', {});
     const sounds = (cfg && Array.isArray(cfg.sounds)) ? cfg.sounds : [];
     renderButtons(sounds);
-    setStatus('已连接宿主 · ' + sounds.length + ' 个音效', true);
+    setStatus(t.status(sounds.length), true);
   } catch (e) {
-    setStatus('无法读取配置', false);
+    setStatus(t.err, false);
     errEl.textContent = String(e);
   }
 }
@@ -141,7 +169,7 @@ function renderButtons(sounds) {
   if (!sounds.length) {
     const empty = document.createElement('div');
     empty.className = 'empty';
-    empty.textContent = '没有音效，启用插件时已自动生成示例音效（在插件配置里可改）';
+    empty.textContent = t.empty;
     box.appendChild(empty);
     return;
   }

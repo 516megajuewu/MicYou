@@ -101,7 +101,7 @@ function label(f: { key: string; label?: string | null }) {
           <span class="text-sm font-mono text-primary">{{ values[f.key] }}</span>
         </div>
         <input
-          v-model.number="(values[f.key] as number)"
+          v-model.number="values[f.key] as number"
           type="range"
           class="w-full accent-[hsl(var(--primary))]"
           :min="f.min ?? 0"
@@ -114,7 +114,7 @@ function label(f: { key: string; label?: string | null }) {
       <div v-else-if="f.fieldType === 'select'" class="space-y-1">
         <div class="text-sm text-on-surface">{{ label(f) }}</div>
         <select
-          v-model="(values[f.key] as string)"
+          v-model="values[f.key] as string"
           class="w-full px-3 py-1.5 rounded-lg bg-surface-variant text-on-surface text-sm outline-none"
         >
           <option v-for="o in f.options" :key="o.value" :value="o.value">
@@ -126,7 +126,7 @@ function label(f: { key: string; label?: string | null }) {
       <div v-else class="space-y-1">
         <div class="text-sm text-on-surface">{{ label(f) }}</div>
         <input
-          v-model="(values[f.key] as string)"
+          v-model="values[f.key] as string"
           type="text"
           class="w-full px-3 py-1.5 rounded-lg bg-surface-variant text-on-surface text-sm outline-none"
         />

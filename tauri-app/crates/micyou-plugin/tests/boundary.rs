@@ -8,10 +8,12 @@
 
 use std::sync::{Arc, Mutex};
 
-use micyou_plugin::host::{AudioStateSnapshot, DeviceSnapshot, HostApi, MessageTarget, PluginLogLevel};
+use micyou_plugin::host::{
+    AudioStateSnapshot, DeviceSnapshot, HostApi, MessageTarget, PluginLogLevel,
+};
 use micyou_plugin::plugin::{AudioFrameCtx, PluginRuntime, ProcessStatus};
-use micyou_plugin::{PluginError, PluginManifest, PluginResult, RuntimeKind};
 use micyou_plugin::wasm::load_wasm_instance;
+use micyou_plugin::{PluginError, PluginManifest, PluginResult, RuntimeKind};
 
 /// Minimal host that records calls; all optional APIs return defaults.
 #[derive(Default)]
@@ -22,36 +24,88 @@ pub struct TestHost {
 
 impl HostApi for TestHost {
     fn log(&self, _level: PluginLogLevel, _msg: &str) {}
-    fn get_config(&self, _key: &str) -> Option<serde_json::Value> { None }
-    fn set_config(&self, _key: &str, _value: serde_json::Value) -> PluginResult<()> { Ok(()) }
-    fn emit_event(&self, _topic: &str, _payload: serde_json::Value) -> PluginResult<()> { Ok(()) }
-    fn send_message(&self, _target: MessageTarget, _payload: Vec<u8>) -> PluginResult<()> { Ok(()) }
-    fn plugin_dir(&self) -> String { "/tmp/boundary".into() }
-    fn register_hotkey(&self, _s: &str) -> PluginResult<u64> { Ok(1) }
-    fn open_window(&self, _panel: &str) -> PluginResult<()> { Ok(()) }
-    fn audio_state(&self) -> AudioStateSnapshot {
-        AudioStateSnapshot { streaming: false, sample_rate: 48000, channels: 1, input_level: 0.0, processed_level: 0.0, queued_ms: 0.0, muted: false }
+    fn get_config(&self, _key: &str) -> Option<serde_json::Value> {
+        None
     }
-    fn play_sound(&self, _p: &str) -> PluginResult<()> { Ok(()) }
-    fn fs_read(&self, _p: &str) -> PluginResult<String> { Ok(String::new()) }
-    fn fs_write(&self, _p: &str, _c: &str) -> PluginResult<()> { Ok(()) }
-    fn set_timeout(&self, _ms: u64, _p: &str) -> PluginResult<u64> { Ok(5) }
-    fn clear_timeout(&self, _id: u64) -> PluginResult<()> { Ok(()) }
-    fn http_request(&self, _m: &str, _u: &str, _h: &str, _b: &str) -> PluginResult<u64> { Ok(9) }
-    fn set_interval(&self, _ms: u64, _p: &str) -> PluginResult<u64> { Ok(7) }
-    fn clear_interval(&self, _id: u64) -> PluginResult<()> { Ok(()) }
-    fn open_url(&self, _u: &str) -> PluginResult<()> { Ok(()) }
-    fn notify(&self, title: &str, body: &str) -> PluginResult<()> {
-        self.notified.lock().unwrap().push((title.into(), body.into()));
+    fn set_config(&self, _key: &str, _value: serde_json::Value) -> PluginResult<()> {
         Ok(())
     }
-    fn locale(&self) -> String { "en".into() }
+    fn emit_event(&self, _topic: &str, _payload: serde_json::Value) -> PluginResult<()> {
+        Ok(())
+    }
+    fn send_message(&self, _target: MessageTarget, _payload: Vec<u8>) -> PluginResult<()> {
+        Ok(())
+    }
+    fn plugin_dir(&self) -> String {
+        "/tmp/boundary".into()
+    }
+    fn register_hotkey(&self, _s: &str) -> PluginResult<u64> {
+        Ok(1)
+    }
+    fn open_window(&self, _panel: &str) -> PluginResult<()> {
+        Ok(())
+    }
+    fn audio_state(&self) -> AudioStateSnapshot {
+        AudioStateSnapshot {
+            streaming: false,
+            sample_rate: 48000,
+            channels: 1,
+            input_level: 0.0,
+            processed_level: 0.0,
+            queued_ms: 0.0,
+            muted: false,
+        }
+    }
+    fn play_sound(&self, _p: &str) -> PluginResult<()> {
+        Ok(())
+    }
+    fn fs_read(&self, _p: &str) -> PluginResult<String> {
+        Ok(String::new())
+    }
+    fn fs_write(&self, _p: &str, _c: &str) -> PluginResult<()> {
+        Ok(())
+    }
+    fn set_timeout(&self, _ms: u64, _p: &str) -> PluginResult<u64> {
+        Ok(5)
+    }
+    fn clear_timeout(&self, _id: u64) -> PluginResult<()> {
+        Ok(())
+    }
+    fn http_request(&self, _m: &str, _u: &str, _h: &str, _b: &str) -> PluginResult<u64> {
+        Ok(9)
+    }
+    fn set_interval(&self, _ms: u64, _p: &str) -> PluginResult<u64> {
+        Ok(7)
+    }
+    fn clear_interval(&self, _id: u64) -> PluginResult<()> {
+        Ok(())
+    }
+    fn open_url(&self, _u: &str) -> PluginResult<()> {
+        Ok(())
+    }
+    fn notify(&self, title: &str, body: &str) -> PluginResult<()> {
+        self.notified
+            .lock()
+            .unwrap()
+            .push((title.into(), body.into()));
+        Ok(())
+    }
+    fn locale(&self) -> String {
+        "en".into()
+    }
     fn host_info(&self) -> String {
         "{\"name\":\"micyou\",\"version\":\"test\",\"apiVersion\":1}".into()
     }
-    fn clipboard_read(&self) -> PluginResult<String> { Ok(String::new()) }
-    fn clipboard_write(&self, _t: &str) -> PluginResult<()> { Ok(()) }
-    fn connected_devices(&self) -> Vec<DeviceSnapshot> { vec![] }
+    fn clipboard_read(&self) -> PluginResult<String> {
+        Ok(String::new())
+    }
+    fn clipboard_write(&self, _t: &str) -> PluginResult<()> {
+        Ok(())
+    }
+    fn set_panel_icon(&self, _panel_id: &str, _icon: &str) -> PluginResult<()> { Ok(()) }
+    fn connected_devices(&self) -> Vec<DeviceSnapshot> {
+        vec![]
+    }
 }
 
 fn wasm_manifest(id: &str) -> PluginManifest {
@@ -227,7 +281,8 @@ fn bus_dispatch_from_multiple_threads_does_not_deadlock() {
         let bus = bus.clone();
         handles.push(std::thread::spawn(move || {
             for i in 0..200 {
-                let msg = PluginMessage::new("test", "dev.a", "topic", format!("{t}-{i}").into_bytes());
+                let msg =
+                    PluginMessage::new("test", "dev.a", "topic", format!("{t}-{i}").into_bytes());
                 let _ = bus.handle_incoming(&msg);
             }
         }));

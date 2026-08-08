@@ -37,10 +37,16 @@
               "
             >
               <component
+                v-if="!section.panelIcon"
                 :is="section.icon"
                 class="w-5 h-5"
                 :class="currentSection === section.id ? 'text-primary' : ''"
               />
+              <span
+                v-else
+                class="w-5 h-5 text-center text-sm leading-5"
+                :class="currentSection === section.id ? 'text-primary' : ''"
+              >{{ section.panelIcon }}</span>
               <span class="font-medium text-sm">{{ section.name }}</span>
             </button>
           </template>
@@ -1388,7 +1394,7 @@ import { useTheme } from '@/features/theme/composables/useTheme';
 onMounted(() => {
   window.addEventListener('message', onPanelMessage);
   // 侧边栏插件面板项依赖插件列表，对话框挂载即刷新（未进插件页也可见）
-  pluginsState.refresh();
+  pluginsState.refresh().then(() => loadPanelIcons());
 });
 onUnmounted(() => window.removeEventListener('message', onPanelMessage));
 import {
@@ -1520,6 +1526,7 @@ interface SettingsSection {
   id: string;
   name: string;
   icon: typeof SettingsIcon;
+  panelIcon?: string;
   pluginId?: string;
   panelId?: string;
   divider?: boolean;
@@ -1536,6 +1543,24 @@ const baseSections: SettingsSection[] = [
 
 // 插件面板：每个声明 ui.panels 的插件在侧边栏拥有专属页面
 const pluginsState = usePlugins();
+const panelIcons = ref<Record<string, string>>({});
+
+async function loadPanelIcons() {
+  const icons: Record<string, string> = {};
+  for (const plugin of pluginsState.plugins.value) {
+    if (!plugin.enabled || !plugin.ui?.panels?.length) continue;
+    try {
+      const got = await invoke<Record<string, string>>('get_plugin_panel_icons', {
+        id: plugin.id,
+      });
+      Object.assign(icons, got);
+    } catch {
+      /* ignore */
+    }
+  }
+  panelIcons.value = icons;
+}
+
 const panelSections = computed(() => {
   const out: SettingsSection[] = [];
   for (const plugin of pluginsState.plugins.value) {
@@ -1546,6 +1571,7 @@ const panelSections = computed(() => {
         id: `panel:${plugin.id}:${panel.id}`,
         name: `${plugin.name} · ${panel.label}`,
         icon: LayoutPanelTop,
+        panelIcon: panelIcons.value[panel.id],
         pluginId: plugin.id,
         panelId: panel.id,
       });

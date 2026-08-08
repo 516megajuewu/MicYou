@@ -19,7 +19,7 @@ import { invoke } from '@tauri-apps/api/core';
  *   });
  * }
  * ```
- * 可用 api：get_config / set_config / trigger / play / open_window / log / get_logs / get_sync_status
+ * 可用 api：get_config / set_config / trigger / play / open_window / log / get_logs / get_sync_status / locale
  */
 export function usePluginPanelBridge(pluginId: string) {
   async function routeApi(api: string, args: Record<string, unknown>): Promise<unknown> {
@@ -63,6 +63,8 @@ export function usePluginPanelBridge(pluginId: string) {
         return invoke('get_plugin_logs', { id: pluginId });
       case 'get_sync_status':
         return invoke('get_plugin_sync_status');
+      case 'locale':
+        return invoke('get_app_locale');
       default:
         throw new Error(`unknown panel api: ${api}`);
     }

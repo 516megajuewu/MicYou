@@ -16,6 +16,9 @@
   (import "micyou" "notify" (func $notify (param i32 i32)))
   (import "micyou" "set_interval" (func $set_interval (param i64 i32) (result i64)))
   (import "micyou" "clear_interval" (func $clear_interval (param i64)))
+  (import "micyou" "get_config" (func $get_config (param i32) (result i32)))
+  (import "micyou" "set_config" (func $set_config (param i32 i32) (result i32)))
+  (import "micyou" "set_panel_icon" (func $set_panel_icon (param i32 i32)))
   (memory (export "memory") 4)
 
   ;; static data
@@ -42,9 +45,19 @@
   (data (i32.const 0x1C0) "\00")
   ;; 0x1C1 "pomodoro tick"
   (data (i32.const 0x1C1) "pomodoro tick\00")
+  ;; 0x1E0 "workMin" / 0x1E8 "breakMin" / 0x1F2 "mode" / 0x1F8 "work" / 0x1FE "break" / 0x204 "idle"
+  (data (i32.const 0x1E0) "workMin\00")
+  (data (i32.const 0x1E8) "breakMin\00")
+  (data (i32.const 0x1F2) "mode\00")
+  (data (i32.const 0x1F8) "\22work\22\00")
+  (data (i32.const 0x200) "\22break\22\00")
+  (data (i32.const 0x208) "\22idle\22\00")
+  ;; 0x210 "control" / 0x218 "🍅" (F0 9F 8D 85)
+  (data (i32.const 0x210) "control\00")
+  (data (i32.const 0x218) "\F0\9F\8D\85\00")
 
   ;; bump allocator (heap starts after all statics)
-  (global $heap (mut i32) (i32.const 0x2000))
+  (global $heap (mut i32) (i32.const 0x2200))
   (func (export "alloc") (param $n i32) (result i32)
     (local $p i32)
     (local.set $p (global.get $heap))
@@ -60,6 +73,7 @@
     (i32.store (i32.const 0x100) (i32.const 0))
     (i32.store (i32.const 0x104) (i32.const 0))
     (i64.store (i32.const 0x108) (i64.const 0))
+    (call $set_panel_icon (i32.const 0x210) (i32.const 0x218))
     (call $log (i32.const 2) (i32.const 0x170))
     (i32.const 0))
 
@@ -91,6 +105,40 @@
       (local.get $found)
       (br $out)))
 
+  ;; is_digit(c) -> i32 (0/1)
+  (func $is_digit (param $c i32) (result i32)
+    (i32.and
+      (i32.ge_u (local.get $c) (i32.const 48))
+      (i32.le_u (local.get $c) (i32.const 57))))
+
+  ;; read_minutes(key_ptr, fallback_seconds) -> seconds
+  ;; reads a config value via get_config, parses the first integer (minutes)
+  ;; and converts to seconds; falls back when absent
+  (func $read_minutes (param $key i32) (param $fallback i32) (result i32)
+    (local $p i32) (local $n i32) (local $v i32)
+    (local.set $p (call $get_config (local.get $key)))
+    (if (i32.eqz (local.get $p))
+      (then (return (local.get $fallback))))
+    (local.set $n (i32.load8_u (local.get $p)))
+    (block $scan
+      (loop $s
+        (if (call $is_digit (local.get $n)) (then (br $scan)))
+        (local.set $p (i32.add (local.get $p) (i32.const 1)))
+        (local.set $n (i32.load8_u (local.get $p)))
+        (br $s)))
+    (local.set $v (i32.const 0))
+    (block $collect
+      (loop $d
+        (if (call $is_digit (local.get $n))
+          (then
+            (local.set $v (i32.add (i32.mul (local.get $v) (i32.const 10))
+              (i32.sub (local.get $n) (i32.const 48))))
+            (local.set $p (i32.add (local.get $p) (i32.const 1)))
+            (local.set $n (i32.load8_u (local.get $p)))
+            (br $d))
+          (else (br $collect)))))
+    (i32.mul (local.get $v) (i32.const 60)))
+
   (func (export "handle_message") (param $ptr i32) (param $len i32) (result i32)
     ;; UI command branch: payload contains "action"
     (if (call $contains (local.get $ptr) (local.get $len) (i32.const 0x160) (i32.const 6))
@@ -101,11 +149,14 @@
             (call $clear_interval (i64.load (i32.const 0x108)))
             (i32.store (i32.const 0x104) (i32.const 0))
             (i32.store (i32.const 0x100) (i32.const 0))
+            (drop (call $set_config (i32.const 0x1F2) (i32.const 0x208)))
             (call $log (i32.const 2) (i32.const 0x190)))
           (else
-            ;; start: 25 min work = 1500 s, arm the one-second timer
-            (i32.store (i32.const 0x100) (i32.const 1500))
+            ;; start: read workMin from config (default 25 min), arm the timer
+            (i32.store (i32.const 0x100)
+              (call $read_minutes (i32.const 0x1E0) (i32.const 1500)))
             (i32.store (i32.const 0x104) (i32.const 1))
+            (drop (call $set_config (i32.const 0x1F2) (i32.const 0x1F8)))
             (i64.store (i32.const 0x108)
               (call $set_interval (i64.const 1000) (i32.const 0x1C0)))
             (call $log (i32.const 2) (i32.const 0x1A4)))))
@@ -118,10 +169,12 @@
           (then
             (if (i32.eq (i32.load (i32.const 0x104)) (i32.const 1))
               (then
-                ;; work finished -> notify, switch to a 5-min break
+                ;; work finished -> notify, switch to a break (default 5 min)
                 (call $notify (i32.const 0x110) (i32.const 0x120))
                 (i32.store (i32.const 0x104) (i32.const 2))
-                (i32.store (i32.const 0x100) (i32.const 300))
+                (i32.store (i32.const 0x100)
+                  (call $read_minutes (i32.const 0x1E8) (i32.const 300)))
+                (drop (call $set_config (i32.const 0x1F2) (i32.const 0x200)))
                 (i64.store (i32.const 0x108)
                   (call $set_interval (i64.const 1000) (i32.const 0x1C0))))
               (else
@@ -130,6 +183,7 @@
                     ;; break finished -> notify, back to idle
                     (call $notify (i32.const 0x110) (i32.const 0x140))
                     (i32.store (i32.const 0x104) (i32.const 0))
+                    (drop (call $set_config (i32.const 0x1F2) (i32.const 0x208)))
                     (call $clear_interval (i64.load (i32.const 0x108))))
                   (else
                     ;; idle tick without a session: stop any stray timer

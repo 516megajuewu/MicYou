@@ -105,6 +105,7 @@ impl HostApi for MockHost {
     fn clipboard_write(&self, _text: &str) -> PluginResult<()> {
         Ok(())
     }
+    fn set_panel_icon(&self, _panel_id: &str, _icon: &str) -> PluginResult<()> { Ok(()) }
 
     fn host_info(&self) -> String {
         "{\"name\":\"micyou\",\"version\":\"test\",\"apiVersion\":1}".into()

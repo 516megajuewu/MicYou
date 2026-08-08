@@ -21,7 +21,10 @@
   "arches": [],
   "apiVersion": 1,
   "minHostVersion": "1.0.0",
-  "capabilities": [],
+  "capabilities": [
+    "config.read",
+    "config.write"
+  ],
   "kind": "utility",
   "ui": {
     "route": "plugin-panel",

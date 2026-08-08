@@ -58,6 +58,7 @@ pub struct mpl_host_api_t {
     pub plugin_dir: unsafe extern "C" fn(*mut c_void, *mut c_char, *mut u32) -> mpl_result_t,
     pub register_hotkey: unsafe extern "C" fn(*mut c_void, *const c_char, *mut u64) -> mpl_result_t,
     pub open_window: unsafe extern "C" fn(*mut c_void, *const c_char) -> mpl_result_t,
+    pub set_panel_icon: unsafe extern "C" fn(*mut c_void, *const c_char, *const c_char) -> mpl_result_t,
 }
 
 #[repr(C)]
@@ -170,6 +171,12 @@ pub unsafe extern "C" fn micyou_plugin_init(host: *const mpl_host_api_t) -> mpl_
                     let msg = format!("soundpad init failed: {e}");
                     log_info(&msg);
                 }
+            }
+            // 侧边栏面板图标（set_panel_icon 无能力要求）
+            if ((*host).set_panel_icon as usize) != 0 {
+                let pid = std::ffi::CString::new("console").expect("nul-free");
+                let icon = std::ffi::CString::new("🎛").expect("nul-free");
+                ((*host).set_panel_icon)((*host).ctx, pid.as_ptr(), icon.as_ptr());
             }
             // 注册全局快捷键：Ctrl+Shift+S 播放第一个音效
             let mut hotkey_id: u64 = 0;

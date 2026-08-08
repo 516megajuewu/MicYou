@@ -893,6 +893,24 @@ fn register_host_functions(linker: &mut Linker<WasmHostCtx>) {
         )
         .unwrap();
 
+    // set_panel_icon(panel_id_ptr, icon_ptr)
+    linker
+        .func_wrap(
+            WASM_IMPORT_MODULE,
+            "set_panel_icon",
+            |mut caller: wasmi::Caller<'_, WasmHostCtx>, panel_id_ptr: i32, icon_ptr: i32| -> Result<(), wasmi::Error> {
+                let memory = export_memory(&caller)?;
+                let panel_id = read_str_from_memory(&mut caller, &memory, panel_id_ptr)?;
+                let icon = read_str_from_memory(&mut caller, &memory, icon_ptr)?;
+                caller
+                    .data()
+                    .host
+                    .set_panel_icon(&panel_id, &icon)
+                    .map_err(|e| wasmi::Error::new(e.to_string()))
+            },
+        )
+        .unwrap();
+
     // clipboard_write(text_ptr)
     linker
         .func_wrap(

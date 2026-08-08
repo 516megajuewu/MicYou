@@ -1,8 +1,8 @@
 //! Plugin management commands for the frontend.
 
 use crate::server::ServerState;
-use micyou_plugin::PluginSyncTransport;
 use micyou_plugin::manifest::UiDescriptor;
+use micyou_plugin::PluginSyncTransport;
 use serde::Serialize;
 use tauri::Manager;
 use tauri::State;
@@ -248,9 +248,7 @@ pub(crate) fn open_plugin_window_impl(
     tauri::WebviewWindowBuilder::new(
         app,
         &label,
-        tauri::WebviewUrl::App(
-            format!("index.html#/plugin/{plugin_id}/{panel_id}").into(),
-        ),
+        tauri::WebviewUrl::App(format!("index.html#/plugin/{plugin_id}/{panel_id}").into()),
     )
     .title(title)
     .inner_size(520.0, 720.0)
@@ -294,8 +292,7 @@ pub fn get_plugin_panel(
         .and_then(|u| u.panels.iter().find(|p| p.id == panelId))
         .ok_or_else(|| format!("unknown panel {panelId}"))?;
     let path = entry.dir.join(&panel.entry);
-    std::fs::read_to_string(&path)
-        .map_err(|e| format!("read {}: {e}", path.display()))
+    std::fs::read_to_string(&path).map_err(|e| format!("read {}: {e}", path.display()))
 }
 
 /// Deliver a UI action to a plugin instance (soundpad buttons etc).
@@ -480,7 +477,10 @@ pub fn update_plugin(state: State<'_, ServerState>, id: String) -> Result<String
     let remote = micyou_plugin::PluginManifest::from_json(&text)
         .map_err(|e| format!("remote manifest invalid: {e}"))?;
     if remote.id != id {
-        return Err(format!("remote manifest id mismatch: {} != {id}", remote.id));
+        return Err(format!(
+            "remote manifest id mismatch: {} != {id}",
+            remote.id
+        ));
     }
     // Derive the zip URL: same path with .json -> .zip, or `distribution`.
     let zip_url = remote
@@ -490,8 +490,14 @@ pub fn update_plugin(state: State<'_, ServerState>, id: String) -> Result<String
         .map(|_| String::new())
         .unwrap_or_else(|| {
             let p = std::path::Path::new(&update_url);
-            let stem = p.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
-            let parent = p.parent().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
+            let stem = p
+                .file_stem()
+                .map(|s| s.to_string_lossy().to_string())
+                .unwrap_or_default();
+            let parent = p
+                .parent()
+                .map(|s| s.to_string_lossy().to_string())
+                .unwrap_or_default();
             format!("{parent}/{stem}.zip")
         });
 
@@ -522,9 +528,27 @@ pub fn update_plugin(state: State<'_, ServerState>, id: String) -> Result<String
     import_plugin_zip(&tmp_zip, &plugins_dir).map_err(|e| format!("install update: {e}"))?;
     let _ = std::fs::remove_file(&tmp_zip);
     if enabled {
-        state.plugins.enable_plugin(&id).map_err(|e| e.to_string())?;
+        state
+            .plugins
+            .enable_plugin(&id)
+            .map_err(|e| e.to_string())?;
     }
     Ok(remote.version)
+}
+
+/// Return the dynamic sidebar-panel icons set by the plugin via
+/// `set_panel_icon` (panel id -> icon string).
+#[tauri::command]
+pub fn get_plugin_panel_icons(
+    state: State<'_, ServerState>,
+    id: String,
+) -> std::collections::HashMap<String, String> {
+    state
+        .plugins
+        .panel_icons
+        .lock()
+        .map(|m| m.get(&id).cloned().unwrap_or_default())
+        .unwrap_or_default()
 }
 
 /// Import a plugin from a `.zip` file or a plugin directory.

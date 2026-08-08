@@ -150,6 +150,11 @@ pub struct mpl_host_api_t {
     pub host_info: unsafe extern "C" fn(ctx: *mut c_void, out: *mut c_char, out_size: *mut u32) -> mpl_result_t,
     pub clipboard_read: unsafe extern "C" fn(ctx: *mut c_void, out: *mut c_char, out_size: *mut u32) -> mpl_result_t,
     pub clipboard_write: unsafe extern "C" fn(ctx: *mut c_void, text: *const c_char) -> mpl_result_t,
+    pub set_panel_icon: unsafe extern "C" fn(
+        ctx: *mut c_void,
+        panel_id: *const c_char,
+        icon: *const c_char,
+    ) -> mpl_result_t,
 }
 
 // The table travels inside `NativePlugin` which is `Send`; the raw `ctx`
@@ -612,6 +617,31 @@ unsafe extern "C" fn shim_clipboard_read(
     }
 }
 
+unsafe extern "C" fn shim_set_panel_icon(
+    ctx: *mut c_void,
+    panel_id: *const c_char,
+    icon: *const c_char,
+) -> mpl_result_t {
+    unsafe {
+        if ctx.is_null() || panel_id.is_null() || icon.is_null() {
+            return mpl_result_t::MPL_ERR_INVALID_ARG;
+        }
+        let ctx = &*(ctx as *const NativeHostCtx);
+        let panel_id = match std::ffi::CStr::from_ptr(panel_id).to_str() {
+            Ok(v) => v,
+            Err(_) => return mpl_result_t::MPL_ERR_INVALID_ARG,
+        };
+        let icon = match std::ffi::CStr::from_ptr(icon).to_str() {
+            Ok(v) => v,
+            Err(_) => return mpl_result_t::MPL_ERR_INVALID_ARG,
+        };
+        match ctx.host.set_panel_icon(panel_id, icon) {
+            Ok(_) => mpl_result_t::MPL_OK,
+            Err(_) => mpl_result_t::MPL_ERR_RUNTIME,
+        }
+    }
+}
+
 unsafe extern "C" fn shim_clipboard_write(ctx: *mut c_void, text: *const c_char) -> mpl_result_t {
     unsafe {
         let ctx = &*(ctx as *const NativeHostCtx);
@@ -711,6 +741,7 @@ pub fn host_table_for(ctx: Arc<NativeHostCtx>) -> mpl_host_api_t {
         host_info: shim_host_info,
         clipboard_read: shim_clipboard_read,
         clipboard_write: shim_clipboard_write,
+        set_panel_icon: shim_set_panel_icon,
     }
 }
 

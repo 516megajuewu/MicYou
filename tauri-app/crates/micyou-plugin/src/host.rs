@@ -194,6 +194,11 @@ pub trait HostApi: Send + Sync {
 
     /// Replace the clipboard text (requires `clipboard.write`).
     fn clipboard_write(&self, text: &str) -> PluginResult<()>;
+
+    /// Set the icon of a settings-sidebar panel. `icon` is either a file name
+    /// relative to the plugin directory (PNG/SVG) or a short text/emoji.
+    /// No capability required; the host only renders what the plugin declares.
+    fn set_panel_icon(&self, panel_id: &str, icon: &str) -> PluginResult<()>;
 }
 
 #[cfg(test)]

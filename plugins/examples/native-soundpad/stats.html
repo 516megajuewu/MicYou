@@ -2,7 +2,7 @@
 <html lang="zh">
   <head>
     <meta charset="utf-8" />
-    <title>Soundpad 状态</title>
+    <title>Soundpad Stats</title>
     <style>
       /* 宿主注入主题变量，自动跟随软件主题 */
       * {
@@ -160,16 +160,26 @@
         });
       }
 
+      const langP = call("locale").catch(() => "en");
+      let map = { connected: "已连接", disconnected: "未连接" };
+      langP.then((lang) => {
+        const zh = String(lang).startsWith("zh");
+        map = { connected: zh ? "已连接" : "Connected", disconnected: zh ? "未连接" : "Disconnected" };
+      });
+
       async function init() {
         try {
           const cfg = await call("get_config", {});
           const sounds = cfg && Array.isArray(cfg.sounds) ? cfg.sounds : [];
           document.getElementById("count").textContent = String(sounds.length);
           document.getElementById("hostdot").className = "dot on";
-          document.getElementById("hosttext").textContent = "已连接";
+          const lang = await langP;
+          const zh = String(lang).startsWith("zh");
+          map = { connected: zh ? "已连接" : "Connected", disconnected: zh ? "未连接" : "Disconnected" };
+          document.getElementById("hosttext").textContent = map.connected;
         } catch (e) {
           document.getElementById("hostdot").className = "dot off";
-          document.getElementById("hosttext").textContent = "未连接";
+          document.getElementById("hosttext").textContent = map.disconnected;
           document.getElementById("err").textContent = String(e);
         }
       }

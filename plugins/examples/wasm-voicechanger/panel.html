@@ -219,7 +219,39 @@
     <div id="err" class="err"></div>
 
     <script>
-      function call(api, args) {
+      let bypassLblActive = true;
+const T = {
+  'zh-CN': {
+    title: '变声控制', sub: '实时 DSP 变声（WASM 沙箱）', bypassOn: '变声生效中', bypassOff: '已停用（原声直通）',
+    pitch: '音调', presets: '预设', preset0: '原声', preset1: '萌妹', preset2: '大叔', preset3: '花栗鼠',
+    chain: '处理链位置', chainAfter: '在 AEC 之后', saved: '已保存',
+  },
+  en: {
+    title: 'Voice Changer', sub: 'Real-time DSP voice changer (WASM sandbox)', bypassOn: 'Voice change active', bypassOff: 'Disabled (passthrough)',
+    pitch: 'Pitch', presets: 'Presets', preset0: 'Original', preset1: 'Cute', preset2: 'Deep', preset3: 'Chipmunk',
+    chain: 'Chain position', chainAfter: 'After AEC', saved: 'Saved',
+  },
+};
+let t = T.en;
+call('locale').catch(() => 'en').then((lang) => {
+  t = String(lang).startsWith('zh') ? T['zh-CN'] : T.en;
+  document.title = t.title;
+  const el = (id) => document.getElementById(id);
+  if (el('title')) el('title').textContent = t.title;
+  if (el('sub')) el('sub').textContent = t.sub;
+  if (el('bypasslbl')) el('bypasslbl').textContent = bypassLblActive ? t.bypassOn : t.bypassOff;
+  if (el('pitchlbl')) el('pitchlbl').textContent = t.pitch;
+  if (el('presetslbl')) el('presetslbl').textContent = t.presets;
+  if (el('chainlbl')) el('chainlbl').textContent = t.chain;
+  if (el('chainafter')) el('chainafter').textContent = t.chainAfter;
+  const presets = document.querySelectorAll('.presets .preset');
+  if (presets.length >= 4) {
+    presets[0].textContent = t.preset0; presets[1].textContent = t.preset1;
+    presets[2].textContent = t.preset2; presets[3].textContent = t.preset3;
+  }
+});
+
+function call(api, args) {
         return new Promise((resolve, reject) => {
           const id = Math.random().toString(36).slice(2);
           const onMsg = (e) => {
@@ -293,7 +325,7 @@
       bypassBtn.addEventListener("click", () => {
         const on = !bypassBtn.classList.contains("on");
         bypassBtn.classList.toggle("on", on);
-        bypassLbl.textContent = on ? "变声生效中" : "已停用（原声直通）";
+        bypassLbl.textContent = on ? (t.bypassOn) : (t.bypassOff); bypassLblActive = on;
         save("bypass", !on);
       });
 
@@ -330,7 +362,7 @@
           const bypass = cfgObj.bypass;
           const active = bypass === false; // undefined（未配置）视为变声生效
           bypassBtn.classList.toggle("on", active);
-          bypassLbl.textContent = active ? "变声生效中" : "已停用（原声直通）";
+          bypassLbl.textContent = active ? (t.bypassOn) : (t.bypassOff); bypassLblActive = active;
         } catch (e) {
           errEl.textContent = String(e);
         }

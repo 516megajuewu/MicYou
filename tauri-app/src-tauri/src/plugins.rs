@@ -108,6 +108,9 @@ pub struct PluginHost {
     pub hotkeys: Arc<HotkeyService>,
     /// Opens plugin panels in independent windows (plugin-driven).
     pub window: Arc<WindowService>,
+    /// Dynamic sidebar-panel icons set by plugins via `set_panel_icon`.
+    /// Map: plugin id -> (panel id -> icon string).
+    pub panel_icons: Arc<std::sync::Mutex<std::collections::HashMap<String, std::collections::HashMap<String, String>>>>,
 }
 
 /// Global hotkey registration for plugins.
@@ -294,6 +297,7 @@ impl PluginHost {
             sound,
             hotkeys,
             window,
+            panel_icons: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
         }
     }
 
@@ -368,6 +372,7 @@ impl PluginHost {
             self.sound.clone(),
             self.hotkeys.clone(),
             self.window.clone(),
+            self.panel_icons.clone(),
             id.to_string(),
             entry.dir.clone(),
         );
@@ -561,6 +566,7 @@ pub struct PluginHostApi {
     window: Arc<WindowService>,
     plugin_id: String,
     dir: std::path::PathBuf,
+    panel_icons: Arc<std::sync::Mutex<std::collections::HashMap<String, std::collections::HashMap<String, String>>>>,
     timer_next: std::sync::atomic::AtomicU64,
     timers: std::sync::Mutex<std::collections::HashMap<u64, std::sync::Arc<std::sync::atomic::AtomicBool>>>,
     http_next: std::sync::atomic::AtomicU64,
@@ -574,6 +580,7 @@ impl PluginHostApi {
         sound: Arc<crate::sound_player::SoundPlayer>,
         hotkeys: Arc<HotkeyService>,
         window: Arc<WindowService>,
+        panel_icons: Arc<std::sync::Mutex<std::collections::HashMap<String, std::collections::HashMap<String, String>>>>,
         plugin_id: String,
         dir: std::path::PathBuf,
     ) -> Arc<Self> {
@@ -584,6 +591,7 @@ impl PluginHostApi {
             sound,
             hotkeys,
             window,
+            panel_icons,
             plugin_id,
             dir,
             timer_next: std::sync::atomic::AtomicU64::new(1),
@@ -881,6 +889,15 @@ impl HostApi for PluginHostApi {
             .map_err(|e| PluginError::Runtime(format!("clipboard: {e}")))?;
         cb.set_text(text.to_string())
             .map_err(|e| PluginError::Runtime(format!("clipboard write: {e}")))
+    }
+
+    fn set_panel_icon(&self, panel_id: &str, icon: &str) -> PluginResult<()> {
+        if let Ok(mut map) = self.panel_icons.lock() {
+            map.entry(self.plugin_id.clone())
+                .or_default()
+                .insert(panel_id.to_string(), icon.to_string());
+        }
+        Ok(())
     }
 
     fn connected_devices(&self) -> Vec<DeviceSnapshot> {
