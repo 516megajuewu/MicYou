@@ -1,7 +1,6 @@
 import { ref } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
-import { openPath } from '@tauri-apps/plugin-opener';
 
 export interface PluginDependency {
   id: string;
@@ -123,7 +122,7 @@ export function usePlugins() {
   async function saveConfig(plugin: PluginView | string, key: string, value: unknown) {
     try {
       const pluginId = typeof plugin === 'string' ? plugin : plugin.id;
-  await invoke('set_plugin_config', { id: pluginId, key, value });
+      await invoke('set_plugin_config', { id: pluginId, key, value });
       return true;
     } catch (e) {
       error.value = String(e);
@@ -161,11 +160,10 @@ export function usePlugins() {
     }
   }
 
-  /** 打开系统文件管理器显示插件目录 */
+  /** 打开系统文件管理器显示插件目录（目录由后端 open_plugins_dir 命令直接打开） */
   async function openDir(): Promise<boolean> {
     try {
-      const dir = await invoke<string>('open_plugins_dir');
-      if (dir) await openPath(dir);
+      await invoke('open_plugins_dir');
       return true;
     } catch (e) {
       error.value = String(e);

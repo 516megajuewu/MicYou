@@ -199,7 +199,11 @@ pub fn get_plugin_sync_status(state: State<'_, ServerState>) -> Result<PluginSyn
 /// Open the plugin directory in the system file manager (helper for manual
 /// installs: drop a plugin folder / .zip there).
 #[tauri::command]
-pub fn open_plugins_dir(state: State<'_, ServerState>) -> Result<String, String> {
+pub fn open_plugins_dir(
+    app: tauri::AppHandle,
+    state: State<'_, ServerState>,
+) -> Result<String, String> {
+    use tauri_plugin_opener::OpenerExt;
     let dir = state
         .plugins
         .manager
@@ -208,6 +212,13 @@ pub fn open_plugins_dir(state: State<'_, ServerState>) -> Result<String, String>
         .plugins_dir()
         .to_path_buf();
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    // 直接在 Rust 侧打开目录，不经过 IPC 的 ACL scope 检查。
+    // 插件目录是自定义的 %APPDATA%\micyou（config_dir() 用 "micyou" 而非应用标识符），
+    // 而 Tauri scope 的 $APPDATA 会拼上 com.lanrhyme.micyou，无法匹配该路径，
+    // 前端 openPath 会因此抛 "Not allowed to open path"。
+    app.opener()
+        .open_path(dir.display().to_string(), None::<&str>)
+        .map_err(|e| format!("open plugins dir: {e}"))?;
     Ok(dir.display().to_string())
 }
 
@@ -262,10 +273,10 @@ pub(crate) fn open_plugin_window_impl(
 #[tauri::command]
 pub fn open_plugin_window(
     app: tauri::AppHandle,
-    pluginId: String,
-    panelId: String,
+    plugin_id: String,
+    panel_id: String,
 ) -> Result<(), String> {
-    open_plugin_window_impl(&app, &pluginId, &panelId)
+    open_plugin_window_impl(&app, &plugin_id, &panel_id)
 }
 
 /// Read a plugin-authored settings page (self-contained HTML file inside
@@ -273,8 +284,8 @@ pub fn open_plugin_window(
 #[tauri::command]
 pub fn get_plugin_panel(
     state: State<'_, ServerState>,
-    pluginId: String,
-    panelId: String,
+    plugin_id: String,
+    panel_id: String,
 ) -> Result<String, String> {
     let manager = state
         .plugins
@@ -282,15 +293,15 @@ pub fn get_plugin_panel(
         .lock()
         .map_err(|_| "plugin manager lock poisoned".to_string())?;
     let entry = manager
-        .entry(&pluginId)
+        .entry(&plugin_id)
         .map_err(|e| e.to_string())?
-        .ok_or_else(|| format!("unknown plugin {pluginId}"))?;
+        .ok_or_else(|| format!("unknown plugin {plugin_id}"))?;
     let panel = entry
         .manifest
         .ui
         .as_ref()
-        .and_then(|u| u.panels.iter().find(|p| p.id == panelId))
-        .ok_or_else(|| format!("unknown panel {panelId}"))?;
+        .and_then(|u| u.panels.iter().find(|p| p.id == panel_id))
+        .ok_or_else(|| format!("unknown panel {panel_id}"))?;
     let path = entry.dir.join(&panel.entry);
     std::fs::read_to_string(&path).map_err(|e| format!("read {}: {e}", path.display()))
 }
