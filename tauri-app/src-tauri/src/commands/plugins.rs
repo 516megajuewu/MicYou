@@ -182,14 +182,16 @@ pub fn open_plugins_dir(state: State<'_, ServerState>) -> Result<String, String>
     Ok(dir.display().to_string())
 }
 
-/// Open a plugin panel in its own Tauri window
-#[tauri::command]
-pub fn open_plugin_window(
-    app: tauri::AppHandle,
-    state: State<'_, ServerState>,
-    pluginId: String,
-    panelId: String,
+/// Open a plugin panel in its own Tauri window (shared by the frontend
+/// command and the plugin Host API `open_window`)
+pub(crate) fn open_plugin_window_impl(
+    app: &tauri::AppHandle,
+    plugin_id: &str,
+    panel_id: &str,
 ) -> Result<(), String> {
+    let state = app
+        .try_state::<ServerState>()
+        .ok_or_else(|| "server state unavailable".to_string())?;
     let (title, label) = {
         let manager = state
             .plugins
@@ -197,28 +199,28 @@ pub fn open_plugin_window(
             .lock()
             .map_err(|_| "plugin manager lock poisoned".to_string())?;
         let entry = manager
-            .entry(&pluginId)
+            .entry(plugin_id)
             .map_err(|e| e.to_string())?
-            .ok_or_else(|| format!("unknown plugin {pluginId}"))?;
+            .ok_or_else(|| format!("unknown plugin {plugin_id}"))?;
         let panel = entry
             .manifest
             .ui
             .as_ref()
-            .and_then(|u| u.panels.iter().find(|p| p.id == panelId))
-            .ok_or_else(|| format!("unknown panel {panelId}"))?;
+            .and_then(|u| u.panels.iter().find(|p| p.id == panel_id))
+            .ok_or_else(|| format!("unknown panel {panel_id}"))?;
         (
             format!("{} · {}", entry.manifest.name, panel.label),
-            format!("plugin-window-{}", pluginId.replace('.', "_")),
+            format!("plugin-window-{}", plugin_id.replace('.', "_")),
         )
     };
     if app.get_webview_window(&label).is_some() {
         return Ok(()); // 已在独立窗口打开
     }
     tauri::WebviewWindowBuilder::new(
-        &app,
+        app,
         &label,
         tauri::WebviewUrl::App(
-            format!("index.html#/plugin/{pluginId}/{panelId}").into(),
+            format!("index.html#/plugin/{plugin_id}/{panel_id}").into(),
         ),
     )
     .title(title)
@@ -227,6 +229,16 @@ pub fn open_plugin_window(
     .build()
     .map_err(|e| e.to_string())?;
     Ok(())
+}
+
+/// Open a plugin panel in its own Tauri window
+#[tauri::command]
+pub fn open_plugin_window(
+    app: tauri::AppHandle,
+    pluginId: String,
+    panelId: String,
+) -> Result<(), String> {
+    open_plugin_window_impl(&app, &pluginId, &panelId)
 }
 
 /// Read a plugin-authored settings page (self-contained HTML file inside

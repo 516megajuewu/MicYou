@@ -62,8 +62,14 @@ onMounted(() => {
       class="flex items-center justify-between px-4 py-2.5 shrink-0 border-b"
       style="border-color: hsl(var(--border))"
     >
-      <div class="flex items-center gap-2 text-sm font-semibold" style="color: hsl(var(--on-surface))">
-        <span class="inline-block w-2 h-2 rounded-full" style="background: hsl(var(--primary))"></span>
+      <div
+        class="flex items-center gap-2 text-sm font-semibold"
+        style="color: hsl(var(--on-surface))"
+      >
+        <span
+          class="inline-block w-2 h-2 rounded-full"
+          style="background: hsl(var(--primary))"
+        ></span>
         {{ pluginId }} · {{ panelId }}
       </div>
       <button
@@ -75,11 +81,16 @@ onMounted(() => {
       </button>
     </header>
     <div class="flex-1 overflow-hidden p-4">
-      <div v-if="loading" class="text-sm" style="color: hsl(var(--on-surface-variant))">加载中…</div>
+      <div v-if="loading" class="text-sm" style="color: hsl(var(--on-surface-variant))">
+        加载中…
+      </div>
       <div
         v-else-if="error"
         class="text-xs font-mono break-all rounded-xl p-4"
-        style="color: hsl(var(--error)); background: color-mix(in srgb, hsl(var(--error)) 10%, transparent)"
+        style="
+          color: hsl(var(--error));
+          background: color-mix(in srgb, hsl(var(--error)) 10%, transparent);
+        "
       >
         {{ error }}
       </div>

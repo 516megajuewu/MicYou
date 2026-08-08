@@ -69,6 +69,7 @@ impl HostApi for MockHost {
     fn play_sound(&self, _path: &str) -> PluginResult<()> { Ok(()) }
     fn plugin_dir(&self) -> String { "/tmp/plugin-dir".to_string() }
     fn register_hotkey(&self, _s: &str) -> PluginResult<u64> { Ok(7) }
+    fn open_window(&self, _p: &str) -> PluginResult<()> { Ok(()) }
     fn connected_devices(&self) -> Vec<DeviceSnapshot> {
         Vec::new()
     }
@@ -307,7 +308,7 @@ fn example_manifests_validate() {
         .expect("repo layout");
     for (dir, id) in [
         ("plugins/examples/native-soundpad", "dev.micyou.example.soundpad"),
-        ("plugins/examples/native-noisegate", "dev.micyou.example.noisegate"),
+        ("plugins/examples/wasm-voicechanger", "dev.micyou.example.voicechanger"),
     ] {
         let path = repo_root.join(dir).join("plugin.json");
         let text = std::fs::read_to_string(&path)
@@ -316,17 +317,39 @@ fn example_manifests_validate() {
             .unwrap_or_else(|e| panic!("manifest {id} invalid: {e}"));
         assert_eq!(manifest.id, id);
         if id == "dev.micyou.example.soundpad" {
-            // soundpad declares a custom settings page
+            // soundpad declares multiple custom settings pages (multi-window)
             let panels = manifest
                 .ui
                 .as_ref()
                 .expect("soundpad ui descriptor")
                 .panels
                 .clone();
-            assert_eq!(panels.len(), 1);
+            assert_eq!(panels.len(), 2, "soundpad: console + stats pages");
             assert_eq!(panels[0].id, "console");
+            assert_eq!(panels[1].id, "stats");
+            for panel in &panels {
+                let html = repo_root
+                    .join("plugins/examples/native-soundpad")
+                    .join(&panel.entry);
+                assert!(html.exists(), "panel html must ship with the plugin");
+            }
+        }
+        if id == "dev.micyou.example.voicechanger" {
+            // voicechanger is a WASM DSP plugin with a config page
+            assert_eq!(
+                manifest.runtime,
+                micyou_plugin::manifest::RuntimeKind::Wasm,
+                "voicechanger demonstrates the WASM runtime"
+            );
+            let panels = manifest
+                .ui
+                .as_ref()
+                .expect("voicechanger ui descriptor")
+                .panels
+                .clone();
+            assert_eq!(panels.len(), 1);
             let html = repo_root
-                .join("plugins/examples/native-soundpad")
+                .join("plugins/examples/wasm-voicechanger")
                 .join(&panels[0].entry);
             assert!(html.exists(), "panel html must ship with the plugin");
         }

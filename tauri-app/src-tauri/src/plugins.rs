@@ -106,6 +106,8 @@ pub struct PluginHost {
     pub sound: Arc<crate::sound_player::SoundPlayer>,
     /// Global hotkey registry (plugin shortcut capability).
     pub hotkeys: Arc<HotkeyService>,
+    /// Opens plugin panels in independent windows (plugin-driven).
+    pub window: Arc<WindowService>,
 }
 
 /// Global hotkey registration for plugins.
@@ -182,6 +184,36 @@ impl HotkeyService {
     }
 }
 
+/// Opens plugin panels in independent Tauri windows (Host API `open_window`)
+pub struct WindowService {
+    handle: Mutex<Option<tauri::AppHandle>>,
+}
+
+impl WindowService {
+    pub fn new() -> Arc<Self> {
+        Arc::new(Self {
+            handle: Mutex::new(None),
+        })
+    }
+
+    pub fn init(&self, app: &tauri::AppHandle) {
+        if let Ok(mut slot) = self.handle.lock() {
+            *slot = Some(app.clone());
+        }
+    }
+
+    pub fn open_panel(&self, plugin_id: &str, panel_id: &str) -> PluginResult<()> {
+        let app = self
+            .handle
+            .lock()
+            .map_err(lock_err)?
+            .clone()
+            .ok_or_else(|| PluginError::Runtime("window service not initialized".into()))?;
+        crate::commands::plugins::open_plugin_window_impl(&app, plugin_id, panel_id)
+            .map_err(PluginError::Runtime)
+    }
+}
+
 /// Default chain position for the synthetic plugin node: right after AEC,
 /// so plugin processing runs on echo-cancelled audio.
 pub const PLUGIN_NODE_AFTER: &str = "AEC";
@@ -241,6 +273,7 @@ impl PluginHost {
         let logs = Arc::new(PluginLogs::new());
         let sound = crate::sound_player::SoundPlayer::new(output);
         let hotkeys = HotkeyService::new();
+        let window = WindowService::new();
 
         Self {
             manager,
@@ -250,6 +283,7 @@ impl PluginHost {
             logs,
             sound,
             hotkeys,
+            window,
         }
     }
 
@@ -286,6 +320,7 @@ impl PluginHost {
             self.logs.clone(),
             self.sound.clone(),
             self.hotkeys.clone(),
+            self.window.clone(),
             id.to_string(),
             entry.dir.clone(),
         );
@@ -454,6 +489,7 @@ pub struct PluginHostApi {
     logs: Arc<PluginLogs>,
     sound: Arc<crate::sound_player::SoundPlayer>,
     hotkeys: Arc<HotkeyService>,
+    window: Arc<WindowService>,
     plugin_id: String,
     dir: std::path::PathBuf,
 }
@@ -465,6 +501,7 @@ impl PluginHostApi {
         logs: Arc<PluginLogs>,
         sound: Arc<crate::sound_player::SoundPlayer>,
         hotkeys: Arc<HotkeyService>,
+        window: Arc<WindowService>,
         plugin_id: String,
         dir: std::path::PathBuf,
     ) -> Arc<Self> {
@@ -474,6 +511,7 @@ impl PluginHostApi {
             logs,
             sound,
             hotkeys,
+            window,
             plugin_id,
             dir,
         })
@@ -545,6 +583,11 @@ impl HostApi for PluginHostApi {
 
     fn register_hotkey(&self, shortcut: &str) -> PluginResult<u64> {
         self.hotkeys.register(&self.plugin_id, shortcut)
+    }
+
+    fn open_window(&self, panel_id: &str) -> PluginResult<()> {
+        self.window
+            .open_panel(&self.plugin_id, panel_id)
     }
 
     fn play_sound(&self, path: &str) -> PluginResult<()> {

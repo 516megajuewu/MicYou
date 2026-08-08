@@ -1176,15 +1176,6 @@
                   {{ panelError }}
                 </div>
                 <div v-else class="space-y-3">
-                  <div class="flex items-center justify-end">
-                    <button
-                      @click="openPanelWindow"
-                      class="inline-flex items-center gap-1.5 text-xs font-medium text-on-surface-variant hover:text-primary transition-colors"
-                    >
-                      <LayoutPanelTop class="w-3.5 h-3.5" />
-                      {{ $t('plugins.openWindow') }}
-                    </button>
-                  </div>
                   <iframe
                     ref="panelFrame"
                     :srcdoc="panelHtml"
@@ -1394,7 +1385,11 @@ import ThemeSelector from '@/features/theme/components/ThemeSelector.vue';
 import CustomColorPicker from '@/features/theme/components/CustomColorPicker.vue';
 import { useTheme } from '@/features/theme/composables/useTheme';
 
-onMounted(() => window.addEventListener('message', onPanelMessage));
+onMounted(() => {
+  window.addEventListener('message', onPanelMessage);
+  // 侧边栏插件面板项依赖插件列表，对话框挂载即刷新（未进插件页也可见）
+  pluginsState.refresh();
+});
 onUnmounted(() => window.removeEventListener('message', onPanelMessage));
 import {
   Select,
@@ -1614,16 +1609,6 @@ async function loadPanel(pluginId: string, panelId: string) {
     panelHtml.value = '';
   } finally {
     panelLoading.value = false;
-  }
-}
-
-async function openPanelWindow() {
-  const panel = activePanel();
-  if (!panel) return;
-  try {
-    await invoke('open_plugin_window', { pluginId: panel.pluginId, panelId: panel.panelId });
-  } catch (e) {
-    panelError.value = String(e);
   }
 }
 

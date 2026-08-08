@@ -106,6 +106,7 @@ pub struct mpl_host_api_t {
         shortcut: *const c_char,
         out_id: *mut u64,
     ) -> mpl_result_t,
+    pub open_window: unsafe extern "C" fn(ctx: *mut c_void, panel_id: *const c_char) -> mpl_result_t,
 }
 
 // The table travels inside `NativePlugin` which is `Send`; the raw `ctx`
@@ -317,6 +318,24 @@ unsafe extern "C" fn shim_register_hotkey(
     }
 }
 
+unsafe extern "C" fn shim_open_window(
+    ctx: *mut c_void,
+    panel_id: *const c_char,
+) -> mpl_result_t {
+    unsafe {
+        let ctx = &*(ctx as *const NativeHostCtx);
+        let panel = if panel_id.is_null() {
+            String::new()
+        } else {
+            CStr::from_ptr(panel_id).to_string_lossy().into_owned()
+        };
+        match ctx.host.open_window(&panel) {
+            Ok(()) => mpl_result_t::MPL_OK,
+            Err(_) => mpl_result_t::MPL_ERR_RUNTIME,
+        }
+    }
+}
+
 unsafe extern "C" fn shim_plugin_dir(
     ctx: *mut c_void,
     out: *mut c_char,
@@ -384,6 +403,7 @@ pub fn host_table_for(ctx: Arc<NativeHostCtx>) -> mpl_host_api_t {
         play_sound: shim_play_sound,
         plugin_dir: shim_plugin_dir,
         register_hotkey: shim_register_hotkey,
+        open_window: shim_open_window,
     }
 }
 

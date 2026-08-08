@@ -24,6 +24,7 @@ impl HostApi for DirectHost {
     fn play_sound(&self, _path: &str) -> PluginResult<()> { Ok(()) }
     fn plugin_dir(&self) -> String { "/tmp/plugin-dir".to_string() }
     fn register_hotkey(&self, _s: &str) -> PluginResult<u64> { Ok(7) }
+    fn open_window(&self, _p: &str) -> PluginResult<()> { Ok(()) }
     fn connected_devices(&self) -> Vec<DeviceSnapshot> { Vec::new() }
 }
 

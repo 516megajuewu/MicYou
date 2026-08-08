@@ -57,6 +57,7 @@ pub struct mpl_host_api_t {
     pub play_sound: unsafe extern "C" fn(*mut c_void, *const c_char) -> mpl_result_t,
     pub plugin_dir: unsafe extern "C" fn(*mut c_void, *mut c_char, *mut u32) -> mpl_result_t,
     pub register_hotkey: unsafe extern "C" fn(*mut c_void, *const c_char, *mut u64) -> mpl_result_t,
+    pub open_window: unsafe extern "C" fn(*mut c_void, *const c_char) -> mpl_result_t,
 }
 
 #[repr(C)]
@@ -330,6 +331,20 @@ pub unsafe extern "C" fn micyou_plugin_handle_message(
         if action == "log" {
             let msg = body_string(payload, payload_len).unwrap_or_default();
             unsafe { log_info(&format!("soundpad panel: {msg}")) };
+            return mpl_result_t::MPL_OK;
+        }
+        if action == "open_window" {
+            // 插件自主开窗：面板按钮 → ui:open_window → 宿主打开独立窗口
+            let panel = unsafe { body_string(payload, payload_len) }
+                .and_then(|p| serde_json::from_str::<serde_json::Value>(&p).ok())
+                .and_then(|v| v.get("panel").and_then(|p| p.as_str()).map(String::from))
+                .unwrap_or_else(|| "console".to_string());
+            if let Ok(c) = CString::new(panel) {
+                unsafe {
+                    let h = host();
+                    let _ = (h.open_window)(h.ctx, c.as_ptr());
+                }
+            }
             return mpl_result_t::MPL_OK;
         }
         if action != "play" {

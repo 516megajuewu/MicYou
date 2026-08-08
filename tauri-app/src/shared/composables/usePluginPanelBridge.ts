@@ -19,7 +19,7 @@ import { invoke } from '@tauri-apps/api/core';
  *   });
  * }
  * ```
- * 可用 api：get_config / set_config / trigger / play / log / get_logs / get_sync_status
+ * 可用 api：get_config / set_config / trigger / play / open_window / log / get_logs / get_sync_status
  */
 export function usePluginPanelBridge(pluginId: string) {
   async function routeApi(api: string, args: Record<string, unknown>): Promise<unknown> {
@@ -37,6 +37,12 @@ export function usePluginPanelBridge(pluginId: string) {
           pluginId,
           action: args.action ?? '',
           payload: args.payload ?? null,
+        });
+      case 'open_window':
+        return invoke('plugin_trigger', {
+          pluginId,
+          action: 'open_window',
+          payload: JSON.stringify(args),
         });
       case 'play':
         return invoke('plugin_trigger', {

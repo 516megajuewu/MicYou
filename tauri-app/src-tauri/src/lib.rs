@@ -113,6 +113,7 @@ pub fn run() {
             {
                 let state = app.state::<server::ServerState>();
                 state.plugins.hotkeys.init(app.handle());
+                state.plugins.window.init(app.handle());
                 let plugins = state.plugins.clone();
                 let report = plugins
                     .manager

@@ -92,6 +92,10 @@ pub trait HostApi: Send + Sync {
     /// the plugin on topic `hotkey:<handle>` with a JSON payload.
     fn register_hotkey(&self, shortcut: &str) -> PluginResult<u64>;
 
+    /// Open one of the plugin's own panels (ui.panels entry) in an
+    /// independent host window. The plugin decides when a window is needed.
+    fn open_window(&self, panel_id: &str) -> PluginResult<()>;
+
     /// Live audio stream state (requires `audio.state` capability).
     fn audio_state(&self) -> AudioStateSnapshot;
 

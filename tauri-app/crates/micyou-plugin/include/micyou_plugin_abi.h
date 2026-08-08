@@ -76,6 +76,8 @@ typedef struct mpl_host_api {
     /* register a global hotkey ("ctrl+shift+p"); the plugin receives
      * handle_message with topic "hotkey:<id>" when pressed */
     mpl_result_t (*register_hotkey)(void *ctx, const char *shortcut, uint64_t *out_id);
+    /* open one of the plugin's own ui.panels in an independent host window */
+    mpl_result_t (*open_window)(void *ctx, const char *panel_id);
 } mpl_host_api_t;
 
 /* Static plugin identity. The id/version must match the manifest. */

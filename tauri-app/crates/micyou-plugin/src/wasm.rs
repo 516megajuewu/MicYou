@@ -587,6 +587,26 @@ fn register_host_functions(linker: &mut Linker<WasmHostCtx>) {
         )
         .unwrap();
 
+    // open_window(panel_id_ptr) -> i32 (result code)
+    linker
+        .func_wrap(
+            WASM_IMPORT_MODULE,
+            "open_window",
+            |mut caller: wasmi::Caller<'_, WasmHostCtx>,
+             panel_ptr: i32|
+             -> Result<i32, wasmi::Error> {
+                let memory = export_memory(&caller)?;
+                let panel = read_str_from_memory(&mut caller, &memory, panel_ptr)?;
+                caller
+                    .data()
+                    .host
+                    .open_window(&panel)
+                    .map_err(|e| wasmi::Error::new(e.to_string()))?;
+                Ok(0)
+            },
+        )
+        .unwrap();
+
     // plugin_dir() -> ptr (host-allocated absolute path string, or 0)
     linker
         .func_wrap(
