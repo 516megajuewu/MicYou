@@ -334,7 +334,7 @@ impl PluginRuntime for WasmPlugin {
             // Reuse a cached frame buffer (alloc once; bump allocators never
             // free, so a fresh alloc per frame exhausts linear memory)
             let need = bytes.len();
-            let (ptr, cap) = match this.frame_buf {
+            let (ptr, _cap) = match this.frame_buf {
                 Some((p, c)) if c >= need => (p, c),
                 _ => {
                     if let Some((old, c)) = this.frame_buf.take() {
@@ -362,6 +362,13 @@ impl PluginRuntime for WasmPlugin {
                     ),
                 )
                 .map_err(|e| PluginError::Runtime(format!("process: {e}")))?;
+            // Bypass: the plugin did not write the buffer, so reading it back
+            // would return the previous frame's stale data (frame_buf reuse)
+            // and produce garbage / 电流麦. Return without touching ctx.data.
+            if code == 1 {
+                return Ok(ProcessStatus::Bypass);
+            }
+            result_from_wasm_code(code, "process")?;
             let mut processed = vec![0u8; bytes.len()];
             this.memory
                 .read(&mut this.store, ptr as usize, &mut processed)
@@ -369,12 +376,7 @@ impl PluginRuntime for WasmPlugin {
             for (sample, chunk) in ctx.data.iter_mut().zip(processed.chunks_exact(4)) {
                 *sample = f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
             }
-            if code == 1 {
-                Ok(ProcessStatus::Bypass)
-            } else {
-                result_from_wasm_code(code, "process")?;
-                Ok(ProcessStatus::Ok)
-            }
+            Ok(ProcessStatus::Ok)
         })
     }
 

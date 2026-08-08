@@ -27,6 +27,8 @@
   (data (i32.const 0x190) "voicechanger initialized\00")
   (data (i32.const 0x1C0) "\"value\":")
   (data (i32.const 0x1D0) "config reloaded\00")
+  (data (i32.const 0x1E0) "true\00")
+  (data (i32.const 0x1F0) "false\00")
 
   ;; ---------- bump allocator ----------
   (global $heap (mut i32) (i32.const 0x4000))
@@ -207,8 +209,10 @@
     (i32.const 0))
 
   ;; ---------- handle_message: config:changed payload ----------
-  ;; payload is JSON {"key":"pitch","value":0.5} - scan for the first
-  ;; numeric char (the value) and parse it
+  ;; payload is JSON {"key":"pitch","value":0.5} or
+  ;; {"key":"bypass","value":true/false}
+  ;; bypass: boolean "true"/"false" needles take priority, numeric fallback
+  ;; pitch:  first numeric char is the value start
   (func (export "handle_message") (param $ptr i32) (param $len i32) (result i32)
     (local $i i32) (local $c i32) (local $vstart i32)
     (block $scan
@@ -221,17 +225,27 @@
             (br $scan)))
         (local.set $i (i32.add (local.get $i) (i32.const 1)))
         (br $l)))
-    (if (i32.gt_u (local.get $vstart) (i32.const 0))
+    ;; pitch update (numeric value required)
+    (if (call $contains (local.get $ptr) (local.get $len) (i32.const 0x100) (i32.const 5))
       (then
-        (if (call $contains (local.get $ptr) (local.get $len) (i32.const 0x100) (i32.const 5))
+        (if (i32.gt_u (local.get $vstart) (i32.const 0))
           (then
             (f64.store (i32.const 0x120)
               (call $parse_f64 (local.get $ptr) (i32.sub (local.get $len) (local.get $vstart))))
-            (call $log (i32.const 2) (i32.const 0x1D0))))
-        (if (call $contains (local.get $ptr) (local.get $len) (i32.const 0x110) (i32.const 6))
-          (then
-            (if (f64.eq (call $parse_f64 (local.get $ptr) (i32.sub (local.get $len) (local.get $vstart))) (f64.const 0.0))
+            (call $log (i32.const 2) (i32.const 0x1D0))))))
+    ;; bypass update: "true" -> 1, "false" -> 0, numeric -> !=0
+    (if (call $contains (local.get $ptr) (local.get $len) (i32.const 0x110) (i32.const 6))
+      (then
+        (if (call $contains (local.get $ptr) (local.get $len) (i32.const 0x1E0) (i32.const 4))
+          (then (i32.store (i32.const 0x184) (i32.const 1)))
+          (else
+            (if (call $contains (local.get $ptr) (local.get $len) (i32.const 0x1F0) (i32.const 5))
               (then (i32.store (i32.const 0x184) (i32.const 0)))
-              (else (i32.store (i32.const 0x184) (i32.const 1))))))))
+              (else
+                (if (i32.gt_u (local.get $vstart) (i32.const 0))
+                  (then
+                    (if (f64.eq (call $parse_f64 (local.get $ptr) (i32.sub (local.get $len) (local.get $vstart))) (f64.const 0.0))
+                      (then (i32.store (i32.const 0x184) (i32.const 0)))
+                      (else (i32.store (i32.const 0x184) (i32.const 1))))))))))))
     (i32.const 0))
 )
