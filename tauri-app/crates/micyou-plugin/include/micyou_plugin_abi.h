@@ -105,6 +105,10 @@ typedef struct mpl_host_api {
     mpl_result_t (*locale)(void *ctx, char *out, uint32_t *out_size);
     /* Host identity + API version as JSON. String output contract. */
     mpl_result_t (*host_info)(void *ctx, char *out, uint32_t *out_size);
+    /* Read clipboard text (requires clipboard.read). String output contract. */
+    mpl_result_t (*clipboard_read)(void *ctx, char *out, uint32_t *out_size);
+    /* Replace clipboard text (requires clipboard.write). */
+    mpl_result_t (*clipboard_write)(void *ctx, const char *text);
 } mpl_host_api_t;
 
 /* Static plugin identity. The id/version must match the manifest. */

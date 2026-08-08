@@ -148,6 +148,8 @@ pub struct mpl_host_api_t {
     ) -> mpl_result_t,
     pub locale: unsafe extern "C" fn(ctx: *mut c_void, out: *mut c_char, out_size: *mut u32) -> mpl_result_t,
     pub host_info: unsafe extern "C" fn(ctx: *mut c_void, out: *mut c_char, out_size: *mut u32) -> mpl_result_t,
+    pub clipboard_read: unsafe extern "C" fn(ctx: *mut c_void, out: *mut c_char, out_size: *mut u32) -> mpl_result_t,
+    pub clipboard_write: unsafe extern "C" fn(ctx: *mut c_void, text: *const c_char) -> mpl_result_t,
 }
 
 // The table travels inside `NativePlugin` which is `Send`; the raw `ctx`
@@ -593,6 +595,41 @@ unsafe extern "C" fn shim_host_info(
     }
 }
 
+unsafe extern "C" fn shim_clipboard_read(
+    ctx: *mut c_void,
+    out: *mut c_char,
+    out_size: *mut u32,
+) -> mpl_result_t {
+    unsafe {
+        let ctx = &*(ctx as *const NativeHostCtx);
+        if !has_capability(ctx, crate::manifest::capabilities::CLIPBOARD_READ) {
+            return mpl_result_t::MPL_ERR_PERMISSION;
+        }
+        match ctx.host.clipboard_read() {
+            Ok(text) => write_json_to_buf(&text, out, out_size),
+            Err(_) => mpl_result_t::MPL_ERR_RUNTIME,
+        }
+    }
+}
+
+unsafe extern "C" fn shim_clipboard_write(ctx: *mut c_void, text: *const c_char) -> mpl_result_t {
+    unsafe {
+        let ctx = &*(ctx as *const NativeHostCtx);
+        if !has_capability(ctx, crate::manifest::capabilities::CLIPBOARD_WRITE) {
+            return mpl_result_t::MPL_ERR_PERMISSION;
+        }
+        let text = if text.is_null() {
+            String::new()
+        } else {
+            CStr::from_ptr(text).to_string_lossy().into_owned()
+        };
+        match ctx.host.clipboard_write(&text) {
+            Ok(()) => mpl_result_t::MPL_OK,
+            Err(_) => mpl_result_t::MPL_ERR_RUNTIME,
+        }
+    }
+}
+
 unsafe extern "C" fn shim_plugin_dir(
     ctx: *mut c_void,
     out: *mut c_char,
@@ -672,6 +709,8 @@ pub fn host_table_for(ctx: Arc<NativeHostCtx>) -> mpl_host_api_t {
         notify: shim_notify,
         locale: shim_locale,
         host_info: shim_host_info,
+        clipboard_read: shim_clipboard_read,
+        clipboard_write: shim_clipboard_write,
     }
 }
 

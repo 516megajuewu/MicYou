@@ -100,6 +100,10 @@ pub mod capabilities {
     pub const NETWORK_IO: &str = "network.io";
     /// Open URLs in the system default browser.
     pub const OPEN_URL: &str = "open.url";
+    /// Read the system clipboard.
+    pub const CLIPBOARD_READ: &str = "clipboard.read";
+    /// Write to the system clipboard.
+    pub const CLIPBOARD_WRITE: &str = "clipboard.write";
 }
 
 /// All capability identifiers the host currently recognizes.
@@ -116,6 +120,8 @@ pub const KNOWN_CAPABILITIES: &[&str] = &[
     capabilities::FS_READ,
     capabilities::FS_WRITE,
     capabilities::OPEN_URL,
+    capabilities::CLIPBOARD_READ,
+    capabilities::CLIPBOARD_WRITE,
 ];
 
 /// Native platform tags used in `PluginManifest.platforms`.

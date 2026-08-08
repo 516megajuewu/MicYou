@@ -832,6 +832,20 @@ impl HostApi for PluginHostApi {
         .to_string()
     }
 
+    fn clipboard_read(&self) -> PluginResult<String> {
+        let mut cb = arboard::Clipboard::new()
+            .map_err(|e| PluginError::Runtime(format!("clipboard: {e}")))?;
+        cb.get_text()
+            .map_err(|e| PluginError::Runtime(format!("clipboard read: {e}")))
+    }
+
+    fn clipboard_write(&self, text: &str) -> PluginResult<()> {
+        let mut cb = arboard::Clipboard::new()
+            .map_err(|e| PluginError::Runtime(format!("clipboard: {e}")))?;
+        cb.set_text(text.to_string())
+            .map_err(|e| PluginError::Runtime(format!("clipboard write: {e}")))
+    }
+
     fn connected_devices(&self) -> Vec<DeviceSnapshot> {
         if self.bus.transport().is_connected() {
             vec![DeviceSnapshot {

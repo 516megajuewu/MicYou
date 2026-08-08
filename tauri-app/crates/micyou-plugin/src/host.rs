@@ -188,6 +188,12 @@ pub trait HostApi: Send + Sync {
     /// Host identity and API version as a JSON string, e.g.
     /// `{"name":"micyou","version":"2.0.0","apiVersion":1}` (no capability).
     fn host_info(&self) -> String;
+
+    /// Read the current clipboard text (requires `clipboard.read`).
+    fn clipboard_read(&self) -> PluginResult<String>;
+
+    /// Replace the clipboard text (requires `clipboard.write`).
+    fn clipboard_write(&self, text: &str) -> PluginResult<()>;
 }
 
 #[cfg(test)]
