@@ -306,6 +306,84 @@ pub fn plugin_trigger(
         .map_err(|e| e.to_string())
 }
 
+/// Preview of a plugin zip before installation (no files are extracted).
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginPreview {
+    pub id: String,
+    pub name: String,
+    pub version: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub author: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    pub runtime: String,
+    pub kind: String,
+    pub capabilities: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub license: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub homepage: Option<String>,
+}
+
+/// Peek a plugin .zip and return its manifest summary without installing.
+/// The frontend shows this as a permission prompt before import_plugin.
+#[tauri::command]
+pub fn preview_plugin_zip(zip_path: String) -> Result<PluginPreview, String> {
+    let (manifest, _prefix) = read_manifest_from_zip(&std::path::PathBuf::from(&zip_path))?;
+    let id = manifest.id.clone();
+    Ok(PluginPreview {
+        id,
+        name: manifest.name.clone(),
+        version: manifest.version.clone(),
+        author: manifest.author.clone(),
+        description: manifest.description.clone(),
+        runtime: manifest.runtime.to_string(),
+        kind: format!("{:?}", manifest.kind).to_lowercase(),
+        capabilities: manifest.capabilities.clone(),
+        license: manifest.license.clone(),
+        homepage: manifest.homepage.clone(),
+    })
+}
+
+/// Extract and validate the plugin.json from a zip, returning the manifest and
+/// the folder prefix that contains it (shared by preview and import).
+fn read_manifest_from_zip(
+    zip_path: &std::path::Path,
+) -> Result<(micyou_plugin::PluginManifest, std::path::PathBuf), String> {
+    let file = std::fs::File::open(zip_path).map_err(|e| format!("open zip: {e}"))?;
+    let mut archive = zip::ZipArchive::new(file).map_err(|e| format!("read zip: {e}"))?;
+    let mut manifest_name: Option<String> = None;
+    for i in 0..archive.len() {
+        let name = archive
+            .by_index(i)
+            .map_err(|e| format!("zip entry: {e}"))?
+            .name()
+            .to_string();
+        if name == "plugin.json" || name.ends_with("/plugin.json") {
+            manifest_name = Some(name);
+            break;
+        }
+    }
+    let manifest_name = manifest_name.ok_or("zip contains no plugin.json")?;
+    let manifest_text = {
+        let mut entry = archive
+            .by_name(&manifest_name)
+            .map_err(|e| format!("read manifest: {e}"))?;
+        let mut text = String::new();
+        std::io::Read::read_to_string(&mut entry, &mut text)
+            .map_err(|e| format!("read manifest: {e}"))?;
+        text
+    };
+    let manifest = micyou_plugin::PluginManifest::from_json(&manifest_text)
+        .map_err(|e| format!("invalid plugin: {e}"))?;
+    let prefix = std::path::Path::new(&manifest_name)
+        .parent()
+        .map(|p| p.to_path_buf())
+        .unwrap_or_default();
+    Ok((manifest, prefix))
+}
+
 /// Import a plugin from a `.zip` file or a plugin directory.
 ///
 /// The source manifest is validated first; the payload is then copied into
@@ -369,34 +447,7 @@ fn import_plugin_zip(
     zip_path: &std::path::Path,
     dest_root: &std::path::Path,
 ) -> Result<String, String> {
-    let file = std::fs::File::open(zip_path).map_err(|e| format!("open zip: {e}"))?;
-    let mut archive = zip::ZipArchive::new(file).map_err(|e| format!("read zip: {e}"))?;
-
-    // Locate plugin.json (may live in a nested folder) and validate it first.
-    let mut manifest_name: Option<String> = None;
-    for i in 0..archive.len() {
-        let name = archive
-            .by_index(i)
-            .map_err(|e| format!("zip entry: {e}"))?
-            .name()
-            .to_string();
-        if name == "plugin.json" || name.ends_with("/plugin.json") {
-            manifest_name = Some(name);
-            break;
-        }
-    }
-    let manifest_name = manifest_name.ok_or("zip contains no plugin.json")?;
-    let manifest_text = {
-        let mut entry = archive
-            .by_name(&manifest_name)
-            .map_err(|e| format!("read manifest: {e}"))?;
-        let mut text = String::new();
-        std::io::Read::read_to_string(&mut entry, &mut text)
-            .map_err(|e| format!("read manifest: {e}"))?;
-        text
-    };
-    let manifest = micyou_plugin::PluginManifest::from_json(&manifest_text)
-        .map_err(|e| format!("invalid plugin: {e}"))?;
+    let (manifest, prefix) = read_manifest_from_zip(zip_path)?;
     let id = manifest.id.clone();
     let dest = dest_root.join(&id);
     if dest.exists() {
@@ -404,11 +455,8 @@ fn import_plugin_zip(
     }
     std::fs::create_dir_all(&dest).map_err(|e| format!("create dir: {e}"))?;
 
-    // Strip the folder prefix that contains plugin.json (e.g. "my-plugin/")
-    let prefix = std::path::Path::new(&manifest_name)
-        .parent()
-        .map(|p| p.to_path_buf())
-        .unwrap_or_default();
+    let file = std::fs::File::open(zip_path).map_err(|e| format!("open zip: {e}"))?;
+    let mut archive = zip::ZipArchive::new(file).map_err(|e| format!("read zip: {e}"))?;
 
     for i in 0..archive.len() {
         let mut entry = archive.by_index(i).map_err(|e| format!("zip entry: {e}"))?;

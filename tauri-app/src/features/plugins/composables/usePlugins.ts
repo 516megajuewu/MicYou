@@ -3,6 +3,19 @@ import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import { openPath } from '@tauri-apps/plugin-opener';
 
+export interface PluginPreview {
+  id: string;
+  name: string;
+  version: string;
+  author?: string | null;
+  description?: string | null;
+  runtime: string;
+  kind: string;
+  capabilities: string[];
+  license?: string | null;
+  homepage?: string | null;
+}
+
 export interface PluginView {
   id: string;
   name: string;
@@ -132,6 +145,12 @@ export function usePlugins() {
   }
 
   /** 选择并导入插件压缩包（.zip） */
+  // Peek a plugin zip's manifest so the UI can show a permission prompt
+  // before the plugin is actually installed
+  async function previewPlugin(path: string): Promise<PluginPreview> {
+    return await invoke('preview_plugin_zip', { zipPath: path });
+  }
+
   async function importPlugin(): Promise<boolean> {
     try {
       const picked = await open({
@@ -140,9 +159,16 @@ export function usePlugins() {
         filters: [{ name: 'MicYou plugin', extensions: ['zip'] }],
       });
       if (!picked) return false; // 用户取消
+      const path = String(picked);
+      // Step 1: show the permission prompt (capabilities, author, license)
+      const preview: PluginPreview = await previewPlugin(path);
+      const confirmed = window.confirm(
+        `安装插件？\n\n名称: ${preview.name} (${preview.id})\n版本: ${preview.version}${preview.author ? `\n作者: ${preview.author}` : ''}${preview.license ? `\n许可: ${preview.license}` : ''}\n类型: ${preview.runtime}\n\n请求的能力:\n${preview.capabilities.length ? preview.capabilities.map((c: string) => `  · ${c}`).join('\n') : '  (无)'}\n\n⚠ 请确认来源可信后安装（插件可获得所声明的能力）`,
+      );
+      if (!confirmed) return false;
       busyId.value = 'import';
       error.value = null;
-      await invoke('import_plugin', { source: String(picked) });
+      await invoke('import_plugin', { source: path });
       await refresh();
       return true;
     } catch (e) {
@@ -167,6 +193,7 @@ export function usePlugins() {
     logs,
     trigger,
     openDir,
+    previewPlugin,
     importPlugin,
   };
 }

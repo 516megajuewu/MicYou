@@ -60,9 +60,15 @@ fn validate(dir: &str) -> Result<(), String> {
         .map_err(|e| format!("read {}: {e}", manifest_path.display()))?;
     let manifest = micyou_plugin::PluginManifest::from_json(&text)
         .map_err(|e| format!("invalid plugin.json: {e}"))?;
-    println!("OK  id={} name={} version={} runtime={:?}", manifest.id, manifest.name, manifest.version, manifest.runtime);
+    println!(
+        "OK  id={} name={} version={} runtime={:?}",
+        manifest.id, manifest.name, manifest.version, manifest.runtime
+    );
     println!("    capabilities={:?}", manifest.capabilities);
-    println!("    kind={:?} platforms={:?} arches={:?}", manifest.kind, manifest.platforms, manifest.arches);
+    println!(
+        "    kind={:?} platforms={:?} arches={:?}",
+        manifest.kind, manifest.platforms, manifest.arches
+    );
     let entry = Path::new(dir).join(&manifest.entry);
     if !entry.exists() {
         return Err(format!("entry artifact missing: {}", entry.display()));
@@ -81,7 +87,8 @@ fn package(dir: &str, out: Option<&str>) -> Result<(), String> {
         .unwrap_or_else(|| format!("{}.zip", manifest.id));
     let file = std::fs::File::create(&out_path).map_err(|e| format!("create {}: {e}", out_path))?;
     let mut zipw = zip::ZipWriter::new(file);
-    let options = zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+    let options = zip::write::SimpleFileOptions::default()
+        .compression_method(zip::CompressionMethod::Deflated);
 
     // Walk the plugin dir (skip target/ and hidden files).
     let mut entries = Vec::new();
@@ -99,7 +106,11 @@ fn package(dir: &str, out: Option<&str>) -> Result<(), String> {
     Ok(())
 }
 
-fn collect_entries(root: &Path, dir: &Path, out: &mut Vec<(std::path::PathBuf, std::path::PathBuf)>) -> Result<(), String> {
+fn collect_entries(
+    root: &Path,
+    dir: &Path,
+    out: &mut Vec<(std::path::PathBuf, std::path::PathBuf)>,
+) -> Result<(), String> {
     let rd = std::fs::read_dir(dir).map_err(|e| format!("read_dir {}: {e}", dir.display()))?;
     for entry in rd {
         let entry = entry.map_err(|e| e.to_string())?;
@@ -108,7 +119,10 @@ fn collect_entries(root: &Path, dir: &Path, out: &mut Vec<(std::path::PathBuf, s
         if name == "target" || name.to_string_lossy().starts_with('.') {
             continue;
         }
-        let rel = path.strip_prefix(root).map_err(|e| e.to_string())?.to_path_buf();
+        let rel = path
+            .strip_prefix(root)
+            .map_err(|e| e.to_string())?
+            .to_path_buf();
         if path.is_dir() {
             collect_entries(root, &path, out)?;
         } else {
@@ -317,7 +331,9 @@ crate-type = ["cdylib"]
 
 fn create(id: &str, runtime: &str, name: Option<&str>, out: Option<&str>) -> Result<(), String> {
     let last = id.rsplit('.').next().unwrap_or(id);
-    let out_dir = out.map(|o| o.to_string()).unwrap_or_else(|| last.to_string());
+    let out_dir = out
+        .map(|o| o.to_string())
+        .unwrap_or_else(|| last.to_string());
     let dir = Path::new(&out_dir);
     std::fs::create_dir_all(dir).map_err(|e| format!("mkdir {out_dir}: {e}"))?;
     let display_name = name.unwrap_or(last).to_string();
@@ -330,8 +346,7 @@ fn create(id: &str, runtime: &str, name: Option<&str>, out: Option<&str>) -> Res
         write_file(dir, "README.md", NATIVE_README)?;
         write_file(dir, "Cargo.toml", NATIVE_CARGO)?;
         let lib = NATIVE_TEMPLATE_LIB.replace("dev.micyou.example.mynative", id);
-        std::fs::create_dir_all(dir.join("src"))
-            .map_err(|e| format!("mkdir src: {e}"))?;
+        std::fs::create_dir_all(dir.join("src")).map_err(|e| format!("mkdir src: {e}"))?;
         write_file(&dir.join("src"), "lib.rs", &lib)?;
     } else {
         let plugin_json = WASM_PLUGIN_JSON
