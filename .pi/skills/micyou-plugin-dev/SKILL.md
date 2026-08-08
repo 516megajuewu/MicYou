@@ -14,7 +14,7 @@ MicYou 插件系统：双运行时（Native cdylib + WASM wasmi 沙箱），宿�
 - ABI 定义：`crates/micyou-plugin/include/micyou_plugin_abi.h`（C 头）与 `src/abi.rs`（Rust 镜像）
 - 文档：`docs/plugins/`（overview / development-guide / api-reference / user-guide / architecture-extensibility / README）
 - 示例：`plugins/examples/`（native-soundpad、wasm-voicechanger、wasm-audioinspector）
-- 市场：`MicYou-Dev/MicYou-Plugins` 仓库（`plugin/<id>/` 目录：plugin.json + plugin.zip + 源码）
+- 市场：`MicYou-Dev/MicYou-Plugins` 仓库（llqqnt 模式：只维护 plugin.json + 封面元数据，zip 由插件仓库 CI 发布 release）
 
 ## 开发工具（micyou-cli plugin 子命令）
 
@@ -105,10 +105,10 @@ cargo test -p micyou-app --lib soundpad_trigger_end_to_end
 ## 发布到市场（MicYou-Plugins 仓库）
 
 1. `micyou plugin validate <dir>` 通过
-2. `micyou plugin package <dir>` 生成 zip
-3. 推送到 `MicYou-Dev/MicYou-Plugins`：`plugin/<id>/` 下放 plugin.json + plugin.zip + 源码
+2. 插件 zip 由插件仓库 CI 打包发布 GitHub Release（wasm 插件 wat2wasm 编译后 zip 上传 release，示例见主仓库 `.github/workflows/release.yml` 的 Package Market Plugin 步骤）
+3. 推送 `MicYou-Dev/MicYou-Plugins` 的 `plugin/<id>/plugin.json`：含 downloadUrl（指向 release 资产）+ manifestUrl + preview.png（封面），**不提交 zip**
 4. manifest 里 `updateUrl` 指向市场的 raw plugin.json（应用内检查更新即对接市场）
-5. 仓库 CI 自动生成 index.json（scripts/generate_catalog.ts）
+5. 修改后运行 `node --experimental-strip-types scripts/generate_catalog.ts` 重新生成 index.json（updatedAt 固定值，勿加时间戳否则 CI auto-commit 循环冲突）
 
 ## 参考
 
