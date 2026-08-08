@@ -428,6 +428,12 @@ host->send_message(host->ctx,
 
 `plugins/examples/` 提供两个示例，覆盖核心能力
 
+### 音频状态监视器（native-audioinspector）：标准示例（市场）
+- `set_interval` 每 2 秒采样 `audio_state` / `connected_devices`
+- `set_config` 持久化状态，面板轮询 `get_config` 实时显示
+- `set_panel_icon` 📊 + `locale` 本地化
+- 完整源码：`plugins/examples/native-audioinspector/`（MicYou-Plugins 市场的标准示例模板）
+
 ### 音效板（native-soundpad）：按钮面板 + 专属设置页 + 快捷键 + 音频播放
 
 - `ui.route=buttons` 通用按钮网格：前端读取 `config.sounds` 渲染按钮
@@ -460,6 +466,21 @@ host->send_message(host->ctx,
 
 1. manifest 声明 `ui.panels`，`entry` 是插件目录内的自包含 HTML 文件
 2. 宿主命令 `get_plugin_panel` 返回 HTML，前端用沙箱 iframe（`allow-scripts`，无 same-origin）渲染
+3. 可用 `set_panel_icon(panel_id, icon)` 设置侧边栏图标（emoji/文本）
+
+#### 面板开发工作流（单文件限制）
+
+面板以 iframe `srcdoc` 渲染，**无法加载相对路径的 JS/CSS**，需要自包含单文件 HTML
+
+推荐工作流（任意一种）：
+
+1. **直接写单文件**：示例插件均采用此方式（复用宿主注入的 `hsl(var(--*))` 主题变量即可跟随主题）
+2. **用构建工具内联**：vite/esbuild 开发时引用模块，发布前内联为单文件
+   - `vite build` + `vite-plugin-singlefile`
+   - esbuild：`esbuild src/main.ts --bundle --outfile=panel.html --loader:.html=copy`（CSS 用 `--bundle` 内联）
+3. **调试**：面板内 `call('log', {level:'debug', message: ...})` 写宿主日志，`micyou plugin dev <dir>` 监听变更自动重装，重启应用即可看到新面板
+
+主题变量：宿主注入全部 `--*` CSS 变量（Material 3 HSL 三元组，用 `hsl(var(--primary))` 等引用），切主题时面板自动重载
 3. 面板内联脚本通过 postMessage 桥与宿主通信（见 `usePluginPanelBridge`）：
 
 ```js

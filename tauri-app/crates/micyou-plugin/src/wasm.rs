@@ -249,14 +249,6 @@ impl WasmPlugin {
         Ok(ptr)
     }
 
-    fn read_bytes(&mut self, ptr: i32, len: usize) -> PluginResult<Vec<u8>> {
-        let mut buf = vec![0u8; len];
-        self.memory
-            .read(&mut self.store, ptr as usize, &mut buf)
-            .map_err(|e| PluginError::Runtime(format!("read bytes: {e}")))?;
-        Ok(buf)
-    }
-
     /// Serialize an event to JSON and deliver it.
     fn deliver_event(&mut self, event: &PluginEvent) -> PluginResult<()> {
         let Some(f_event) = self.f_event else {

@@ -40,6 +40,7 @@ typedef struct mpl_host_api {
     mpl_result_t (*host_info)(void *ctx, char *out, uint32_t *out_size);
     mpl_result_t (*clipboard_read)(void *ctx, char *out, uint32_t *out_size);
     mpl_result_t (*clipboard_write)(void *ctx, const char *text);
+    mpl_result_t (*set_panel_icon)(void *ctx, const char *panel_id, const char *icon);
 } mpl_host_api_t;
 ```
 
@@ -71,6 +72,7 @@ typedef struct mpl_host_api {
 | `host_info` | `() -> i32` | 宿主身份 JSON 字符串指针 |
 | `clipboard_read` | `() -> i32` | 读剪贴板（需 clipboard.read） |
 | `clipboard_write` | `(text_ptr: i32) -> ()` | 写剪贴板（需 clipboard.write） |
+| `set_panel_icon` | `(panel_id_ptr: i32, icon_ptr: i32) -> ()` | 设置设置侧边栏面板图标 |
 
 ### 缓冲区契约（out / out_size）
 
@@ -153,6 +155,21 @@ typedef struct mpl_host_api {
 - 读/写系统剪贴板文本（需 `clipboard.read` / `clipboard.write`）
 - 常见用途：自动化复制粘贴、把插件生成内容送剪贴板
 
+
+### set_panel_icon（侧边栏面板图标）
+
+插件在 `init` 或运行期调用，设置自己在设置对话框侧边栏中的面板图标
+
+- 参数 `panel_id`：插件声明的 ui.panels 中的面板 id
+- 参数 `icon`：简短文本或 emoji（如 🎛 / 🍅），或插件目录内图片文件名（前端暂以文本渲染）
+- 无需能力声明，宿主按插件隔离存储（plugin id -> panel id -> icon）
+
+WASM 导入签名：`(panel_id_ptr: i32, icon_ptr: i32) -> ()`
+
+示例（WAT）：
+```wat
+(call $set_panel_icon (i32.const 0x210) (i32.const 0x218))
+```
 ### 事件投递（宿主 → 插件）
 
 - 设备连接/断开时宿主向所有已加载插件派发 `PluginEvent::DeviceConnected`（含 mode/label）与 `DeviceDisconnected`

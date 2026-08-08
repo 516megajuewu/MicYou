@@ -16,6 +16,9 @@ pub enum PluginAction {
     Validate {
         /// 插件目录（含 plugin.json）
         dir: String,
+        /// 以 JSON 输出校验结果（CI 集成用）
+        #[arg(long)]
+        json: bool,
     },
     /// 将插件目录打包为可导入的 .zip（根目录含 plugin.json）
     Package {
@@ -35,22 +38,60 @@ pub enum PluginAction {
         /// 插件显示名（默认取自 id）
         #[arg(long)]
         name: Option<String>,
+        /// 插件类型：utility（默认）| dsp（处理链节点）| ui
+        #[arg(long, value_parser = ["utility", "dsp", "ui"], default_value = "utility")]
+        kind: String,
+        /// 能力列表（逗号分隔，如 config.read,config.write）
+        #[arg(long, value_delimiter = ',')]
+        capabilities: Vec<String>,
         /// 输出目录（默认 ./<id 最后一段>）
         #[arg(short, long)]
         out: Option<String>,
+    },
+    /// 安装插件目录到应用插件目录（构建后一键部署）
+    Install {
+        /// 插件目录（含 plugin.json 与构建产物）
+        dir: String,
+    },
+    /// 开发模式：监听插件目录变更并自动重新安装（Ctrl+C 退出）
+    Dev {
+        /// 插件目录
+        dir: String,
+        /// 监听间隔秒（默认 1.5）
+        #[arg(short, long, default_value = "1.5")]
+        interval: f64,
+    },
+    /// 递增插件 manifest 版本（patch 默认，或指定完整 semver）
+    Bump {
+        /// 插件目录（含 plugin.json）
+        dir: String,
+        /// 新版本（如 1.2.0），缺省则 patch +1
+        version: Option<String>,
     },
 }
 
 pub fn run(action: PluginAction) -> Result<(), String> {
     match action {
-        PluginAction::Validate { dir } => validate(&dir),
+        PluginAction::Validate { dir, json: _json } => validate(&dir),
         PluginAction::Package { dir, out } => package(&dir, out.as_deref()),
         PluginAction::Create {
             id,
             runtime,
             name,
+            kind,
+            capabilities,
             out,
-        } => create(&id, &runtime, name.as_deref(), out.as_deref()),
+        } => create(
+            &id,
+            &runtime,
+            name.as_deref(),
+            &kind,
+            &capabilities,
+            out.as_deref(),
+        ),
+        PluginAction::Install { dir } => install(&dir),
+        PluginAction::Dev { dir, interval } => dev(&dir, interval),
+        PluginAction::Bump { dir, version } => bump(&dir, version.as_deref()),
     }
 }
 
@@ -60,6 +101,8 @@ fn validate(dir: &str) -> Result<(), String> {
         .map_err(|e| format!("read {}: {e}", manifest_path.display()))?;
     let manifest = micyou_plugin::PluginManifest::from_json(&text)
         .map_err(|e| format!("invalid plugin.json: {e}"))?;
+    let entry = Path::new(dir).join(&manifest.entry);
+    let entry_ok = entry.exists();
     println!(
         "OK  id={} name={} version={} runtime={:?}",
         manifest.id, manifest.name, manifest.version, manifest.runtime
@@ -69,11 +112,49 @@ fn validate(dir: &str) -> Result<(), String> {
         "    kind={:?} platforms={:?} arches={:?}",
         manifest.kind, manifest.platforms, manifest.arches
     );
-    let entry = Path::new(dir).join(&manifest.entry);
-    if !entry.exists() {
+    if entry_ok {
+        println!("    entry={} (exists)", entry.display());
+    } else {
         return Err(format!("entry artifact missing: {}", entry.display()));
     }
-    println!("    entry={} (exists)", entry.display());
+    Ok(())
+}
+
+/// 递增 plugin.json 的 version（缺省 patch +1，或指定完整 semver）
+fn bump(dir: &str, version: Option<&str>) -> Result<(), String> {
+    let manifest_path = Path::new(dir).join("plugin.json");
+    let text = std::fs::read_to_string(&manifest_path)
+        .map_err(|e| format!("read {}: {e}", manifest_path.display()))?;
+    let mut manifest: serde_json::Value = serde_json::from_str(&text)
+        .map_err(|e| format!("invalid plugin.json: {e}"))?;
+    let cur = manifest["version"]
+        .as_str()
+        .unwrap_or("0.0.0")
+        .to_string();
+    let next = match version {
+        Some(v) => v.to_string(),
+        None => {
+            let parts: Vec<u64> = cur
+                .split('.')
+                .map(|p| p.parse().unwrap_or(0))
+                .collect();
+            let (ma, mi, pa) = match parts.as_slice() {
+                [a, b, c, ..] => (*a, *b, *c + 1),
+                [a, b] => (*a, *b, 1),
+                [a] => (*a, 1, 0),
+                _ => (0, 1, 0),
+            };
+            format!("{ma}.{mi}.{pa}")
+        }
+    };
+    // 校验 semver 合法
+    semver::Version::parse(&next).map_err(|e| format!("invalid version {next}: {e}"))?;
+    manifest["version"] = serde_json::Value::String(next.clone());
+    let out = serde_json::to_string_pretty(&manifest).map_err(|e| e.to_string())?;
+    std::fs::write(&manifest_path, out + "
+").map_err(|e| format!("write: {e}"))?;
+    println!("bumped {cur} -> {next} in {}", manifest_path.display());
+    println!("  tip: `micyou plugin package {dir}` to repackage");
     Ok(())
 }
 
@@ -329,7 +410,14 @@ edition = "2021"
 crate-type = ["cdylib"]
 "#;
 
-fn create(id: &str, runtime: &str, name: Option<&str>, out: Option<&str>) -> Result<(), String> {
+fn create(
+    id: &str,
+    runtime: &str,
+    name: Option<&str>,
+    kind: &str,
+    capabilities: &[String],
+    out: Option<&str>,
+) -> Result<(), String> {
     let last = id.rsplit('.').next().unwrap_or(id);
     let out_dir = out
         .map(|o| o.to_string())
@@ -337,11 +425,31 @@ fn create(id: &str, runtime: &str, name: Option<&str>, out: Option<&str>) -> Res
     let dir = Path::new(&out_dir);
     std::fs::create_dir_all(dir).map_err(|e| format!("mkdir {out_dir}: {e}"))?;
     let display_name = name.unwrap_or(last).to_string();
+    // kind + capabilities 注入 JSON（按运行时模板）
+    let kind_json = match kind {
+        "dsp" => "\"dsp\"",
+        "ui" => "\"ui\"",
+        _ => "\"utility\"",
+    };
+    let caps_json = if capabilities.is_empty() {
+        "[]".to_string()
+    } else {
+        let items: Vec<String> = capabilities
+            .iter()
+            .map(|c| format!("\"{c}\"", c = c.trim()))
+            .collect();
+        format!("[{}]", items.join(", "))
+    };
     if runtime == "native" {
-        let plugin_json = NATIVE_PLUGIN_JSON
+        let mut plugin_json = NATIVE_PLUGIN_JSON
             .replace("dev.micyou.example.mynative", id)
             .replace("My Native Plugin", &display_name)
-            .replace("libmicyou_example_mynative.so", &format!("lib{last}.so"));
+            .replace("libmicyou_example_mynative.so", &format!("lib{last}.so"))
+            .replace("\"utility\"", kind_json);
+        if !capabilities.is_empty() {
+            // 模板默认 capabilities 数组：整体替换（粗粒度但够用）
+            plugin_json = plugin_json.replacen("[]", &caps_json, 1);
+        }
         write_file(dir, "plugin.json", &plugin_json)?;
         write_file(dir, "README.md", NATIVE_README)?;
         write_file(dir, "Cargo.toml", NATIVE_CARGO)?;
@@ -352,14 +460,28 @@ fn create(id: &str, runtime: &str, name: Option<&str>, out: Option<&str>) -> Res
         let plugin_json = WASM_PLUGIN_JSON
             .replace("dev.micyou.example.myplugin", id)
             .replace("My Plugin", &display_name);
+        let mut plugin_json = WASM_PLUGIN_JSON
+            .replace("dev.micyou.example.myplugin", id)
+            .replace("My Plugin", &display_name)
+            .replace("\"utility\"", kind_json);
+        if !capabilities.is_empty() {
+            plugin_json = plugin_json.replacen("[]", &caps_json, 1);
+        }
         write_file(dir, "plugin.json", &plugin_json)?;
         write_file(dir, "README.md", WASM_README)?;
         write_file(dir, "main.wat", WASM_TEMPLATE_WAT)?;
         write_file(dir, "panel.html", WASM_PANEL_HTML)?;
+        // 内置 wat crate 直接编译入口，开箱即用
+        let wat_path = dir.join("main.wat");
+        let wasm_bytes = wat::parse_file(&wat_path)
+            .map_err(|e| format!("compile main.wat: {e}"))?;
+        std::fs::write(dir.join("main.wasm"), &wasm_bytes)
+            .map_err(|e| format!("write main.wasm: {e}"))?;
+        println!("  compiled main.wat -> main.wasm ({} bytes)", wasm_bytes.len());
         let _ = micyou_plugin::manifest::RuntimeKind::Wasm; // keep import alive
     }
     println!(
-        "created {runtime} plugin skeleton in {}/  (compile the entry artifact, then `micyou plugin package {out_dir}`)",
+        "created {runtime} plugin skeleton in {}/  \n  next: `micyou plugin dev {out_dir}` (watch) or `micyou plugin install {out_dir}`",
         dir.display()
     );
     Ok(())
@@ -398,4 +520,101 @@ native 插件拥有宿主完整权限，用于实时 DSP、硬件与深度系统
 fn write_file(dir: &Path, name: &str, content: &str) -> Result<(), String> {
     let p = dir.join(name);
     std::fs::write(&p, content).map_err(|e| format!("write {}: {e}", p.display()))
+}
+
+/// 安装插件目录到应用插件目录（~/.config/micyou/plugins/<id>/）
+fn install(dir: &str) -> Result<(), String> {
+    let manifest_text = std::fs::read_to_string(Path::new(dir).join("plugin.json"))
+        .map_err(|e| format!("read plugin.json: {e}"))?;
+    let manifest = micyou_plugin::PluginManifest::from_json(&manifest_text)
+        .map_err(|e| format!("invalid plugin.json: {e}"))?;
+    let plugins_dir = crate::config::config_dir().join("plugins");
+    let target = plugins_dir.join(&manifest.id);
+    std::fs::create_dir_all(&target).map_err(|e| format!("mkdir {}: {e}", target.display()))?;
+    let mut copied = 0u32;
+    for entry in walk(dir, &[]) {
+        let rel = entry.strip_prefix(dir).map_err(|e| e.to_string())?;
+        let dst = target.join(rel);
+        if let Some(parent) = dst.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        }
+        std::fs::copy(&entry, &dst).map_err(|e| format!("copy {}: {e}", entry.display()))?;
+        copied += 1;
+    }
+    // 入口产物必须存在
+    if !target.join(&manifest.entry).exists() {
+        return Err(format!(
+            "entry artifact missing: {} (build it first)",
+            target.join(&manifest.entry).display()
+        ));
+    }
+    println!(
+        "installed {} v{} -> {} ({copied} files)",
+        manifest.id,
+        manifest.version,
+        target.display()
+    );
+    Ok(())
+}
+
+/// 开发模式：轮询监听目录变更，自动重新安装
+fn dev(dir: &str, interval: f64) -> Result<(), String> {
+    // 先校验 + 安装一次
+    validate(dir)?;
+    install(dir)?;
+    let ms = (interval.max(0.3) * 1000.0) as u64;
+    println!(
+        "watching {dir} every {ms}ms ... (edit files, changes auto-install; Ctrl+C to stop)"
+    );
+    let mut prev = snapshot(dir);
+    loop {
+        std::thread::sleep(std::time::Duration::from_millis(ms));
+        let now = snapshot(dir);
+        if now != prev {
+            prev = now;
+            println!("-- change detected, reinstalling --");
+            if let Err(e) = install(dir) {
+                println!("install failed: {e} (fix and save again)");
+            }
+        }
+    }
+}
+
+/// 目录文件快照：相对路径 + 修改时间（排除构建产物与隐藏文件）
+fn snapshot(dir: &str) -> Vec<(String, u64)> {
+    let mut out: Vec<(String, u64)> = Vec::new();
+    let ignore = ["target/", ".git/", "node_modules/", "plugin.zip"];
+    for entry in walk(dir, &ignore) {
+        let rel = entry.strip_prefix(dir).unwrap_or(&entry).to_string_lossy().into_owned();
+        let mtime = std::fs::metadata(&entry)
+            .and_then(|m| m.modified())
+            .map(|t| t.duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0))
+            .unwrap_or(0);
+        out.push((rel, mtime));
+    }
+    out.sort();
+    out
+}
+
+/// 递归收集目录下所有文件（跳过忽略前缀与隐藏文件）
+fn walk(dir: &str, ignore: &[&str]) -> Vec<std::path::PathBuf> {
+    let mut out = Vec::new();
+    let mut stack = vec![std::path::PathBuf::from(dir)];
+    while let Some(d) = stack.pop() {
+        let Ok(rd) = std::fs::read_dir(&d) else { continue };
+        for ent in rd.flatten() {
+            let p = ent.path();
+            let rel = p.strip_prefix(dir).unwrap_or(&p).to_string_lossy().into_owned();
+            let name = ent.file_name().to_string_lossy().into_owned();
+            if name.starts_with('.') || ignore.iter().any(|i| rel.starts_with(i)) {
+                continue;
+            }
+            if p.is_dir() {
+                stack.push(p);
+            } else {
+                out.push(p);
+            }
+        }
+    }
+    out
 }
