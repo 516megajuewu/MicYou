@@ -128,7 +128,7 @@ async function applyUpdate(id: string) {
         </button>
         <button
           @click="p.refresh"
-          class="w-9 h-9 rounded-full bg-surface-variant/40 hover:bg-surface-variant flex items-center justify-center transition-colors"
+          class="w-9 h-9 rounded-full bg-surface-variant/40 hover:bg-surface-variant flex items-center justify-center transition-all duration-150 active:scale-90"
           :title="$t('plugins.refresh')"
         >
           <RefreshCw
@@ -242,10 +242,11 @@ async function applyUpdate(id: string) {
         {{ $t('plugins.noPlugins') }}
       </p>
 
+      <TransitionGroup name="plug" tag="div" class="space-y-3">
       <div
         v-for="plugin in filteredPlugins"
         :key="plugin.id"
-        class="rounded-xl bg-surface-container-lowest/60 border border-surface-variant/20 p-4"
+        class="rounded-xl bg-surface-container-lowest/60 border border-surface-variant/20 p-4 transition-all duration-200 hover:border-primary/30 hover:shadow-lg hover:shadow-black/20"
       >
         <div class="flex items-start justify-between gap-3">
           <div class="min-w-0">
@@ -295,14 +296,14 @@ async function applyUpdate(id: string) {
           <div class="flex items-center gap-2 shrink-0">
             <button
               @click="openDetails(plugin, 'logs')"
-              class="w-9 h-9 rounded-full bg-surface-variant/40 hover:bg-surface-variant flex items-center justify-center transition-colors"
+              class="w-9 h-9 rounded-full bg-surface-variant/40 hover:bg-surface-variant flex items-center justify-center transition-all duration-150 active:scale-90"
               :title="$t('plugins.logs')"
             >
               <TerminalSquare class="w-4 h-4 text-on-surface-variant" />
             </button>
             <button
               @click="openDetails(plugin, 'config')"
-              class="w-9 h-9 rounded-full bg-surface-variant/40 hover:bg-surface-variant flex items-center justify-center transition-colors"
+              class="w-9 h-9 rounded-full bg-surface-variant/40 hover:bg-surface-variant flex items-center justify-center transition-all duration-150 active:scale-90"
               :title="$t('plugins.config')"
             >
               <Puzzle class="w-4 h-4 text-on-surface-variant" />
@@ -332,6 +333,7 @@ async function applyUpdate(id: string) {
         </div>
 
         <!-- Uninstall confirm bar -->
+        <Transition name="fade">
         <div
           v-if="uninstallTarget === plugin.id"
           class="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3"
@@ -354,6 +356,7 @@ async function applyUpdate(id: string) {
             </button>
           </div>
         </div>
+        </Transition>
 
         <!-- Soundpad panel: ui.route === 'buttons' -->
         <div
@@ -387,6 +390,33 @@ async function applyUpdate(id: string) {
         <!-- Details dialog: config + logs -->
         <PluginDetailsDialog :plugin="detailsPlugin" :tab="detailsTab" @close="detailsPlugin = null" />
       </div>
+      </TransitionGroup>
     </template>
   </div>
 </template>
+
+<style scoped>
+.plug-enter-active,
+.plug-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.plug-enter-from {
+  opacity: 0;
+  transform: translateY(8px);
+}
+.plug-leave-to {
+  opacity: 0;
+  transform: scale(0.98);
+}
+.plug-move {
+  transition: transform 0.2s ease;
+}
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.15s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+</style>

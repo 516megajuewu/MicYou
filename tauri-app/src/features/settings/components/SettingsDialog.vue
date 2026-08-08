@@ -184,7 +184,7 @@
                   </div>
                   <button
                     @click="startMinimized = !startMinimized"
-                    class="group relative inline-flex h-8 w-14 shrink-0 cursor-pointer items-center rounded-full border-2 transition-colors duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 active:scale-95"
+                    class="group relative inline-flex h-8 w-14 shrink-0 cursor-pointer items-center rounded-full border-2 transition-colors duration-300 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 active:scale-95"
                     :class="
                       startMinimized
                         ? 'border-primary bg-primary'
@@ -192,11 +192,11 @@
                     "
                   >
                     <div
-                      class="relative flex items-center justify-center transition-transform duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)]"
+                      class="relative flex items-center justify-center transition-transform duration-300 ease-out"
                       :class="startMinimized ? 'translate-x-[26px]' : 'translate-x-[4px]'"
                     >
                       <span
-                        class="pointer-events-none block rounded-full shadow-sm ring-0 transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)]"
+                        class="pointer-events-none block rounded-full shadow-sm ring-0 transition-all duration-300 ease-out"
                         :class="
                           startMinimized
                             ? 'h-6 w-6 bg-on-primary'
@@ -217,7 +217,7 @@
                   </div>
                   <button
                     @click="toggleAutostart"
-                    class="group relative inline-flex h-8 w-14 shrink-0 cursor-pointer items-center rounded-full border-2 transition-colors duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 active:scale-95"
+                    class="group relative inline-flex h-8 w-14 shrink-0 cursor-pointer items-center rounded-full border-2 transition-colors duration-300 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 active:scale-95"
                     :class="
                       autostartEnabled
                         ? 'border-primary bg-primary'
@@ -225,11 +225,11 @@
                     "
                   >
                     <div
-                      class="relative flex items-center justify-center transition-transform duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)]"
+                      class="relative flex items-center justify-center transition-transform duration-300 ease-out"
                       :class="autostartEnabled ? 'translate-x-[26px]' : 'translate-x-[4px]'"
                     >
                       <span
-                        class="pointer-events-none block rounded-full shadow-sm ring-0 transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)]"
+                        class="pointer-events-none block rounded-full shadow-sm ring-0 transition-all duration-300 ease-out"
                         :class="
                           autostartEnabled
                             ? 'h-6 w-6 bg-on-primary'
@@ -250,7 +250,7 @@
                   </div>
                   <button
                     @click="notificationsEnabled = !notificationsEnabled"
-                    class="group relative inline-flex h-8 w-14 shrink-0 cursor-pointer items-center rounded-full border-2 transition-colors duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 active:scale-95"
+                    class="group relative inline-flex h-8 w-14 shrink-0 cursor-pointer items-center rounded-full border-2 transition-colors duration-300 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 active:scale-95"
                     :class="
                       notificationsEnabled
                         ? 'border-primary bg-primary'
@@ -258,11 +258,11 @@
                     "
                   >
                     <div
-                      class="relative flex items-center justify-center transition-transform duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)]"
+                      class="relative flex items-center justify-center transition-transform duration-300 ease-out"
                       :class="notificationsEnabled ? 'translate-x-[26px]' : 'translate-x-[4px]'"
                     >
                       <span
-                        class="pointer-events-none block rounded-full shadow-sm ring-0 transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)]"
+                        class="pointer-events-none block rounded-full shadow-sm ring-0 transition-all duration-300 ease-out"
                         :class="
                           notificationsEnabled
                             ? 'h-6 w-6 bg-on-primary'
@@ -283,7 +283,7 @@
                   </div>
                   <button
                     @click="autoStream = !autoStream"
-                    class="group relative inline-flex h-8 w-14 shrink-0 cursor-pointer items-center rounded-full border-2 transition-colors duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 active:scale-95"
+                    class="group relative inline-flex h-8 w-14 shrink-0 cursor-pointer items-center rounded-full border-2 transition-colors duration-300 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 active:scale-95"
                     :class="
                       autoStream
                         ? 'border-primary bg-primary'
@@ -291,11 +291,11 @@
                     "
                   >
                     <div
-                      class="relative flex items-center justify-center transition-transform duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)]"
+                      class="relative flex items-center justify-center transition-transform duration-300 ease-out"
                       :class="autoStream ? 'translate-x-[26px]' : 'translate-x-[4px]'"
                     >
                       <span
-                        class="pointer-events-none block rounded-full shadow-sm ring-0 transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)]"
+                        class="pointer-events-none block rounded-full shadow-sm ring-0 transition-all duration-300 ease-out"
                         :class="
                           autoStream
                             ? 'h-6 w-6 bg-on-primary'
@@ -318,7 +318,7 @@
                   </div>
                   <button
                     @click="pocketMode = !pocketMode"
-                    class="group relative inline-flex h-8 w-14 shrink-0 cursor-pointer items-center rounded-full border-2 transition-colors duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 active:scale-95"
+                    class="group relative inline-flex h-8 w-14 shrink-0 cursor-pointer items-center rounded-full border-2 transition-colors duration-300 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 active:scale-95"
                     :class="
                       pocketMode
                         ? 'border-primary bg-primary'
@@ -326,13 +326,13 @@
                     "
                   >
                     <div
-                      class="relative flex items-center justify-center transition-transform duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)]"
+                      class="relative flex items-center justify-center transition-transform duration-300 ease-out"
                       :class="pocketMode ? 'translate-x-[26px]' : 'translate-x-[4px]'"
                     >
                       <!-- State layer (hover halo) -->
 
                       <span
-                        class="pointer-events-none block rounded-full shadow-sm ring-0 transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)]"
+                        class="pointer-events-none block rounded-full shadow-sm ring-0 transition-all duration-300 ease-out"
                         :class="
                           pocketMode
                             ? 'h-6 w-6 bg-on-primary'
@@ -837,7 +837,7 @@
                     </div>
                     <button
                       :disabled="!isAecSupported || !aecRuntimeAvailable"
-                      class="group relative inline-flex h-8 w-14 shrink-0 cursor-pointer items-center rounded-full border-2 transition-colors duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+                      class="group relative inline-flex h-8 w-14 shrink-0 cursor-pointer items-center rounded-full border-2 transition-colors duration-300 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
                       :class="
                         settings.aecEnabled
                           ? 'border-primary bg-primary'
@@ -845,11 +845,11 @@
                       "
                     >
                       <div
-                        class="relative flex items-center justify-center transition-transform duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)]"
+                        class="relative flex items-center justify-center transition-transform duration-300 ease-out"
                         :class="settings.aecEnabled ? 'translate-x-[26px]' : 'translate-x-[4px]'"
                       >
                         <span
-                          class="pointer-events-none block rounded-full shadow-sm ring-0 transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)]"
+                          class="pointer-events-none block rounded-full shadow-sm ring-0 transition-all duration-300 ease-out"
                           :class="
                             settings.aecEnabled
                               ? 'h-6 w-6 bg-on-primary'
@@ -871,7 +871,7 @@
                       $t('settings.audioParams.noiseSuppression')
                     }}</span>
                     <button
-                      class="group relative inline-flex h-8 w-14 shrink-0 cursor-pointer items-center rounded-full border-2 transition-colors duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 active:scale-95"
+                      class="group relative inline-flex h-8 w-14 shrink-0 cursor-pointer items-center rounded-full border-2 transition-colors duration-300 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 active:scale-95"
                       :class="
                         settings.nsEnabled
                           ? 'border-primary bg-primary'
@@ -879,11 +879,11 @@
                       "
                     >
                       <div
-                        class="relative flex items-center justify-center transition-transform duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)]"
+                        class="relative flex items-center justify-center transition-transform duration-300 ease-out"
                         :class="settings.nsEnabled ? 'translate-x-[26px]' : 'translate-x-[4px]'"
                       >
                         <span
-                          class="pointer-events-none block rounded-full shadow-sm ring-0 transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)]"
+                          class="pointer-events-none block rounded-full shadow-sm ring-0 transition-all duration-300 ease-out"
                           :class="
                             settings.nsEnabled
                               ? 'h-6 w-6 bg-on-primary'
@@ -936,7 +936,7 @@
                       $t('settings.audioParams.dereverb')
                     }}</span>
                     <button
-                      class="group relative inline-flex h-8 w-14 shrink-0 cursor-pointer items-center rounded-full border-2 transition-colors duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 active:scale-95"
+                      class="group relative inline-flex h-8 w-14 shrink-0 cursor-pointer items-center rounded-full border-2 transition-colors duration-300 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 active:scale-95"
                       :class="
                         settings.dereverbEnabled
                           ? 'border-primary bg-primary'
@@ -944,13 +944,13 @@
                       "
                     >
                       <div
-                        class="relative flex items-center justify-center transition-transform duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)]"
+                        class="relative flex items-center justify-center transition-transform duration-300 ease-out"
                         :class="
                           settings.dereverbEnabled ? 'translate-x-[26px]' : 'translate-x-[4px]'
                         "
                       >
                         <span
-                          class="pointer-events-none block rounded-full shadow-sm ring-0 transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)]"
+                          class="pointer-events-none block rounded-full shadow-sm ring-0 transition-all duration-300 ease-out"
                           :class="
                             settings.dereverbEnabled
                               ? 'h-6 w-6 bg-on-primary'
@@ -982,7 +982,7 @@
                       $t('settings.audioParams.agc')
                     }}</span>
                     <button
-                      class="group relative inline-flex h-8 w-14 shrink-0 cursor-pointer items-center rounded-full border-2 transition-colors duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 active:scale-95"
+                      class="group relative inline-flex h-8 w-14 shrink-0 cursor-pointer items-center rounded-full border-2 transition-colors duration-300 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 active:scale-95"
                       :class="
                         settings.agcEnabled
                           ? 'border-primary bg-primary'
@@ -990,11 +990,11 @@
                       "
                     >
                       <div
-                        class="relative flex items-center justify-center transition-transform duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)]"
+                        class="relative flex items-center justify-center transition-transform duration-300 ease-out"
                         :class="settings.agcEnabled ? 'translate-x-[26px]' : 'translate-x-[4px]'"
                       >
                         <span
-                          class="pointer-events-none block rounded-full shadow-sm ring-0 transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)]"
+                          class="pointer-events-none block rounded-full shadow-sm ring-0 transition-all duration-300 ease-out"
                           :class="
                             settings.agcEnabled
                               ? 'h-6 w-6 bg-on-primary'
@@ -1046,7 +1046,7 @@
                       $t('settings.audioParams.vad')
                     }}</span>
                     <button
-                      class="group relative inline-flex h-8 w-14 shrink-0 cursor-pointer items-center rounded-full border-2 transition-colors duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 active:scale-95"
+                      class="group relative inline-flex h-8 w-14 shrink-0 cursor-pointer items-center rounded-full border-2 transition-colors duration-300 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 active:scale-95"
                       :class="
                         settings.vadEnabled
                           ? 'border-primary bg-primary'
@@ -1054,11 +1054,11 @@
                       "
                     >
                       <div
-                        class="relative flex items-center justify-center transition-transform duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)]"
+                        class="relative flex items-center justify-center transition-transform duration-300 ease-out"
                         :class="settings.vadEnabled ? 'translate-x-[26px]' : 'translate-x-[4px]'"
                       >
                         <span
-                          class="pointer-events-none block rounded-full shadow-sm ring-0 transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)]"
+                          class="pointer-events-none block rounded-full shadow-sm ring-0 transition-all duration-300 ease-out"
                           :class="
                             settings.vadEnabled
                               ? 'h-6 w-6 bg-on-primary'

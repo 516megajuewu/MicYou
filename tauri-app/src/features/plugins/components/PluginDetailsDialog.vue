@@ -1,6 +1,9 @@
 <template>
+  <Transition name="dialog" appear>
   <div v-if="plugin" class="fixed inset-0 z-50 flex items-center justify-center p-4">
-    <div class="absolute inset-0 bg-black/50" @click="emit('close')" />
+    <Transition name="mask" appear>
+      <div class="absolute inset-0 bg-black/50" @click="emit('close')" />
+    </Transition>
     <div
       class="relative w-full max-w-lg max-h-[75vh] flex flex-col rounded-2xl border border-surface-variant/40 bg-surface shadow-2xl"
     >
@@ -46,9 +49,12 @@
 
       <!-- Body -->
       <div class="flex-1 overflow-y-auto p-4">
+        <Transition name="tab" mode="out-in">
         <!-- Config -->
-        <div v-if="activeTab === 'config'">
-          <p v-if="savedHint" class="text-xs text-green-400 mb-2">{{ $t('plugins.configSaved') }}</p>
+        <div v-if="activeTab === 'config'" key="config">
+          <p v-if="savedHint" class="text-xs text-green-400 mb-2">
+            {{ $t('plugins.configSaved') }}
+          </p>
           <PluginConfigForm
             v-if="plugin.configSchema?.fields?.length"
             :key="plugin.id"
@@ -76,15 +82,47 @@
         </div>
 
         <!-- Logs -->
-        <div v-else>
+        <div v-else key="logs">
           <pre
             class="max-h-72 overflow-y-auto bg-black/30 rounded-lg p-3 text-[11px] font-mono text-green-300/90 whitespace-pre-wrap"
             >{{ logLines.join('\n') || $t('plugins.noLogs') }}</pre>
         </div>
+        </Transition>
       </div>
     </div>
   </div>
+  </Transition>
 </template>
+
+<style scoped>
+.dialog-enter-active {
+  transition: opacity 0.18s ease;
+}
+.dialog-enter-from {
+  opacity: 0;
+}
+.dialog-leave-active {
+  transition: opacity 0.12s ease;
+}
+.dialog-leave-to {
+  opacity: 0;
+}
+.mask-enter-active,
+.mask-leave-active {
+  transition: opacity 0.18s ease;
+}
+.mask-enter-from,
+.mask-leave-to {
+  opacity: 0;
+}
+.tab-enter-active {
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.tab-enter-from {
+  opacity: 0;
+  transform: translateY(4px);
+}
+</style>
 
 <script setup lang="ts">
 import { ref, watch } from 'vue';

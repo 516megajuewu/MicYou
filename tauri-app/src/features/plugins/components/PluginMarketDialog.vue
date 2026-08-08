@@ -1,6 +1,9 @@
 <template>
+  <Transition name="dialog" appear>
   <div v-if="isOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4">
-    <div class="absolute inset-0 bg-black/50" @click="emit('close')" />
+    <Transition name="mask" appear>
+      <div class="absolute inset-0 bg-black/50" @click="emit('close')" />
+    </Transition>
     <div
       class="relative w-full max-w-2xl max-h-[80vh] flex flex-col rounded-2xl border border-surface-variant/40 bg-surface shadow-2xl"
     >
@@ -67,7 +70,7 @@
         <div
           v-for="plugin in filteredCatalog"
           :key="plugin.id"
-          class="rounded-xl border border-surface-variant/30 bg-surface-bright p-4"
+          class="rounded-xl border border-surface-variant/30 bg-surface-bright p-4 transition-all duration-200 hover:border-primary/30 hover:shadow-lg hover:shadow-black/20"
         >
           <div class="flex gap-3">
             <img
@@ -209,7 +212,31 @@
       </div>
     </div>
   </div>
+  </Transition>
 </template>
+
+<style scoped>
+.dialog-enter-active {
+  transition: opacity 0.18s ease;
+}
+.dialog-enter-from {
+  opacity: 0;
+}
+.dialog-leave-active {
+  transition: opacity 0.12s ease;
+}
+.dialog-leave-to {
+  opacity: 0;
+}
+.mask-enter-active,
+.mask-leave-active {
+  transition: opacity 0.18s ease;
+}
+.mask-enter-from,
+.mask-leave-to {
+  opacity: 0;
+}
+</style>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';

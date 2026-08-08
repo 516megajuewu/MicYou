@@ -48,6 +48,5 @@
   "nameI18n": {
     "zh-CN": "音效板"
   },
-  "updateUrl": "https://raw.githubusercontent.com/MicYou-Dev/MicYou-Plugins/main/plugin/dev.micyou.example.soundpad/plugin.json",
   "repository": "https://github.com/MicYou-Dev/MicYou-Plugins"
 }
