@@ -30,9 +30,10 @@ pub fn validate_plugin_id(id: &str) -> bool {
 
 /// Runtime type. `Native` loads a platform cdylib (`.so` / `.dylib` / `.dll`),
 /// `Wasm` loads a WebAssembly module into the sandboxed interpreter.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum RuntimeKind {
+    #[default]
     Native,
     Wasm,
 }
@@ -201,6 +202,7 @@ pub struct DspDescriptor {
 /// wire/protocol style used across MicYou.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(Default)]
 pub struct PluginManifest {
     /// Reverse-DNS id, e.g. `dev.micyou.eq`.
     pub id: String,
@@ -235,6 +237,35 @@ pub struct PluginManifest {
     /// Default configuration (merged into plugin state on first enable).
     #[serde(default)]
     pub config: Option<serde_json::Value>,
+    /// SPDX license identifier, e.g. "MIT" or "GPL-3.0-only".
+    #[serde(default)]
+    pub license: Option<String>,
+    /// Plugin homepage URL.
+    #[serde(default)]
+    pub homepage: Option<String>,
+    /// Source repository URL.
+    #[serde(default)]
+    pub repository: Option<String>,
+    /// Search keywords for the plugin store / import.
+    #[serde(default)]
+    pub keywords: Vec<String>,
+    /// Minimum host API version required (major must not exceed the host's).
+    /// Example: "1.0.0".
+    #[serde(default)]
+    pub min_host_version: Option<String>,
+    /// Icon file name relative to the plugin directory (PNG recommended).
+    #[serde(default)]
+    pub icon: Option<String>,
+    /// CPU architectures this entry artifact supports; empty means all.
+    /// Tags: x86_64, aarch64, i686, armv7, riscv64.
+    #[serde(default)]
+    pub arches: Vec<String>,
+    /// Localized names, keyed by BCP-47 locale tag, e.g. {"zh-CN": "变声器"}.
+    #[serde(default)]
+    pub name_i18n: std::collections::HashMap<String, String>,
+    /// Localized descriptions, keyed by locale tag.
+    #[serde(default)]
+    pub description_i18n: std::collections::HashMap<String, String>,
 }
 
 impl PluginManifest {
@@ -276,6 +307,17 @@ impl PluginManifest {
                 plugin: self.api_version,
                 host: HOST_API_VERSION,
             });
+        }
+        if let Some(min) = &self.min_host_version {
+            let parsed = semver::Version::parse(min).map_err(|e| {
+                PluginError::Validation(format!("invalid min_host_version {min:?}: {e}"))
+            })?;
+            if parsed.major > HOST_API_VERSION as u64 {
+                return Err(PluginError::ApiVersionMismatch {
+                    plugin: self.api_version,
+                    host: HOST_API_VERSION,
+                });
+            }
         }
         for cap in &self.capabilities {
             if !KNOWN_CAPABILITIES.contains(&cap.as_str()) {

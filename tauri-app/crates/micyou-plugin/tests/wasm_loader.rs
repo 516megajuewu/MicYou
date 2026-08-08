@@ -161,6 +161,7 @@ fn fixture_manifest() -> PluginManifest {
         ui: None,
         dsp: None,
         config: None,
+        ..Default::default()
     }
 }
 

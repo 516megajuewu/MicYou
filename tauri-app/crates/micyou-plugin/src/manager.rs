@@ -551,6 +551,7 @@ mod tests {
             ui: None,
             dsp: None,
             config: None,
+        ..Default::default()
         };
         PluginInstance::Wasm(Box::new(Dummy { manifest }))
     }

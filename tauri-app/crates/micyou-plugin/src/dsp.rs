@@ -226,6 +226,7 @@ mod tests {
                     ui: None,
                     dsp: None,
                     config: None,
+                    ..Default::default()
                 },
                 calls,
             })))),
