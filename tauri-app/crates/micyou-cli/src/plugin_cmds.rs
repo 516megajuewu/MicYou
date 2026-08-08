@@ -68,6 +68,8 @@ pub enum PluginAction {
         /// 新版本（如 1.2.0），缺省则 patch +1
         version: Option<String>,
     },
+    /// 列出已安装插件（id、版本、运行时、状态）
+    List,
 }
 
 pub fn run(action: PluginAction) -> Result<(), String> {
@@ -92,7 +94,74 @@ pub fn run(action: PluginAction) -> Result<(), String> {
         PluginAction::Install { dir } => install(&dir),
         PluginAction::Dev { dir, interval } => dev(&dir, interval),
         PluginAction::Bump { dir, version } => bump(&dir, version.as_deref()),
+        PluginAction::List => list_installed(),
     }
+}
+
+/// 列出已安装插件
+fn list_installed() -> Result<(), String> {
+    let plugins_dir = crate::config::config_dir()
+        .join("plugins");
+    if !plugins_dir.exists() {
+        println!("(插件目录不存在: {})", plugins_dir.display());
+        return Ok(());
+    }
+    let mut rows: Vec<(String, String, String, bool)> = Vec::new();
+    let mut total = 0usize;
+    for entry in std::fs::read_dir(&plugins_dir).map_err(|e| e.to_string())? {
+        let dir = entry.map_err(|e| e.to_string())?.path();
+        let manifest_path = dir.join("plugin.json");
+        if !manifest_path.is_file() {
+            continue;
+        }
+        total += 1;
+        let text = std::fs::read_to_string(&manifest_path).unwrap_or_default();
+        let enabled = {
+            // 读取全局插件状态文件（与应用共用 ~/.config/micyou/plugin-state.json）
+            let state_path = crate::config::config_dir().join("plugin-state.json");
+            let enabled = std::fs::read_to_string(&state_path)
+                .ok()
+                .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok())
+                .and_then(|v| {
+                    // plugin-state.json 顶层键即插件 id
+                    v.get(&dir.file_name().and_then(|n| n.to_str()).unwrap_or("").to_string())
+                        .and_then(|p| p.get("enabled").cloned())
+                        .and_then(|e| e.as_bool())
+                })
+                .unwrap_or(false);
+            enabled
+        };
+        match micyou_plugin::PluginManifest::from_json(&text) {
+            Ok(m) => rows.push((
+                m.id,
+                m.version,
+                format!("{:?}", m.runtime).to_lowercase(),
+                enabled,
+            )),
+            Err(_) => rows.push((
+                dir.file_name().and_then(|n| n.to_str()).unwrap_or("?").to_string(),
+                "?".into(),
+                "?".into(),
+                enabled,
+            )),
+        }
+    }
+    if rows.is_empty() {
+        println!("(未安装插件)");
+        return Ok(());
+    }
+    println!("{:<45} {:<10} {:<8} {}", "ID", "版本", "运行时", "状态");
+    for (id, ver, rt, on) in rows {
+        println!(
+            "{:<45} {:<10} {:<8} {}",
+            id,
+            ver,
+            rt,
+            if on { "启用" } else { "禁用" }
+        );
+    }
+    println!("共 {} 个插件", total);
+    Ok(())
 }
 
 fn validate(dir: &str) -> Result<(), String> {
@@ -484,9 +553,6 @@ fn create(
         std::fs::create_dir_all(dir.join("src")).map_err(|e| format!("mkdir src: {e}"))?;
         write_file(&dir.join("src"), "lib.rs", &lib)?;
     } else {
-        let plugin_json = WASM_PLUGIN_JSON
-            .replace("dev.micyou.example.myplugin", id)
-            .replace("My Plugin", &display_name);
         let mut plugin_json = WASM_PLUGIN_JSON
             .replace("dev.micyou.example.myplugin", id)
             .replace("My Plugin", &display_name)
