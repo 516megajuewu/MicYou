@@ -304,7 +304,14 @@ pub fn plugin_trigger(
     action: String,
     payload: Option<String>,
 ) -> Result<(), String> {
-    let bytes = payload.unwrap_or_default().into_bytes();
+    // WASM 插件的 handle_message 收不到 topic，只有 payload bytes：
+    // payload 为空时注入 {"action":"<action>"}，保证所有运行时都能感知动作
+    let raw = payload.unwrap_or_default();
+    let bytes = if raw.trim().is_empty() {
+        format!(r#"{{"action":"{action}"}}"#).into_bytes()
+    } else {
+        raw.into_bytes()
+    };
     state
         .plugins
         .trigger(&pluginId, &action, &bytes)
@@ -534,6 +541,12 @@ pub fn update_plugin(state: State<'_, ServerState>, id: String) -> Result<String
             .map_err(|e| e.to_string())?;
     }
     Ok(remote.version)
+}
+
+/// Host UI language (from ui.json), so plugin panels can localize themselves.
+#[tauri::command]
+pub fn get_app_locale() -> String {
+    crate::app_config::load_ui_prefs().language
 }
 
 /// Return the dynamic sidebar-panel icons set by the plugin via

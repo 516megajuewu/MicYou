@@ -235,6 +235,7 @@ pub fn run() {
             commands::plugins::preview_plugin_zip,
             commands::plugins::check_plugin_updates,
             commands::plugins::get_plugin_panel_icons,
+            commands::plugins::get_app_locale,
             commands::plugins::update_plugin,
             commands::plugins::import_plugin,
             commands::plugins::plugin_trigger,

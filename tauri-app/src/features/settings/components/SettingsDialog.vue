@@ -22,10 +22,7 @@
           </div>
 
           <template v-for="section in sections" :key="section.id">
-            <div
-              v-if="section.divider"
-              class="my-2 mx-3 h-px bg-border/70"
-            ></div>
+            <div v-if="section.divider" class="my-2 mx-3 h-px bg-border/70"></div>
             <button
               v-else
               @click="currentSection = section.id"
@@ -46,7 +43,8 @@
                 v-else
                 class="w-5 h-5 text-center text-sm leading-5"
                 :class="currentSection === section.id ? 'text-primary' : ''"
-              >{{ section.panelIcon }}</span>
+                >{{ section.panelIcon }}</span
+              >
               <span class="font-medium text-sm">{{ section.name }}</span>
             </button>
           </template>
@@ -1172,7 +1170,9 @@
                   v-if="panelLoading"
                   class="flex items-center gap-2 text-sm text-on-surface-variant"
                 >
-                  <span class="animate-spin inline-block w-4 h-4 border-2 border-primary border-t-transparent rounded-full"></span>
+                  <span
+                    class="animate-spin inline-block w-4 h-4 border-2 border-primary border-t-transparent rounded-full"
+                  ></span>
                   {{ $t('plugins.loading') }}
                 </div>
                 <div
@@ -1553,7 +1553,9 @@ async function loadPanelIcons() {
       const got = await invoke<Record<string, string>>('get_plugin_panel_icons', {
         id: plugin.id,
       });
-      Object.assign(icons, got);
+      for (const [pid, icon] of Object.entries(got)) {
+        icons[`${plugin.id}:${pid}`] = icon;
+      }
     } catch {
       /* ignore */
     }
@@ -1571,7 +1573,7 @@ const panelSections = computed(() => {
         id: `panel:${plugin.id}:${panel.id}`,
         name: `${plugin.name} · ${panel.label}`,
         icon: LayoutPanelTop,
-        panelIcon: panelIcons.value[panel.id],
+        panelIcon: panelIcons.value[`${plugin.id}:${panel.id}`],
         pluginId: plugin.id,
         panelId: panel.id,
       });
@@ -1700,6 +1702,11 @@ watch(currentLanguage, (newLang) => {
   }
   // Share the language with the CLI via ui.json
   saveUiPrefs();
+  // 语言变化时刷新插件面板（面板按宿主 locale 重新渲染）
+  if (currentSection.value.startsWith('panel:')) {
+    const panel = activePanel();
+    if (panel) void loadPanel(panel.pluginId, panel.panelId);
+  }
 });
 
 // Reactive Settings State

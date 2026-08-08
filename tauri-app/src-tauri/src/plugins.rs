@@ -8,12 +8,12 @@ use micyou_plugin::host::{
     AudioStateSnapshot, DeviceSnapshot, HostApi, MessageTarget, PluginLogLevel,
 };
 use micyou_plugin::manifest::{PluginKind, RuntimeKind};
-use std::sync::atomic::{AtomicU64, Ordering};
-use tauri::Manager;
-use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState, ShortcutWrapper};
 use micyou_plugin::{PluginError, PluginResult, PluginRuntime};
 use std::collections::{HashMap, VecDeque};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
+use tauri::Manager;
+use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState, ShortcutWrapper};
 
 /// TCP control-channel transport for cross-device plugin messages.
 /// The tcp_server registers the active client's message sender here; the bus
@@ -110,7 +110,11 @@ pub struct PluginHost {
     pub window: Arc<WindowService>,
     /// Dynamic sidebar-panel icons set by plugins via `set_panel_icon`.
     /// Map: plugin id -> (panel id -> icon string).
-    pub panel_icons: Arc<std::sync::Mutex<std::collections::HashMap<String, std::collections::HashMap<String, String>>>>,
+    pub panel_icons: Arc<
+        std::sync::Mutex<
+            std::collections::HashMap<String, std::collections::HashMap<String, String>>,
+        >,
+    >,
 }
 
 /// Global hotkey registration for plugins.
@@ -251,9 +255,9 @@ impl PluginHost {
             // 等），它们都要再锁 manager，若此处持锁执行插件代码会造成
             // std Mutex 同线程重入死锁（曾导致播放音效卡死）
             let targets: Vec<String> = {
-                let manager = manager_dispatch.lock().map_err(|_| {
-                    micyou_plugin::PluginError::Runtime("manager poisoned".into())
-                })?;
+                let manager = manager_dispatch
+                    .lock()
+                    .map_err(|_| micyou_plugin::PluginError::Runtime("manager poisoned".into()))?;
                 if msg.target.is_empty() {
                     manager.loaded_ids()
                 } else {
@@ -305,12 +309,7 @@ impl PluginHost {
     /// topic `ui:<action>` with the given payload (soundpad buttons etc).
     /// The plugin receives it through its `handle_message` entry.
     pub fn trigger(&self, plugin_id: &str, action: &str, payload: &[u8]) -> PluginResult<()> {
-        let msg = PluginMessage::new(
-            "ui",
-            plugin_id,
-            &format!("ui:{action}"),
-            payload.to_vec(),
-        );
+        let msg = PluginMessage::new("ui", plugin_id, &format!("ui:{action}"), payload.to_vec());
         self.bus.handle_incoming(&msg);
         Ok(())
     }
@@ -566,9 +565,15 @@ pub struct PluginHostApi {
     window: Arc<WindowService>,
     plugin_id: String,
     dir: std::path::PathBuf,
-    panel_icons: Arc<std::sync::Mutex<std::collections::HashMap<String, std::collections::HashMap<String, String>>>>,
+    panel_icons: Arc<
+        std::sync::Mutex<
+            std::collections::HashMap<String, std::collections::HashMap<String, String>>,
+        >,
+    >,
     timer_next: std::sync::atomic::AtomicU64,
-    timers: std::sync::Mutex<std::collections::HashMap<u64, std::sync::Arc<std::sync::atomic::AtomicBool>>>,
+    timers: std::sync::Mutex<
+        std::collections::HashMap<u64, std::sync::Arc<std::sync::atomic::AtomicBool>>,
+    >,
     http_next: std::sync::atomic::AtomicU64,
 }
 
@@ -580,7 +585,11 @@ impl PluginHostApi {
         sound: Arc<crate::sound_player::SoundPlayer>,
         hotkeys: Arc<HotkeyService>,
         window: Arc<WindowService>,
-        panel_icons: Arc<std::sync::Mutex<std::collections::HashMap<String, std::collections::HashMap<String, String>>>>,
+        panel_icons: Arc<
+            std::sync::Mutex<
+                std::collections::HashMap<String, std::collections::HashMap<String, String>>,
+            >,
+        >,
         plugin_id: String,
         dir: std::path::PathBuf,
     ) -> Arc<Self> {
@@ -669,8 +678,7 @@ impl HostApi for PluginHostApi {
     }
 
     fn open_window(&self, panel_id: &str) -> PluginResult<()> {
-        self.window
-            .open_panel(&self.plugin_id, panel_id)
+        self.window.open_panel(&self.plugin_id, panel_id)
     }
 
     fn play_sound(&self, path: &str) -> PluginResult<()> {
@@ -758,10 +766,12 @@ impl HostApi for PluginHostApi {
                     .timeout(std::time::Duration::from_secs(10))
                     .build()
                     .map_err(|e| e.to_string())?;
-                let m = reqwest::Method::from_bytes(method.as_bytes()).map_err(|e| e.to_string())?;
+                let m =
+                    reqwest::Method::from_bytes(method.as_bytes()).map_err(|e| e.to_string())?;
                 let mut req = client.request(m, &url);
-                if let Ok(headers) =
-                    serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(&headers_json)
+                if let Ok(headers) = serde_json::from_str::<
+                    serde_json::Map<String, serde_json::Value>,
+                >(&headers_json)
                 {
                     for (k, v) in headers {
                         if let Some(vs) = v.as_str() {
@@ -807,22 +817,20 @@ impl HostApi for PluginHostApi {
         let bus = self.bus.clone();
         let pid = self.plugin_id.clone();
         let payload = payload.to_string();
-        std::thread::spawn(move || {
-            loop {
-                std::thread::sleep(std::time::Duration::from_millis(ms.max(1)));
-                if cancel.load(Ordering::Relaxed) {
-                    return;
-                }
-                let msg = PluginMessage::new(
-                    "host",
-                    &pid,
-                    "interval:tick",
-                    serde_json::json!({ "interval": id, "payload": payload })
-                        .to_string()
-                        .into_bytes(),
-                );
-                bus.handle_incoming(&msg);
+        std::thread::spawn(move || loop {
+            std::thread::sleep(std::time::Duration::from_millis(ms.max(1)));
+            if cancel.load(Ordering::Relaxed) {
+                return;
             }
+            let msg = PluginMessage::new(
+                "host",
+                &pid,
+                "interval:tick",
+                serde_json::json!({ "interval": id, "payload": payload })
+                    .to_string()
+                    .into_bytes(),
+            );
+            bus.handle_incoming(&msg);
         });
         Ok(id)
     }
