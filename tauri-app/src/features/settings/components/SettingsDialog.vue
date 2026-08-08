@@ -9,7 +9,7 @@
         <!-- Close Button -->
         <button
           @click="$emit('close')"
-          class="absolute top-4 right-4 z-[100] w-10 h-10 rounded-full bg-surface-variant/40 hover:bg-surface-variant/80 flex items-center justify-center transition-colors"
+          class="absolute top-4 right-4 z-40 w-10 h-10 rounded-full bg-surface-variant/40 hover:bg-surface-variant/80 flex items-center justify-center transition-colors"
         >
           <X class="w-5 h-5 text-on-surface" />
         </button>
