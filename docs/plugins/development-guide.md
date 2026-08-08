@@ -429,17 +429,16 @@ host->send_message(host->ctx,
 
 `plugins/examples/` 提供两个示例，覆盖核心能力
 
-### HTTP 测试器（wasm-http）：纯 WASM 网络示例（市场）
-- `http_request` 异步请求 https://api.github.com/zen，响应经 `http:response` 消息回传
-- `contains` 判断响应 JSON（ok/status），`notify` 系统通知 + `set_config` 持久化 lastCheck
-- `set_panel_icon` 🌐 + 面板轮询 `get_config` 显示上次结果
-- 完整 WAT 源码：`plugins/examples/wasm-http/http.wat`（编译见工具章节）
-
-### 音频状态监视器（native-audioinspector）：标准示例（市场）
+### 音频状态监视器（wasm-audioinspector）：纯 WASM 标准示例（市场）
+- `set_interval(2000)` 定时采样 `audio_state` + `connected_devices`
+- 宿主侧 scratch 缓冲区复用：高频采样不产生线性内存泄漏
+- `set_config` 持久化 audioState/devices，面板轮询 `get_config` 展示
+- `set_panel_icon` 📊 + 双语面板
+- 完整 WAT 源码：`plugins/examples/wasm-audioinspector/audioinspector.wat`
 - `set_interval` 每 2 秒采样 `audio_state` / `connected_devices`
 - `set_config` 持久化状态，面板轮询 `get_config` 实时显示
 - `set_panel_icon` 📊 + `locale` 本地化
-- 完整源码：`plugins/examples/native-audioinspector/`（MicYou-Plugins 市场的标准示例模板）
+- 完整源码：`plugins/examples/wasm-audioinspector/`（MicYou-Plugins 市场的标准示例模板）
 
 ### 音效板（native-soundpad）：按钮面板 + 专属设置页 + 快捷键 + 音频播放
 

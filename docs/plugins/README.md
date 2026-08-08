@@ -23,8 +23,7 @@ MicYou 插件系统允许第三方为桌面端与（未来）安卓端扩展能�
 | --- | --- | --- | --- |
 | native-soundpad | Native (cdylib) | 音效板：按钮面板 + 专属设置页 + 快捷键 + 音频播放 + 插件自主开窗 | `plugins/examples/native-soundpad/` |
 | wasm-voicechanger | WASM | 变声器（实时 DSP in wasmi）：专属设置页 + 配置热更新 | `plugins/examples/wasm-voicechanger/` |
-| native-audioinspector | native | 音频状态监视器（interval 采样 + 面板实时显示） | `plugins/examples/native-audioinspector/` |
-| wasm-http | WASM | HTTP 测试器（网络请求 + 通知 + 配置持久化） | `plugins/examples/wasm-http/` |
+| wasm-audioinspector | WASM | 音频状态监视器（interval 采样 + 面板实时显示） | `plugins/examples/wasm-audioinspector/` |
 
 ## Host API 能力总表
 

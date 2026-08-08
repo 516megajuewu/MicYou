@@ -18,6 +18,7 @@ use crate::host::PluginLogLevel;
 use crate::manifest::PluginManifest;
 use crate::plugin::{AudioFrameCtx, PluginEvent, PluginInstance, PluginRuntime, ProcessStatus};
 use std::path::Path;
+use std::sync::Mutex;
 use std::sync::Arc;
 use wasmi::{
     Config, Engine, Instance, Linker, Memory, Module, Store, TypedFunc, WasmParams, WasmResults,
@@ -33,6 +34,9 @@ pub const WASM_IMPORT_MODULE: &str = "micyou";
 pub struct WasmHostCtx {
     pub host: Arc<dyn HostApi>,
     pub capabilities: Vec<String>,
+    /// 宿主端复用缓冲区（audio_state / connected_devices 高频路径避免 bump 泄漏）
+    /// (ptr, capacity)；容量不足时重新分配（罕见，泄漏一次）
+    pub scratch: Mutex<Option<(i32, i32)>>,
 }
 
 impl WasmHostCtx {
@@ -107,6 +111,7 @@ impl WasmPlugin {
         let ctx = WasmHostCtx {
             host,
             capabilities: manifest.capabilities.clone(),
+            scratch: Mutex::new(None),
         };
         let mut store = Store::new(&engine, ctx);
 
@@ -556,7 +561,7 @@ fn register_host_functions(linker: &mut Linker<WasmHostCtx>) {
                 let memory = export_memory(&caller)?;
                 let json = serde_json::to_string(&caller.data().host.audio_state())
                     .map_err(|e| wasmi::Error::new(format!("serialize: {e}")))?;
-                let ptr = write_str_to_memory(&mut caller, &memory, &json)?;
+                let ptr = write_scratch(&mut caller, &memory, &json)?;
                 Ok(ptr)
             },
         )
@@ -653,7 +658,7 @@ fn register_host_functions(linker: &mut Linker<WasmHostCtx>) {
                 let memory = export_memory(&caller)?;
                 let json = serde_json::to_string(&caller.data().host.connected_devices())
                     .map_err(|e| wasmi::Error::new(format!("serialize: {e}")))?;
-                let ptr = write_str_to_memory(&mut caller, &memory, &json)?;
+                let ptr = write_scratch(&mut caller, &memory, &json)?;
                 Ok(ptr)
             },
         )
@@ -988,6 +993,55 @@ fn write_str_to_memory(
     let ptr = alloc
         .call(&mut *caller, (bytes.len() as i32 + 1,))
         .map_err(|e| wasmi::Error::new(format!("alloc call: {e}")))?;
+    memory
+        .write(&mut *caller, ptr as usize, bytes)
+        .map_err(|e| wasmi::Error::new(format!("write: {e}")))?;
+    memory
+        .write(&mut *caller, ptr as usize + bytes.len(), &[0u8])
+        .map_err(|e| wasmi::Error::new(format!("write NUL: {e}")))?;
+    Ok(ptr)
+}
+
+/// 复用宿主 scratch 缓冲区写字符串（一次性分配，之后原地覆盖）
+fn write_scratch(
+    caller: &mut wasmi::Caller<'_, WasmHostCtx>,
+    memory: &Memory,
+    text: &str,
+) -> Result<i32, wasmi::Error> {
+    let bytes = text.as_bytes();
+    let need = bytes.len() as i32 + 1;
+    // 短借用读取当前 scratch，随后释放锁再分配/写入
+    let current = {
+        let guard = caller
+            .data()
+            .scratch
+            .lock()
+            .map_err(|_| wasmi::Error::new("scratch poisoned"))?;
+        *guard
+    };
+    let (ptr, capacity) = match current {
+        Some((p, c)) if c >= need => (p, c),
+        _ => {
+            let cap = need.max(4096);
+            let alloc: TypedFunc<(i32,), i32> = caller
+                .get_export("alloc")
+                .and_then(|e| e.into_func())
+                .ok_or_else(|| wasmi::Error::new("alloc export missing"))?
+                .typed(&mut *caller)
+                .map_err(|e| wasmi::Error::new(format!("alloc typed: {e}")))?;
+            let p = alloc
+                .call(&mut *caller, (cap,))
+                .map_err(|e| wasmi::Error::new(format!("alloc call: {e}")))?;
+            (p, cap)
+        }
+    };
+    if current.map(|(p, _)| p != ptr).unwrap_or(true) {
+        *caller
+            .data()
+            .scratch
+            .lock()
+            .map_err(|_| wasmi::Error::new("scratch poisoned"))? = Some((ptr, capacity));
+    }
     memory
         .write(&mut *caller, ptr as usize, bytes)
         .map_err(|e| wasmi::Error::new(format!("write: {e}")))?;

@@ -11,12 +11,22 @@
           <h2 class="text-base font-semibold">{{ $t('plugins.marketTitle') }}</h2>
           <span class="text-xs text-on-surface-variant">MicYou-Plugins</span>
         </div>
-        <button
-          class="w-8 h-8 rounded-full hover:bg-surface-variant/40 flex items-center justify-center"
-          @click="emit('close')"
-        >
-          <X class="w-4 h-4" />
-        </button>
+        <div class="flex items-center gap-1">
+          <button
+            class="w-8 h-8 rounded-full hover:bg-surface-variant/40 flex items-center justify-center"
+            :title="$t('plugins.refresh')"
+            @click="load(); void refreshInstalled()"
+          >
+            <Loader2 v-if="isLoading" class="w-4 h-4 animate-spin text-on-surface-variant" />
+            <RefreshCw v-else class="w-4 h-4 text-on-surface-variant" />
+          </button>
+          <button
+            class="w-8 h-8 rounded-full hover:bg-surface-variant/40 flex items-center justify-center"
+            @click="emit('close')"
+          >
+            <X class="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       <!-- Body -->
@@ -56,8 +66,12 @@
               <div class="flex items-start justify-between gap-3">
                 <div class="min-w-0">
                   <div class="flex items-center gap-2 flex-wrap">
-                    <span class="font-semibold text-sm">{{ marketPluginName(plugin, locale) }}</span>
-                    <span class="text-xs px-2 py-0.5 rounded-full bg-primary/15 text-primary font-medium">
+                    <span class="font-semibold text-sm">{{
+                      marketPluginName(plugin, locale)
+                    }}</span>
+                    <span
+                      class="text-xs px-2 py-0.5 rounded-full bg-primary/15 text-primary font-medium"
+                    >
                       {{ plugin.version }}
                     </span>
                     <span
@@ -186,7 +200,7 @@
 import { ref, onMounted } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import { useI18n } from 'vue-i18n';
-import { Check, Loader2, Store, X } from '@lucide/vue';
+import { Check, Loader2, RefreshCw, Store, X } from '@lucide/vue';
 import { loadPluginCatalog, marketPluginName, type MarketPlugin } from '../market';
 import { usePlugins } from '../composables/usePlugins';
 

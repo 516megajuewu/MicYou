@@ -369,6 +369,7 @@ fn example_manifests_validate() {
     for (dir, id) in [
         ("plugins/examples/native-soundpad", "dev.micyou.example.soundpad"),
         ("plugins/examples/wasm-voicechanger", "dev.micyou.example.voicechanger"),
+        ("plugins/examples/wasm-audioinspector", "dev.micyou.example.audioinspector"),
     ] {
         let path = repo_root.join(dir).join("plugin.json");
         let text = std::fs::read_to_string(&path)
@@ -393,6 +394,17 @@ fn example_manifests_validate() {
                     .join(&panel.entry);
                 assert!(html.exists(), "panel html must ship with the plugin");
             }
+        }
+        if id == "dev.micyou.example.audioinspector" {
+            assert_eq!(
+                manifest.runtime,
+                micyou_plugin::manifest::RuntimeKind::Wasm,
+                "audioinspector demonstrates the WASM runtime in the market"
+            );
+            assert_eq!(manifest.kind, micyou_plugin::manifest::PluginKind::Utility);
+            let panels = manifest.ui.as_ref().expect("ui descriptor").panels.clone();
+            assert_eq!(panels.len(), 1);
+            assert_eq!(panels[0].id, "inspector");
         }
         if id == "dev.micyou.example.voicechanger" {
             // voicechanger is a WASM DSP plugin with a config page
