@@ -236,10 +236,13 @@ const WASM_PLUGIN_JSON: &str = r#"{
 
 const WASM_TEMPLATE_WAT: &str = r#";; MicYou WASM plugin template
 ;; Build: micyou plugin package <dir> (or compile with wat2wasm)
+;; Host API 一览见 docs/plugins/api-reference.md（WASM import 表）
 (module
   (import "micyou" "log" (func $log (param i32 i32)))
   (import "micyou" "get_config" (func $get_config (param i32 i32) (result i32)))
   (import "micyou" "set_config" (func $set_config (param i32 i32 i32) (result i32)))
+  ;; set_panel_icon：给设置-插件 侧边栏面板设置图标（文本/emoji）
+  (import "micyou" "set_panel_icon" (func $set_panel_icon (param i32 i32)))
   (memory (export "memory") 4)
   ;; bump allocator (heap starts after statics)
   (global $heap (mut i32) (i32.const 0x2000))
@@ -253,12 +256,17 @@ const WASM_TEMPLATE_WAT: &str = r#";; MicYou WASM plugin template
   (func (export "api_version") (result i32) (i32.const 1))
   (func (export "init") (result i32)
     (i32.store (i32.const 0) (i32.const 0))
+    (call $set_panel_icon (i32.const 0x100) (i32.const 0x108))
     (i32.const 0))
   (func (export "process") (param $data i32) (param $samples i32) (param $channels i32) (param $queued f64) (result i32)
+    ;; 返回 0 = 已处理，返回 1 = 直通（bypass）
     (i32.const 0))
   (func (export "handle_message") (param $ptr i32) (param $len i32) (result i32)
     (i32.const 0))
   (func (export "deinit"))
+  ;; static data: panel id "control\0" + icon "🧩\0"（UTF-8）
+  (data (i32.const 0x100) "control\00")
+  (data (i32.const 0x108) "\f0\9f\a7\a9\00")
 )
 "#;
 

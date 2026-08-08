@@ -573,6 +573,7 @@
     "cancel": "罷之",
     "search": "搜插件",
     "uninstallConfirm": "欲卸 {name} 乎？",
-    "marketSearch": "搜插件坊"
+    "marketSearch": "搜插件坊",
+    "marketAll": "諸類"
   }
 }

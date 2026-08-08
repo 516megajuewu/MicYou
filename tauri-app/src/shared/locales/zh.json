@@ -575,6 +575,7 @@
     "cancel": "取消",
     "search": "搜索插件",
     "uninstallConfirm": "确定卸载 {name}？",
-    "marketSearch": "搜索插件市场"
+    "marketSearch": "搜索插件市场",
+    "marketAll": "全部"
   }
 }

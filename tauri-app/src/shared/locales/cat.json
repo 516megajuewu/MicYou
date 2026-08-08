@@ -573,6 +573,7 @@
     "cancel": "取消喵",
     "search": "搜喵插件",
     "uninstallConfirm": "卸載 {name} 喵？",
-    "marketSearch": "搜喵插件商店"
+    "marketSearch": "搜喵插件商店",
+    "marketAll": "全喵"
   }
 }

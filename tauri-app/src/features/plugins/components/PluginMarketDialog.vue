@@ -34,14 +34,32 @@
 
       <!-- Body -->
       <div class="flex-1 overflow-y-auto p-4 space-y-3">
-        <div v-if="!isLoading && !loadError && catalog.plugins.length" class="relative">
-          <Search class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant/60" />
-          <input
-            v-model="marketQuery"
-            type="text"
-            :placeholder="$t('plugins.marketSearch')"
-            class="w-full h-10 pl-9 pr-3 rounded-full bg-surface-variant/20 text-sm text-on-surface outline-none placeholder:text-on-surface-variant/60 focus:ring-1 focus:ring-primary/40"
-          />
+        <div v-if="!isLoading && !loadError && catalog.plugins.length" class="space-y-3">
+          <div class="relative">
+            <Search class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant/60" />
+            <input
+              v-model="marketQuery"
+              type="text"
+              :placeholder="$t('plugins.marketSearch')"
+              class="w-full h-10 pl-9 pr-3 rounded-full bg-surface-variant/20 text-sm text-on-surface outline-none placeholder:text-on-surface-variant/60 focus:ring-1 focus:ring-primary/40"
+            />
+          </div>
+          <!-- Kind filter tabs -->
+          <div class="flex flex-wrap gap-1.5">
+            <button
+              v-for="k in ['all', 'dsp', 'utility', 'ui']"
+              :key="k"
+              class="px-3 py-1 rounded-full text-xs font-medium transition-colors duration-150 active:scale-95"
+              :class="
+                kindFilter === k
+                  ? 'bg-primary/20 text-primary'
+                  : 'bg-surface-variant/30 text-on-surface-variant/80 hover:bg-surface-variant/50'
+              "
+              @click="kindFilter = k"
+            >
+              {{ k === 'all' ? $t('plugins.marketAll') : $t('plugins.kind.' + k) }}
+            </button>
+          </div>
         </div>
         <p v-if="loadError" class="text-sm text-error px-2 py-2">
           {{ $t('plugins.marketFailed', { error: loadError }) }}
@@ -254,15 +272,18 @@ const pluginsState = usePlugins();
 
 const catalog = ref<{ plugins: MarketPlugin[] }>({ plugins: [] });
 const marketQuery = ref('');
+const kindFilter = ref<string>('all');
 const filteredCatalog = computed(() => {
   const q = marketQuery.value.trim().toLowerCase();
-  if (!q) return catalog.value.plugins;
-  return catalog.value.plugins.filter(
-    (pl) =>
+  return catalog.value.plugins.filter((pl) => {
+    if (kindFilter.value !== 'all' && pl.kind !== kindFilter.value) return false;
+    if (!q) return true;
+    return (
       pl.name.toLowerCase().includes(q) ||
       pl.id.toLowerCase().includes(q) ||
-      (pl.description ?? '').toLowerCase().includes(q),
-  );
+      (pl.description ?? '').toLowerCase().includes(q)
+    );
+  });
 });
 const isLoading = ref(false);
 const loadError = ref<string | null>(null);

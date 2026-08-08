@@ -574,6 +574,7 @@
     "cancel": "算了",
     "search": "搜铁插件",
     "uninstallConfirm": "真卸 {name}？",
-    "marketSearch": "搜铁插件商店"
+    "marketSearch": "搜铁插件商店",
+    "marketAll": "全铁"
   }
 }

@@ -575,6 +575,7 @@
     "cancel": "Cancel",
     "search": "Search plugins",
     "uninstallConfirm": "Uninstall {name}?",
-    "marketSearch": "Search plugin market"
+    "marketSearch": "Search plugin market",
+    "marketAll": "All"
   }
 }

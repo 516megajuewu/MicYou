@@ -573,6 +573,7 @@
     "cancel": "取消",
     "search": "搜尋外掛程式",
     "uninstallConfirm": "確定卸載 {name}？",
-    "marketSearch": "搜尋外掛程式商店"
+    "marketSearch": "搜尋外掛程式商店",
+    "marketAll": "全部"
   }
 }

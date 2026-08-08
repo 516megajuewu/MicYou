@@ -40,7 +40,11 @@ async function loadUiConfigs() {
   const next: Record<string, Record<string, unknown>> = {};
   for (const plugin of p.plugins.value) {
     if (plugin.ui?.route === 'buttons' && plugin.loaded) {
-      next[plugin.id] = await p.getConfig(plugin);
+      try {
+        next[plugin.id] = await p.getConfig(plugin);
+      } catch {
+        // 单个插件配置读取失败不影响其他按钮面板
+      }
     }
   }
   uiConfigs.value = next;
@@ -273,7 +277,7 @@ async function applyUpdate(id: string) {
               </span>
             </div>
             <p class="text-xs text-on-surface-variant mt-1 font-mono">
-              {{ plugin.id }} · v{{ plugin.version }}
+              {{ plugin.id }} · v{{ plugin.version }}<template v-if="plugin.author"> · {{ plugin.author }}</template>
             </p>
             <p
               v-if="plugin.description"

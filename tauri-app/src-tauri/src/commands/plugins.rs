@@ -603,11 +603,11 @@ pub fn install_plugin_from_url(
     let bytes = client
         .get(&zip_url)
         .send()
-        .map_err(|e| format!("download zip: {e}"))?
+        .map_err(|e| format!("下载插件失败：{e}"))?
         .error_for_status()
-        .map_err(|e| format!("download zip: {e}"))?
+        .map_err(|e| format!("下载插件失败（清单可能已过期，请刷新市场后重试）：{e}"))?
         .bytes()
-        .map_err(|e| format!("read zip: {e}"))?;
+        .map_err(|e| format!("读取插件包失败：{e}"))?;
     // 临时文件下载，随后走标准 zip 导入（含路径穿越防护）
     let tmp = std::env::temp_dir().join(format!("micyou-market-{}.zip", std::process::id()));
     std::fs::write(&tmp, &bytes).map_err(|e| format!("write temp zip: {e}"))?;
