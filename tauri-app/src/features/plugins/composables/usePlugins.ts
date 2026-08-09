@@ -209,13 +209,25 @@ export function usePlugins() {
         filters: [{ name: 'MicYou plugin', extensions: ['zip'] }],
       });
       if (!picked) return false; // 用户取消
-      const path = String(picked);
-      // Step 1: show the permission prompt (capabilities, author, license)
-      const preview: PluginPreview = await previewPlugin(path);
-      const confirmed = window.confirm(
-        `安装插件？\n\n名称: ${preview.name} (${preview.id})\n版本: ${preview.version}${preview.author ? `\n作者: ${preview.author}` : ''}${preview.license ? `\n许可: ${preview.license}` : ''}\n类型: ${preview.runtime}\n\n请求的能力:\n${preview.capabilities.length ? preview.capabilities.map((c: string) => `  · ${c}`).join('\n') : '  (无)'}\n\n⚠ 请确认来源可信后安装（插件可获得所声明的能力）`,
-      );
-      if (!confirmed) return false;
+      return await importFromPath(String(picked));
+    } catch (e) {
+      error.value = String(e);
+      return false;
+    }
+  }
+
+  /** 按路径导入插件（.zip 或插件目录）。zip 先权限预览确认；目录直接导入（后端会校验 manifest）。 */
+  async function importFromPath(path: string): Promise<boolean> {
+    try {
+      const isZip = /\.zip$/i.test(path);
+      if (isZip) {
+        // 权限预览：名称/作者/许可/请求的能力
+        const preview: PluginPreview = await previewPlugin(path);
+        const confirmed = window.confirm(
+          `安装插件？\n\n名称: ${preview.name} (${preview.id})\n版本: ${preview.version}${preview.author ? `\n作者: ${preview.author}` : ''}${preview.license ? `\n许可: ${preview.license}` : ''}\n类型: ${preview.runtime}\n\n请求的能力:\n${preview.capabilities.length ? preview.capabilities.map((c: string) => `  · ${c}`).join('\n') : '  (无)'}\n\n⚠ 请确认来源可信后安装（插件可获得所声明的能力）`,
+        );
+        if (!confirmed) return false;
+      }
       busyId.value = 'import';
       error.value = null;
       await invoke('import_plugin', { source: path });
@@ -245,6 +257,7 @@ export function usePlugins() {
     openDir,
     previewPlugin,
     importPlugin,
+    importFromPath,
     checkUpdates,
     updatePlugin,
   };
