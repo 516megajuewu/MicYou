@@ -10,6 +10,9 @@ members = [
   "crates/micyou-tui",
 ]
 
+[patch.crates-io]
+opus-decoder = { git = "https://github.com/tfr0305/Rusopus.git", branch = "master" }
+
 [workspace.package]
 version = "2.0.0"
 authors = ["LanRhyme"]
