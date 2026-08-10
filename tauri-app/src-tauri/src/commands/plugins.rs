@@ -311,7 +311,7 @@ pub fn get_plugin_panel(
 #[tauri::command]
 pub fn plugin_trigger(
     state: State<'_, ServerState>,
-    pluginId: String,
+    plugin_id: String,
     action: String,
     payload: Option<String>,
 ) -> Result<(), String> {
@@ -319,7 +319,7 @@ pub fn plugin_trigger(
     let bytes = payload.unwrap_or_default().into_bytes();
     state
         .plugins
-        .trigger(&pluginId, &action, &bytes)
+        .trigger(&plugin_id, &action, &bytes)
         .map_err(|e| e.to_string())
 }
 
