@@ -5,7 +5,7 @@
       {
         "title": "MicYou",
         "decorations": false,
-        "resizable": true,
+        "resizable": false,
         "transparent": false,
         "shadow": false,
         "backgroundColor": "#e8eaee"
