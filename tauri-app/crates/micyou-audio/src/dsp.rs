@@ -15,6 +15,9 @@ use rustfft::num_complex::Complex;
 #[cfg(feature = "noise-suppression")]
 use crate::AecFailure;
 
+/// Host-provided DSP stage invoked at the synthetic plugin chain node.
+pub type ExternalDspHook = Box<dyn FnMut(&mut Vec<f32>, usize, f64) + Send>;
+
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EqualizerConfig {
@@ -1054,7 +1057,7 @@ pub struct DspProcessor {
     /// Invoked when the processing chain reaches the synthetic `"Plugins"`
     /// node. Kept as a closure so `micyou-audio` stays independent of the
     /// plugin crate (no dependency cycle).
-    external_hook: Option<Box<dyn FnMut(&mut Vec<f32>, usize, f64) + Send>>,
+    external_hook: Option<ExternalDspHook>,
 }
 
 /// Synthetic processing-chain node name that invokes the external plugin DSP
@@ -1116,10 +1119,7 @@ impl DspProcessor {
     }
 
     /// Attach the external plugin DSP stage (see `PLUGIN_CHAIN_NODE`).
-    pub fn set_external_hook(
-        &mut self,
-        hook: Option<Box<dyn FnMut(&mut Vec<f32>, usize, f64) + Send>>,
-    ) {
+    pub fn set_external_hook(&mut self, hook: Option<ExternalDspHook>) {
         self.external_hook = hook;
     }
 

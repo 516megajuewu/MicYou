@@ -488,7 +488,7 @@ impl PluginHost {
 
     /// Build the external DSP hook for `DspProcessor`. Cheap no-op when no
     /// DSP plugin is registered (see `PluginDspBridge::hook`).
-    pub fn dsp_hook(&self) -> Option<Box<dyn FnMut(&mut Vec<f32>, usize, f64) + Send>> {
+    pub fn dsp_hook(&self) -> Option<micyou_audio::dsp::ExternalDspHook> {
         let bridge = micyou_plugin::PluginDspBridge::new(self.dsp_registry.clone());
         Some(bridge.hook())
     }

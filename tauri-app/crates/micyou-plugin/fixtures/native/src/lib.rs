@@ -113,7 +113,7 @@ pub unsafe extern "C" fn micyou_plugin_init(host: *const mpl_host_api_t) -> mpl_
             ((*host).log)(
                 (*host).ctx,
                 mpl_log_level_t::MPL_LOG_INFO,
-                b"native_minimal initialized\0".as_ptr() as *const c_char,
+                c"native_minimal initialized".as_ptr(),
             );
         }
         mpl_result_t::MPL_OK
@@ -130,7 +130,7 @@ pub unsafe extern "C" fn micyou_plugin_deinit() {
             (host.log)(
                 host.ctx,
                 mpl_log_level_t::MPL_LOG_INFO,
-                b"native_minimal deinitialized\0".as_ptr() as *const c_char,
+                c"native_minimal deinitialized".as_ptr(),
             );
         }
     }
