@@ -6,9 +6,9 @@
         "title": "MicYou",
         "decorations": false,
         "resizable": false,
-        "transparent": false,
+        "transparent": true,
         "shadow": false,
-        "backgroundColor": "#e8eaee"
+        "backgroundColor": "#00000000"
       }
     ]
   }
