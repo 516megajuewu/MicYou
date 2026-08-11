@@ -13,14 +13,14 @@ jobs:
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
     - name: Read Version
       id: version
       run: |
         VERSION=$(grep "^project.version=" gradle.properties | cut -d'=' -f2 | tr -d '\r')
         echo "version=$VERSION" >> $GITHUB_OUTPUT
     - name: set up JDK 21
-      uses: actions/setup-java@v4
+      uses: actions/setup-java@v5
       with:
         java-version: '21'
         distribution: 'liberica'
@@ -51,7 +51,7 @@ jobs:
         fi
         cp "$APK" "ci-artifacts/MicYou-Android-${{ steps.version.outputs.version }}.apk"
     - name: Upload Android Artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: MicYou-Android-${{ steps.version.outputs.version }}
         path: ci-artifacts/MicYou-Android-${{ steps.version.outputs.version }}.apk
@@ -61,7 +61,7 @@ jobs:
   build-tauri-windows:
     runs-on: windows-latest
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
     - name: Read Version
       id: version
       shell: pwsh
@@ -70,7 +70,7 @@ jobs:
         $version = $line.Split('=')[1].Trim()
         "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
     - name: Setup Node.js
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@v7
       with:
         node-version: '22'
         cache: npm
@@ -116,7 +116,7 @@ jobs:
         }
         Copy-Item $installer.FullName "ci-artifacts/MicYou-Win-$version-installer.exe" -Force
     - name: Upload Artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: MicYou-Win-${{ steps.version.outputs.version }}
         path: ci-artifacts/MicYou-Win-${{ steps.version.outputs.version }}-installer.exe
@@ -133,14 +133,14 @@ jobs:
             target: aarch64-apple-darwin
     runs-on: ${{ matrix.runner }}
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
     - name: Read Version
       id: version
       run: |
         VERSION=$(grep "^project.version=" gradle.properties | cut -d'=' -f2 | tr -d '\r')
         echo "version=$VERSION" >> $GITHUB_OUTPUT
     - name: Setup Node.js
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@v7
       with:
         node-version: '22'
         cache: npm
@@ -176,7 +176,7 @@ jobs:
         fi
         cp "${dmg_files[0]}" "ci-artifacts/MicYou-macOS-${{ steps.version.outputs.version }}-${{ matrix.arch }}.dmg"
     - name: Upload Artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: MicYou-macOS-${{ matrix.arch }}-${{ steps.version.outputs.version }}
         path: ci-artifacts/MicYou-macOS-${{ steps.version.outputs.version }}-${{ matrix.arch }}.dmg
@@ -186,14 +186,14 @@ jobs:
   build-tauri-linux:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
     - name: Read Version
       id: version
       run: |
         VERSION=$(grep "^project.version=" gradle.properties | cut -d'=' -f2 | tr -d '\r')
         echo "version=$VERSION" >> $GITHUB_OUTPUT
     - name: Setup Node.js
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@v7
       with:
         node-version: '22'
         cache: npm
@@ -242,19 +242,19 @@ jobs:
         cp "${rpm_files[0]}" "ci-artifacts/MicYou-Linux-$VER.rpm"
         cp "${appimage_files[0]}" "ci-artifacts/MicYou-Linux-$VER.AppImage"
     - name: Upload DEB Artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: MicYou-Linux-${{ steps.version.outputs.version }}-deb
         path: ci-artifacts/MicYou-Linux-${{ steps.version.outputs.version }}.deb
         if-no-files-found: error
     - name: Upload RPM Artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: MicYou-Linux-${{ steps.version.outputs.version }}-rpm
         path: ci-artifacts/MicYou-Linux-${{ steps.version.outputs.version }}.rpm
         if-no-files-found: error
     - name: Upload AppImage Artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: MicYou-Linux-${{ steps.version.outputs.version }}-appimage
         path: ci-artifacts/MicYou-Linux-${{ steps.version.outputs.version }}.AppImage
