@@ -28,7 +28,6 @@ impl Channels {
 
 pub struct Decoder {
     raw: opus_decoder::OpusDecoder,
-    channels: usize,
 }
 
 impl Decoder {
@@ -38,10 +37,7 @@ impl Decoder {
         let channel_count = channels.as_usize();
         let raw = opus_decoder::OpusDecoder::new(sample_rate, channel_count)
             .map_err(|e| format!("Failed to create Opus decoder: {}", e))?;
-        Ok(Decoder {
-            raw,
-            channels: channel_count,
-        })
+        Ok(Decoder { raw })
     }
 
     /// Decode one Opus packet into interleaved f32 samples. `output` must be
