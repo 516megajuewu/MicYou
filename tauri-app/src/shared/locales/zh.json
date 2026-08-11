@@ -325,6 +325,7 @@
       "author": "作者：{author}",
       "version": "版本 {version}",
       "repository": "查看源码",
+      "contribute": "贡献主题",
       "install": "下载安装",
       "installing": "正在安装...",
       "installed": "已安装",
@@ -578,6 +579,7 @@
     "search": "搜索插件",
     "uninstallConfirm": "确定卸载 {name}？",
     "marketSearch": "搜索插件市场",
-    "marketAll": "全部"
+    "marketAll": "全部",
+    "marketContribute": "贡献插件"
   }
 }

@@ -8,6 +8,7 @@ export const THEME_CATALOG_INDEX_FILE = 'index.json';
 export const THEME_CATALOG_REPOSITORY_URL = 'https://github.com/MicYou-Dev/MicYou-Themes';
 export const THEME_CATALOG_BASE_URL = 'https://raw.githubusercontent.com/MicYou-Dev/MicYou-Themes/main';
 export const THEME_CATALOG_INDEX_URL = `${THEME_CATALOG_BASE_URL}/${THEME_CATALOG_INDEX_FILE}`;
+export const THEME_CONTRIBUTING_URL = `${THEME_CATALOG_REPOSITORY_URL}/blob/main/CONTRIBUTING.md`;
 
 export const emptyThemeCatalog: ThemeCatalogIndex = {
   version: 1,

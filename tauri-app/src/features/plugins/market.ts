@@ -31,6 +31,8 @@ export interface PluginCatalog {
 
 export const PLUGIN_MARKET_INDEX_URL =
   'https://micyou-dev.github.io/MicYou-Plugins/index.json';
+export const PLUGIN_CONTRIBUTING_URL =
+  'https://github.com/MicYou-Dev/MicYou-Plugins/blob/main/CONTRIBUTING.md';
 
 export const emptyPluginCatalog: PluginCatalog = { plugins: [] };
 

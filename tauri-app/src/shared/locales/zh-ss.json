@@ -323,6 +323,7 @@
       "author": "作者：{author}",
       "version": "版本 {version}",
       "repository": "查看源码",
+      "contribute": "贡献主题",
       "install": "下载安装",
       "installing": "正在安装...",
       "installed": "已安装",
@@ -577,6 +578,7 @@
     "search": "搜铁插件",
     "uninstallConfirm": "真卸 {name}？",
     "marketSearch": "搜铁插件商店",
-    "marketAll": "全铁"
+    "marketAll": "全铁",
+    "marketContribute": "贡献铁插件"
   }
 }

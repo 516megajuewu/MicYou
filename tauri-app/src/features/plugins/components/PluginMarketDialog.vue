@@ -16,6 +16,14 @@
         </div>
         <div class="flex items-center gap-1">
           <button
+            class="inline-flex h-8 items-center gap-1.5 rounded-full bg-primary/10 px-3 text-xs font-medium text-primary transition-colors hover:bg-primary/20"
+            :title="$t('plugins.marketContribute')"
+            @click="openContributionGuide"
+          >
+            <GitPullRequest class="h-3.5 w-3.5" />
+            <span>{{ $t('plugins.marketContribute') }}</span>
+          </button>
+          <button
             class="w-8 h-8 rounded-full hover:bg-surface-variant/40 flex items-center justify-center"
             :title="$t('plugins.refresh')"
             @click="load(); void refreshInstalled()"
@@ -259,9 +267,15 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
+import { openUrl } from '@tauri-apps/plugin-opener';
 import { useI18n } from 'vue-i18n';
-import { Check, Loader2, RefreshCw, Search, Store, X } from '@lucide/vue';
-import { loadPluginCatalog, marketPluginName, type MarketPlugin } from '../market';
+import { Check, GitPullRequest, Loader2, RefreshCw, Search, Store, X } from '@lucide/vue';
+import {
+  loadPluginCatalog,
+  marketPluginName,
+  PLUGIN_CONTRIBUTING_URL,
+  type MarketPlugin,
+} from '../market';
 import { usePlugins } from '../composables/usePlugins';
 
 defineProps<{ isOpen: boolean }>();
@@ -291,6 +305,7 @@ const installedIds = ref<string[]>([]);
 const installingId = ref<string | null>(null);
 const confirmingId = ref<string | null>(null);
 const preview = ref<{ capabilities: string[] } | null>(null);
+const openContributionGuide = () => void openUrl(PLUGIN_CONTRIBUTING_URL);
 
 interface PluginPreview {
   id: string;

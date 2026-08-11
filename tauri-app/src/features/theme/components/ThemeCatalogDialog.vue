@@ -13,13 +13,23 @@
               {{ $t('dialogs.themeCatalog.count', { count: themes.length }) }}
             </p>
           </div>
-          <button
-            class="rounded-full p-2 text-on-surface-variant transition-colors hover:bg-surface-variant/50 hover:text-on-surface"
-            :aria-label="$t('dialogs.close')"
-            @click="close"
-          >
-            <X class="h-5 w-5" />
-          </button>
+          <div class="flex items-center gap-2">
+            <button
+              class="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3.5 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/20"
+              :title="$t('dialogs.themeCatalog.contribute')"
+              @click="openContributionGuide"
+            >
+              <GitPullRequest class="h-4 w-4" />
+              <span>{{ $t('dialogs.themeCatalog.contribute') }}</span>
+            </button>
+            <button
+              class="rounded-full p-2 text-on-surface-variant transition-colors hover:bg-surface-variant/50 hover:text-on-surface"
+              :aria-label="$t('dialogs.close')"
+              @click="close"
+            >
+              <X class="h-5 w-5" />
+            </button>
+          </div>
         </header>
 
         <div class="settings-scrollbar min-h-0 flex-1 overflow-y-auto p-6">
@@ -130,12 +140,14 @@
 
 <script setup lang="ts">
 import { ref, watch } from 'vue';
-import { Loader2, Palette, X } from '@lucide/vue';
+import { GitPullRequest, Loader2, Palette, X } from '@lucide/vue';
 import { invoke } from '@tauri-apps/api/core';
+import { openUrl } from '@tauri-apps/plugin-opener';
 import {
   downloadThemePackage,
   githubThemeCatalogProvider,
   resolveThemeAssetUrl,
+  THEME_CONTRIBUTING_URL,
   themeRepositoryUrl,
 } from '../catalog';
 import { activateInstalledTheme, clearInstalledTheme } from '../composables/useTheme';
@@ -253,6 +265,7 @@ const markPreviewFailed = (themeId: string) => {
 };
 
 const close = () => emit('close');
+const openContributionGuide = () => void openUrl(THEME_CONTRIBUTING_URL);
 
 watch(() => props.isOpen, (isOpen) => {
   if (isOpen) {

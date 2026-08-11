@@ -325,6 +325,7 @@
       "author": "By {author}",
       "version": "Version {version}",
       "repository": "View source",
+      "contribute": "Contribute theme",
       "install": "Install",
       "installing": "Installing...",
       "installed": "Installed",
@@ -578,6 +579,7 @@
     "search": "Search plugins",
     "uninstallConfirm": "Uninstall {name}?",
     "marketSearch": "Search plugin market",
-    "marketAll": "All"
+    "marketAll": "All",
+    "marketContribute": "Contribute plugin"
   }
 }
