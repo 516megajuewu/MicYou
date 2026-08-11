@@ -18,8 +18,8 @@ use crate::host::PluginLogLevel;
 use crate::manifest::PluginManifest;
 use crate::plugin::{AudioFrameCtx, PluginEvent, PluginInstance, PluginRuntime, ProcessStatus};
 use std::path::Path;
-use std::sync::Mutex;
 use std::sync::Arc;
+use std::sync::Mutex;
 use wasmi::{
     Config, Engine, Instance, Linker, Memory, Module, Store, TypedFunc, WasmParams, WasmResults,
 };
@@ -601,12 +601,17 @@ fn register_host_functions(linker: &mut Linker<WasmHostCtx>) {
              -> Result<i64, wasmi::Error> {
                 let memory = export_memory(&caller)?;
                 let shortcut = read_str_from_memory(&mut caller, &memory, shortcut_ptr)?;
-                let id = caller
-                    .data()
-                    .host
-                    .register_hotkey(&shortcut)
-                    .map_err(|e| wasmi::Error::new(e.to_string()))?;
-                Ok(id as i64)
+                let id = match caller.data().host.register_hotkey(&shortcut) {
+                    Ok(id) => id as i64,
+                    Err(e) => {
+                        caller.data().host.log(
+                            PluginLogLevel::Warn,
+                            &format!("register_hotkey failed ({shortcut}): {e}"),
+                        );
+                        0
+                    }
+                };
+                Ok(id)
             },
         )
         .unwrap();
@@ -669,7 +674,9 @@ fn register_host_functions(linker: &mut Linker<WasmHostCtx>) {
         .func_wrap(
             WASM_IMPORT_MODULE,
             "fs_read",
-            |mut caller: wasmi::Caller<'_, WasmHostCtx>, path_ptr: i32| -> Result<i32, wasmi::Error> {
+            |mut caller: wasmi::Caller<'_, WasmHostCtx>,
+             path_ptr: i32|
+             -> Result<i32, wasmi::Error> {
                 caller
                     .data()
                     .require(crate::manifest::capabilities::FS_READ)
@@ -691,7 +698,10 @@ fn register_host_functions(linker: &mut Linker<WasmHostCtx>) {
         .func_wrap(
             WASM_IMPORT_MODULE,
             "fs_write",
-            |mut caller: wasmi::Caller<'_, WasmHostCtx>, path_ptr: i32, content_ptr: i32| -> Result<(), wasmi::Error> {
+            |mut caller: wasmi::Caller<'_, WasmHostCtx>,
+             path_ptr: i32,
+             content_ptr: i32|
+             -> Result<(), wasmi::Error> {
                 caller
                     .data()
                     .require(crate::manifest::capabilities::FS_WRITE)
@@ -713,7 +723,10 @@ fn register_host_functions(linker: &mut Linker<WasmHostCtx>) {
         .func_wrap(
             WASM_IMPORT_MODULE,
             "set_timeout",
-            |mut caller: wasmi::Caller<'_, WasmHostCtx>, ms: i64, payload_ptr: i32| -> Result<i64, wasmi::Error> {
+            |mut caller: wasmi::Caller<'_, WasmHostCtx>,
+             ms: i64,
+             payload_ptr: i32|
+             -> Result<i64, wasmi::Error> {
                 let memory = export_memory(&caller)?;
                 let payload = read_str_from_memory(&mut caller, &memory, payload_ptr)?;
                 let id = caller
@@ -776,7 +789,10 @@ fn register_host_functions(linker: &mut Linker<WasmHostCtx>) {
         .func_wrap(
             WASM_IMPORT_MODULE,
             "set_interval",
-            |mut caller: wasmi::Caller<'_, WasmHostCtx>, ms: i64, payload_ptr: i32| -> Result<i64, wasmi::Error> {
+            |mut caller: wasmi::Caller<'_, WasmHostCtx>,
+             ms: i64,
+             payload_ptr: i32|
+             -> Result<i64, wasmi::Error> {
                 let memory = export_memory(&caller)?;
                 let payload = read_str_from_memory(&mut caller, &memory, payload_ptr)?;
                 let id = caller
@@ -809,7 +825,9 @@ fn register_host_functions(linker: &mut Linker<WasmHostCtx>) {
         .func_wrap(
             WASM_IMPORT_MODULE,
             "open_url",
-            |mut caller: wasmi::Caller<'_, WasmHostCtx>, url_ptr: i32| -> Result<(), wasmi::Error> {
+            |mut caller: wasmi::Caller<'_, WasmHostCtx>,
+             url_ptr: i32|
+             -> Result<(), wasmi::Error> {
                 caller
                     .data()
                     .require(crate::manifest::capabilities::OPEN_URL)
@@ -830,7 +848,10 @@ fn register_host_functions(linker: &mut Linker<WasmHostCtx>) {
         .func_wrap(
             WASM_IMPORT_MODULE,
             "notify",
-            |mut caller: wasmi::Caller<'_, WasmHostCtx>, title_ptr: i32, body_ptr: i32| -> Result<(), wasmi::Error> {
+            |mut caller: wasmi::Caller<'_, WasmHostCtx>,
+             title_ptr: i32,
+             body_ptr: i32|
+             -> Result<(), wasmi::Error> {
                 let memory = export_memory(&caller)?;
                 let title = read_str_from_memory(&mut caller, &memory, title_ptr)?;
                 let body = read_str_from_memory(&mut caller, &memory, body_ptr)?;
@@ -895,7 +916,10 @@ fn register_host_functions(linker: &mut Linker<WasmHostCtx>) {
         .func_wrap(
             WASM_IMPORT_MODULE,
             "set_panel_icon",
-            |mut caller: wasmi::Caller<'_, WasmHostCtx>, panel_id_ptr: i32, icon_ptr: i32| -> Result<(), wasmi::Error> {
+            |mut caller: wasmi::Caller<'_, WasmHostCtx>,
+             panel_id_ptr: i32,
+             icon_ptr: i32|
+             -> Result<(), wasmi::Error> {
                 let memory = export_memory(&caller)?;
                 let panel_id = read_str_from_memory(&mut caller, &memory, panel_id_ptr)?;
                 let icon = read_str_from_memory(&mut caller, &memory, icon_ptr)?;
@@ -913,7 +937,9 @@ fn register_host_functions(linker: &mut Linker<WasmHostCtx>) {
         .func_wrap(
             WASM_IMPORT_MODULE,
             "clipboard_write",
-            |mut caller: wasmi::Caller<'_, WasmHostCtx>, text_ptr: i32| -> Result<(), wasmi::Error> {
+            |mut caller: wasmi::Caller<'_, WasmHostCtx>,
+             text_ptr: i32|
+             -> Result<(), wasmi::Error> {
                 caller
                     .data()
                     .require(crate::manifest::capabilities::CLIPBOARD_WRITE)

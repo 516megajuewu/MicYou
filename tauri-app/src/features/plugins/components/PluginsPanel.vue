@@ -2,7 +2,8 @@
 import { useI18n } from 'vue-i18n';
 import PluginDetailsDialog from './PluginDetailsDialog.vue';
 import PluginMarketDialog from './PluginMarketDialog.vue';
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
+import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import {
   RefreshCw,
   Puzzle,
@@ -29,8 +30,34 @@ function displayName(plugin: { name: string; nameI18n?: Record<string, string> }
   if (plugin.nameI18n && plugin.nameI18n[base]) return plugin.nameI18n[base];
   return plugin.name;
 }
-onMounted(() => {
+const dragOver = ref(false);
+let unlistenDragDrop: (() => void) | null = null;
+
+onMounted(async () => {
   p.refresh();
+  // 拖拽插件文件夹 / .zip 上传（对应文案「把插件文件夹或 .zip 放进来」）
+  try {
+    const win = getCurrentWebviewWindow();
+    unlistenDragDrop = await win.onDragDropEvent((event) => {
+      const type = event.payload.type;
+      if (type === 'enter' || type === 'over') {
+        dragOver.value = true;
+      } else if (type === 'leave') {
+        dragOver.value = false;
+      } else if (type === 'drop') {
+        dragOver.value = false;
+        for (const path of event.payload.paths) {
+          void p.importFromPath(path);
+        }
+      }
+    });
+  } catch (e) {
+    console.error('Failed to listen drag-drop:', e);
+  }
+});
+
+onUnmounted(() => {
+  unlistenDragDrop?.();
 });
 
 const uiConfigs = ref<Record<string, Record<string, unknown>>>({});
@@ -115,11 +142,17 @@ async function applyUpdate(id: string) {
     updates.value = updates.value.filter((u) => u.id !== id);
   }
 }
-
 </script>
 
 <template>
-  <div class="space-y-4">
+  <div class="space-y-4 relative" :class="dragOver ? 'ring-2 ring-primary/60 rounded-xl' : ''">
+    <!-- 拖拽悬停提示：把插件文件夹或 .zip 放进来 -->
+    <div
+      v-if="dragOver"
+      class="absolute inset-0 z-20 rounded-xl bg-primary/10 backdrop-blur-sm border-2 border-dashed border-primary flex items-center justify-center pointer-events-none"
+    >
+      <span class="text-sm font-bold text-primary">{{ $t('plugins.installHint') }}</span>
+    </div>
     <!-- Toolbar -->
     <div class="flex items-center justify-end">
       <div class="flex items-center gap-2">
@@ -189,15 +222,15 @@ async function applyUpdate(id: string) {
         class="mt-3 rounded-lg border border-sky-500/30 bg-sky-500/10 px-4 py-3 text-xs text-sky-300 space-y-2"
       >
         <div v-for="u in updates" :key="u.id" class="flex items-center justify-between gap-3">
-          <span>
-            {{ u.id }}: {{ u.currentVersion }} → {{ u.latestVersion }}
-          </span>
+          <span> {{ u.id }}: {{ u.currentVersion }} → {{ u.latestVersion }} </span>
           <button
             @click="applyUpdate(u.id)"
             :disabled="p.busyId.value === u.id + ':update'"
             class="px-3 py-1 rounded-full bg-sky-500/20 hover:bg-sky-500/30 text-sky-200 text-xs font-medium disabled:opacity-50"
           >
-            {{ p.busyId.value === u.id + ':update' ? $t('plugins.updating') : $t('plugins.updateNow') }}
+            {{
+              p.busyId.value === u.id + ':update' ? $t('plugins.updating') : $t('plugins.updateNow')
+            }}
           </button>
         </div>
       </div>
@@ -233,7 +266,9 @@ async function applyUpdate(id: string) {
 
       <!-- Search -->
       <div class="relative">
-        <Search class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant/60" />
+        <Search
+          class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant/60"
+        />
         <input
           v-model="searchQuery"
           type="text"
@@ -242,158 +277,163 @@ async function applyUpdate(id: string) {
         />
       </div>
 
-      <p v-if="filteredPlugins.length === 0" class="py-8 text-center text-sm text-on-surface-variant">
+      <p
+        v-if="filteredPlugins.length === 0"
+        class="py-8 text-center text-sm text-on-surface-variant"
+      >
         {{ $t('plugins.noPlugins') }}
       </p>
 
       <TransitionGroup name="plug" tag="div" class="space-y-3">
-      <div
-        v-for="plugin in filteredPlugins"
-        :key="plugin.id"
-        class="rounded-xl bg-surface-container-lowest/60 border border-surface-variant/20 p-4 transition-all duration-200 hover:border-primary/30 hover:shadow-lg hover:shadow-black/20"
-      >
-        <div class="flex items-start justify-between gap-3">
-          <div class="min-w-0">
-            <div class="flex items-center gap-2 flex-wrap">
-              <h3 class="font-bold text-on-surface">{{ displayName(plugin) }}</h3>
-              <span
-                class="px-2 py-0.5 rounded-md text-[10px] font-semibold tracking-wide"
+        <div
+          v-for="plugin in filteredPlugins"
+          :key="plugin.id"
+          class="rounded-xl bg-surface-container-lowest/60 border border-surface-variant/20 p-4 transition-all duration-200 hover:border-primary/30 hover:shadow-lg hover:shadow-black/20"
+        >
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <div class="flex items-center gap-2 flex-wrap">
+                <h3 class="font-bold text-on-surface">{{ displayName(plugin) }}</h3>
+                <span
+                  class="px-2 py-0.5 rounded-md text-[10px] font-semibold tracking-wide"
+                  :class="
+                    plugin.runtime === 'wasm'
+                      ? 'bg-purple-500/15 text-purple-400'
+                      : 'bg-amber-500/15 text-amber-400'
+                  "
+                >
+                  {{ runtimeLabel(plugin.runtime) }}
+                </span>
+                <span class="px-2 py-0.5 rounded-md text-[10px] bg-primary/10 text-primary">
+                  {{ $t(kindLabel(plugin.kind)) }}
+                </span>
+                <span
+                  v-if="plugin.dspNode"
+                  class="px-2 py-0.5 rounded-md text-[10px] bg-green-500/15 text-green-400"
+                >
+                  {{ $t('plugins.inChain') }}
+                </span>
+              </div>
+              <p class="text-xs text-on-surface-variant mt-1 font-mono">
+                {{ plugin.id }} · v{{ plugin.version
+                }}<template v-if="plugin.author"> · {{ plugin.author }}</template>
+              </p>
+              <p
+                v-if="plugin.description"
+                class="text-xs text-on-surface-variant/80 mt-1 line-clamp-2"
+              >
+                {{ plugin.description }}
+              </p>
+              <p v-if="plugin.error" class="text-xs text-red-400 mt-1">{{ plugin.error }}</p>
+              <div v-if="plugin.capabilities.length" class="flex flex-wrap gap-1 mt-2">
+                <span
+                  v-for="cap in plugin.capabilities"
+                  :key="cap"
+                  class="px-1.5 py-0.5 rounded text-[10px] bg-surface-variant/30 text-on-surface-variant/70 font-mono"
+                >
+                  {{ cap }}
+                </span>
+              </div>
+            </div>
+
+            <div class="flex items-center gap-2 shrink-0">
+              <button
+                @click="openDetails(plugin, 'logs')"
+                class="w-9 h-9 rounded-full bg-surface-variant/40 hover:bg-surface-variant flex items-center justify-center transition-all duration-150 active:scale-90"
+                :title="$t('plugins.logs')"
+              >
+                <TerminalSquare class="w-4 h-4 text-on-surface-variant" />
+              </button>
+              <button
+                @click="openDetails(plugin, 'config')"
+                class="w-9 h-9 rounded-full bg-surface-variant/40 hover:bg-surface-variant flex items-center justify-center transition-all duration-150 active:scale-90"
+                :title="$t('plugins.config')"
+              >
+                <Puzzle class="w-4 h-4 text-on-surface-variant" />
+              </button>
+              <button
+                @click="requestUninstall(plugin)"
+                class="w-9 h-9 rounded-full bg-surface-variant/40 hover:bg-red-500/20 flex items-center justify-center transition-colors"
+                :title="$t('plugins.uninstall')"
+              >
+                <Trash2 class="w-4 h-4 text-on-surface-variant hover:text-red-400" />
+              </button>
+              <button
+                @click="p.toggle(plugin)"
+                :disabled="p.busyId.value === plugin.id"
+                class="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors disabled:opacity-50"
                 :class="
-                  plugin.runtime === 'wasm'
-                    ? 'bg-purple-500/15 text-purple-400'
-                    : 'bg-amber-500/15 text-amber-400'
+                  plugin.enabled
+                    ? 'bg-primary/20 text-primary'
+                    : 'bg-surface-variant/40 text-on-surface-variant'
                 "
               >
-                {{ runtimeLabel(plugin.runtime) }}
-              </span>
-              <span class="px-2 py-0.5 rounded-md text-[10px] bg-primary/10 text-primary">
-                {{ $t(kindLabel(plugin.kind)) }}
-              </span>
-              <span
-                v-if="plugin.dspNode"
-                class="px-2 py-0.5 rounded-md text-[10px] bg-green-500/15 text-green-400"
-              >
-                {{ $t('plugins.inChain') }}
-              </span>
-            </div>
-            <p class="text-xs text-on-surface-variant mt-1 font-mono">
-              {{ plugin.id }} · v{{ plugin.version }}<template v-if="plugin.author"> · {{ plugin.author }}</template>
-            </p>
-            <p
-              v-if="plugin.description"
-              class="text-xs text-on-surface-variant/80 mt-1 line-clamp-2"
-            >
-              {{ plugin.description }}
-            </p>
-            <p v-if="plugin.error" class="text-xs text-red-400 mt-1">{{ plugin.error }}</p>
-            <div v-if="plugin.capabilities.length" class="flex flex-wrap gap-1 mt-2">
-              <span
-                v-for="cap in plugin.capabilities"
-                :key="cap"
-                class="px-1.5 py-0.5 rounded text-[10px] bg-surface-variant/30 text-on-surface-variant/70 font-mono"
-              >
-                {{ cap }}
-              </span>
+                <ToggleRight v-if="plugin.enabled" class="w-4 h-4" />
+                <ToggleLeft v-else class="w-4 h-4" />
+                {{ plugin.enabled ? $t('plugins.enabled') : $t('plugins.disabled') }}
+              </button>
             </div>
           </div>
 
-          <div class="flex items-center gap-2 shrink-0">
-            <button
-              @click="openDetails(plugin, 'logs')"
-              class="w-9 h-9 rounded-full bg-surface-variant/40 hover:bg-surface-variant flex items-center justify-center transition-all duration-150 active:scale-90"
-              :title="$t('plugins.logs')"
+          <!-- Uninstall confirm bar -->
+          <Transition name="fade">
+            <div
+              v-if="uninstallTarget === plugin.id"
+              class="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3"
             >
-              <TerminalSquare class="w-4 h-4 text-on-surface-variant" />
-            </button>
-            <button
-              @click="openDetails(plugin, 'config')"
-              class="w-9 h-9 rounded-full bg-surface-variant/40 hover:bg-surface-variant flex items-center justify-center transition-all duration-150 active:scale-90"
-              :title="$t('plugins.config')"
-            >
-              <Puzzle class="w-4 h-4 text-on-surface-variant" />
-            </button>
-            <button
-              @click="requestUninstall(plugin)"
-              class="w-9 h-9 rounded-full bg-surface-variant/40 hover:bg-red-500/20 flex items-center justify-center transition-colors"
-              :title="$t('plugins.uninstall')"
-            >
-              <Trash2 class="w-4 h-4 text-on-surface-variant hover:text-red-400" />
-            </button>
-            <button
-              @click="p.toggle(plugin)"
-              :disabled="p.busyId.value === plugin.id"
-              class="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors disabled:opacity-50"
-              :class="
-                plugin.enabled
-                  ? 'bg-primary/20 text-primary'
-                  : 'bg-surface-variant/40 text-on-surface-variant'
-              "
-            >
-              <ToggleRight v-if="plugin.enabled" class="w-4 h-4" />
-              <ToggleLeft v-else class="w-4 h-4" />
-              {{ plugin.enabled ? $t('plugins.enabled') : $t('plugins.disabled') }}
-            </button>
-          </div>
-        </div>
+              <p class="text-xs text-red-300">
+                {{ $t('plugins.uninstallConfirm', { name: plugin.name }) }}
+              </p>
+              <div class="flex gap-2 mt-2">
+                <button
+                  @click="confirmUninstall"
+                  class="px-3 py-1.5 rounded-full text-xs bg-red-500 text-red-950 font-medium hover:bg-red-400"
+                >
+                  {{ $t('plugins.uninstall') }}
+                </button>
+                <button
+                  @click="cancelUninstall"
+                  class="px-3 py-1.5 rounded-full text-xs bg-surface-variant/40 hover:bg-surface-variant"
+                >
+                  {{ $t('plugins.cancel') }}
+                </button>
+              </div>
+            </div>
+          </Transition>
 
-        <!-- Uninstall confirm bar -->
-        <Transition name="fade">
-        <div
-          v-if="uninstallTarget === plugin.id"
-          class="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3"
-        >
-          <p class="text-xs text-red-300">
-            {{ $t('plugins.uninstallConfirm', { name: plugin.name }) }}
-          </p>
-          <div class="flex gap-2 mt-2">
-            <button
-              @click="confirmUninstall"
-              class="px-3 py-1.5 rounded-full text-xs bg-red-500 text-red-950 font-medium hover:bg-red-400"
-            >
-              {{ $t('plugins.uninstall') }}
-            </button>
-            <button
-              @click="cancelUninstall"
-              class="px-3 py-1.5 rounded-full text-xs bg-surface-variant/40 hover:bg-surface-variant"
-            >
-              {{ $t('plugins.cancel') }}
-            </button>
-          </div>
-        </div>
-        </Transition>
-
-        <!-- Soundpad panel: ui.route === 'buttons' -->
-        <div
-          v-if="plugin.ui?.route === 'buttons' && plugin.loaded"
-          class="mt-3 pt-3 border-t border-surface-variant/20"
-        >
-          <span class="text-xs font-medium text-on-surface-variant">{{
-            $t('plugins.soundpad')
-          }}</span>
+          <!-- Soundpad panel: ui.route === 'buttons' -->
           <div
-            v-if="(uiConfigs[plugin.id]?.sounds as any[])?.length"
-            class="grid grid-cols-3 gap-2 mt-2"
+            v-if="plugin.ui?.route === 'buttons' && plugin.loaded"
+            class="mt-3 pt-3 border-t border-surface-variant/20"
           >
-            <button
-              v-for="snd in (uiConfigs[plugin.id]?.sounds as any[])"
-              :key="snd.id"
-              @click="p.trigger(plugin, 'play', JSON.stringify({ id: snd.id }))"
-              class="px-3 py-2 rounded-lg bg-surface-variant/30 hover:bg-surface-variant text-sm font-medium transition-colors"
+            <span class="text-xs font-medium text-on-surface-variant">{{
+              $t('plugins.soundpad')
+            }}</span>
+            <div
+              v-if="(uiConfigs[plugin.id]?.sounds as any[])?.length"
+              class="grid grid-cols-3 gap-2 mt-2"
             >
-              {{ snd.label ?? snd.id }}
-            </button>
+              <button
+                v-for="snd in uiConfigs[plugin.id]?.sounds as any[]"
+                :key="snd.id"
+                @click="p.trigger(plugin, 'play', JSON.stringify({ id: snd.id }))"
+                class="px-3 py-2 rounded-lg bg-surface-variant/30 hover:bg-surface-variant text-sm font-medium transition-colors"
+              >
+                {{ snd.label ?? snd.id }}
+              </button>
+            </div>
+            <p v-else class="mt-2 text-xs text-on-surface-variant/70">
+              {{ $t('plugins.soundpadEmpty') }}
+            </p>
           </div>
-          <p
-            v-else
-            class="mt-2 text-xs text-on-surface-variant/70"
-          >
-            {{ $t('plugins.soundpadEmpty') }}
-          </p>
-        </div>
 
-        <!-- Details dialog: config + logs -->
-        <PluginDetailsDialog :plugin="detailsPlugin" :tab="detailsTab" @close="detailsPlugin = null" />
-      </div>
+          <!-- Details dialog: config + logs -->
+          <PluginDetailsDialog
+            :plugin="detailsPlugin"
+            :tab="detailsTab"
+            @close="detailsPlugin = null"
+          />
+        </div>
       </TransitionGroup>
     </template>
   </div>
@@ -402,7 +442,9 @@ async function applyUpdate(id: string) {
 <style scoped>
 .plug-enter-active,
 .plug-leave-active {
-  transition: opacity 0.2s ease, transform 0.2s ease;
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
 }
 .plug-enter-from {
   opacity: 0;
