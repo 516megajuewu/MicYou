@@ -34,7 +34,7 @@ jobs:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          model: opencode/big-pickle
+          model: opencode/deepseek-v4-flash-free
           prompt: |
             请用中文（简体中文）进行完整的代码审查，涵盖以下维度：
             - 代码质量与可读性：命名规范、结构清晰度、注释完整性
