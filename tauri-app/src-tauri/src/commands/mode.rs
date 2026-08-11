@@ -2,7 +2,55 @@ use crate::mode_lock::{self, RunMode};
 use crate::server::ServerState;
 use serde::Serialize;
 use std::process::Command;
+use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::{AppHandle, State};
+
+static MODE_SWITCH_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
+
+struct ModeSwitchGuard<'a> {
+    flag: &'a AtomicBool,
+    reset_on_drop: bool,
+}
+
+impl<'a> ModeSwitchGuard<'a> {
+    fn acquire(flag: &'a AtomicBool) -> Result<Self, String> {
+        flag.compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+            .map_err(|_| "another mode switch is already in progress".to_string())?;
+        Ok(Self {
+            flag,
+            reset_on_drop: true,
+        })
+    }
+
+    /// Keep the gate closed after a successful handoff. The GUI is about to
+    /// exit, so accepting another switch event could launch a second mode.
+    fn commit(mut self) {
+        self.reset_on_drop = false;
+    }
+}
+
+impl Drop for ModeSwitchGuard<'_> {
+    fn drop(&mut self) {
+        if self.reset_on_drop {
+            self.flag.store(false, Ordering::Release);
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+enum TerminalMode {
+    Cli,
+    Tui,
+}
+
+impl TerminalMode {
+    fn label(self) -> &'static str {
+        match self {
+            Self::Cli => "CLI",
+            Self::Tui => "TUI",
+        }
+    }
+}
 
 #[derive(Serialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -253,10 +301,15 @@ pub fn open_tui_terminal() -> Result<(), String> {
     }
 }
 
-/// Switch from the GUI to CLI mode: release the GUI lock and launch a terminal
-/// running `micyou serve`. The frontend should exit the app after this succeeds.
-#[tauri::command]
-pub async fn switch_to_cli(app: AppHandle, state: State<'_, ServerState>) -> Result<(), String> {
+async fn switch_to_terminal(
+    app: AppHandle,
+    state: State<'_, ServerState>,
+    target: TerminalMode,
+) -> Result<(), String> {
+    // Tray and webview events can arrive close together. Reserve the handoff
+    // before the first await so only one target can ever be launched.
+    let switch_guard = ModeSwitchGuard::acquire(&MODE_SWITCH_IN_PROGRESS)?;
+
     // Make sure no CLI or TUI instance is currently running.
     if let Some(info) = mode_lock::read_lock() {
         if matches!(info.mode, RunMode::Cli | RunMode::Tui) && mode_lock::pid_alive_public(info.pid)
@@ -272,35 +325,40 @@ pub async fn switch_to_cli(app: AppHandle, state: State<'_, ServerState>) -> Res
             ));
         }
     }
-    // Stop the audio server BEFORE handing off to the CLI. Otherwise the CLI
+    // Stop the audio server BEFORE handing off to the terminal mode. Otherwise it
     // starts while the GUI's audio thread is still holding the output device
     // and playing the incoming stream, and the brief overlap sounds like the
     // microphone is being monitored / the audio routing is broken.
     let _ = crate::commands::system::stop_server(app.clone(), state).await;
     mode_lock::release();
-    open_cli_terminal()
+
+    log::info!(target: "mode", "switching GUI to {} mode", target.label());
+    let launch_result = match target {
+        TerminalMode::Cli => open_cli_terminal(),
+        TerminalMode::Tui => open_tui_terminal(),
+    };
+    if let Err(error) = launch_result {
+        // The GUI is still alive when launching fails, so restore its lock and
+        // allow the user to retry instead of leaving the app in an unlocked state.
+        let _ = mode_lock::acquire(RunMode::Gui);
+        return Err(error);
+    }
+
+    switch_guard.commit();
+    Ok(())
+}
+
+/// Switch from the GUI to CLI mode: release the GUI lock and launch a terminal
+/// running `micyou serve`. The frontend should exit the app after this succeeds.
+#[tauri::command]
+pub async fn switch_to_cli(app: AppHandle, state: State<'_, ServerState>) -> Result<(), String> {
+    switch_to_terminal(app, state, TerminalMode::Cli).await
 }
 
 /// Switch from the GUI to TUI mode and launch `micyou-tui` in a terminal.
 #[tauri::command]
 pub async fn switch_to_tui(app: AppHandle, state: State<'_, ServerState>) -> Result<(), String> {
-    if let Some(info) = mode_lock::read_lock() {
-        if matches!(info.mode, RunMode::Cli | RunMode::Tui) && mode_lock::pid_alive_public(info.pid)
-        {
-            return Err(format!(
-                "{} mode is already running (pid {}) - stop it first",
-                if info.mode == RunMode::Cli {
-                    "CLI"
-                } else {
-                    "TUI"
-                },
-                info.pid,
-            ));
-        }
-    }
-    let _ = crate::commands::system::stop_server(app.clone(), state).await;
-    mode_lock::release();
-    open_tui_terminal()
+    switch_to_terminal(app, state, TerminalMode::Tui).await
 }
 
 /// Persist the current GUI UI preferences (language, theme color) to ui.json so
@@ -333,4 +391,33 @@ pub fn save_theme_colors(
         on_surface,
         error,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ModeSwitchGuard;
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    #[test]
+    fn mode_switch_gate_rejects_a_second_target() {
+        let flag = AtomicBool::new(false);
+        let first = ModeSwitchGuard::acquire(&flag).expect("first switch should reserve the gate");
+
+        assert!(ModeSwitchGuard::acquire(&flag).is_err());
+
+        drop(first);
+        assert!(!flag.load(Ordering::Acquire));
+        assert!(ModeSwitchGuard::acquire(&flag).is_ok());
+    }
+
+    #[test]
+    fn successful_mode_switch_keeps_gate_closed_until_exit() {
+        let flag = AtomicBool::new(false);
+        ModeSwitchGuard::acquire(&flag)
+            .expect("switch should reserve the gate")
+            .commit();
+
+        assert!(flag.load(Ordering::Acquire));
+        assert!(ModeSwitchGuard::acquire(&flag).is_err());
+    }
 }

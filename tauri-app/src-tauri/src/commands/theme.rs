@@ -1,10 +1,18 @@
 use std::fs;
 use std::path::PathBuf;
 
+use serde::Serialize;
 use serde_json::Value;
 use tauri::{AppHandle, Manager};
 
 const MAX_THEME_CSS_BYTES: usize = 2 * 1024 * 1024;
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InstalledTheme {
+    css: String,
+    controls_theme_color: bool,
+}
 
 fn validate_theme_id(theme_id: &str) -> Result<(), String> {
     if theme_id.is_empty()
@@ -89,6 +97,36 @@ pub fn list_installed_themes(app: AppHandle) -> Result<Vec<String>, String> {
     }
     themes.sort();
     Ok(themes)
+}
+
+#[tauri::command]
+pub fn get_installed_theme(app: AppHandle, theme_id: String) -> Result<InstalledTheme, String> {
+    let directory = theme_dir(&app, &theme_id)?;
+    let manifest_json = fs::read_to_string(directory.join("manifest.json"))
+        .map_err(|error| format!("read installed theme manifest failed: {error}"))?;
+    let manifest: Value = serde_json::from_str(&manifest_json)
+        .map_err(|error| format!("invalid installed theme manifest: {error}"))?;
+
+    if manifest.get("id").and_then(Value::as_str) != Some(theme_id.as_str()) {
+        return Err("installed theme manifest id does not match theme id".to_string());
+    }
+
+    let css = fs::read_to_string(directory.join("theme.css"))
+        .map_err(|error| format!("read installed theme css failed: {error}"))?;
+    if css.is_empty() {
+        return Err("installed theme css is empty".to_string());
+    }
+    if css.len() > MAX_THEME_CSS_BYTES {
+        return Err("installed theme css is too large".to_string());
+    }
+
+    Ok(InstalledTheme {
+        css,
+        controls_theme_color: manifest
+            .get("controlsThemeColor")
+            .and_then(Value::as_bool)
+            .unwrap_or(true),
+    })
 }
 
 #[tauri::command]

@@ -380,6 +380,7 @@ onUnmounted(() => {
         @toggleMonitoringEnabled="audio.toggleMonitoringEnabled"
         @toggleMonitoring="audio.toggleMonitoring"
         @openSettings="isSettingsOpen = true"
+        @minimize="win.minimizeWindow"
         @update:popupOpen="v => pocketPopupOpen = v"
       />
       </div>

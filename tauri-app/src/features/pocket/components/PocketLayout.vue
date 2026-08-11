@@ -39,6 +39,7 @@ const emit = defineEmits([
   'toggleMonitoringEnabled',
   'toggleMonitoring',
   'openSettings',
+  'minimize',
   'update:popupOpen',
 ]);
 
@@ -268,7 +269,7 @@ defineExpose({ closePopup });
   <div class="w-max h-full flex items-center haze-surface rounded-2xl px-3 gap-2">
     <!-- Window Controls (macOS: left) -->
     <template v-if="isMacOS">
-      <button @click="appWindow.minimize()" class="w-7 h-7 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors flex-shrink-0">
+      <button @click="emit('minimize')" class="w-7 h-7 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors flex-shrink-0">
         <Minus class="w-3.5 h-3.5 text-on-surface" />
       </button>
       <button @click="appWindow.close()" class="w-7 h-7 flex items-center justify-center rounded-full hover:bg-error/20 hover:text-error transition-colors flex-shrink-0">
@@ -342,7 +343,7 @@ defineExpose({ closePopup });
 
     <!-- Window Controls (non-macOS: right) -->
     <template v-if="!isMacOS">
-      <button @click="appWindow.minimize()" class="w-7 h-7 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors flex-shrink-0">
+      <button @click="emit('minimize')" class="w-7 h-7 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors flex-shrink-0">
         <Minus class="w-3.5 h-3.5 text-on-surface" />
       </button>
       <button @click="appWindow.close()" class="w-7 h-7 flex items-center justify-center rounded-full hover:bg-error/20 hover:text-error transition-colors flex-shrink-0">

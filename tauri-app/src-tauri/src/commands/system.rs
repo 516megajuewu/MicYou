@@ -1175,6 +1175,19 @@ pub fn show_main_window(app: AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub fn minimize_main_window(app: AppHandle) -> Result<(), String> {
+    let win = main_window(&app)?;
+
+    // Wayland compositors may ignore xdg_toplevel.set_minimized. Hiding the
+    // window keeps the minimize-to-tray action reliable across Linux WMs.
+    #[cfg(target_os = "linux")]
+    return win.hide().map_err(|e| e.to_string());
+
+    #[cfg(not(target_os = "linux"))]
+    win.minimize().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub fn hide_main_window(app: AppHandle) -> Result<(), String> {
     let win = main_window(&app)?;
     win.hide().map_err(|e| e.to_string())?;

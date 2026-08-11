@@ -326,6 +326,8 @@
       "install": "下载而装",
       "installing": "装之中...",
       "installed": "已装",
+      "switch": "易主题",
+      "switching": "易之中...",
       "downloadFailed": "装败：{error}",
       "uninstall": "卸主题",
       "uninstalling": "卸之中..."

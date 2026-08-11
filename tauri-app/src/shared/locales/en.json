@@ -328,6 +328,8 @@
       "install": "Install",
       "installing": "Installing...",
       "installed": "Installed",
+      "switch": "Switch theme",
+      "switching": "Switching...",
       "downloadFailed": "Installation failed: {error}",
       "uninstall": "Uninstall",
       "uninstalling": "Uninstalling..."

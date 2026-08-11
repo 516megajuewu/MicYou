@@ -326,6 +326,8 @@
       "install": "下載安裝",
       "installing": "安裝緊...",
       "installed": "已安裝",
+      "switch": "切換主題",
+      "switching": "切換緊...",
       "downloadFailed": "安裝失敗：{error}",
       "uninstall": "卸載主題",
       "uninstalling": "卸載緊..."

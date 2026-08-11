@@ -326,6 +326,8 @@
       "install": "下载安装喵~",
       "installing": "正在安装喵...",
       "installed": "已安装喵~",
+      "switch": "切换主题喵~",
+      "switching": "正在切换喵...",
       "downloadFailed": "安装失败喵：{error}",
       "uninstall": "卸载主题喵~",
       "uninstalling": "正在卸载喵..."

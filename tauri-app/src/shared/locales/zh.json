@@ -328,6 +328,8 @@
       "install": "下载安装",
       "installing": "正在安装...",
       "installed": "已安装",
+      "switch": "切换主题",
+      "switching": "正在切换...",
       "downloadFailed": "安装失败：{error}",
       "uninstall": "卸载主题",
       "uninstalling": "正在卸载..."

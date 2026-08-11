@@ -9,9 +9,13 @@ export function useWindow() {
 
   const REMEMBER_KEY = 'micyou_remember_close_action';
 
-  function minimizeWindow() {
-    appWindow.minimize();
-    isHidden.value = true;
+  async function minimizeWindow() {
+    try {
+      await invoke('minimize_main_window');
+      isHidden.value = true;
+    } catch (e) {
+      console.error('minimize_main_window failed:', e);
+    }
   }
 
   async function showMainWindow() {

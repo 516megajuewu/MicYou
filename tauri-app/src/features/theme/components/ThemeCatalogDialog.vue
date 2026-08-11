@@ -92,18 +92,32 @@
                 <p v-if="installError" class="text-xs text-error">
                   {{ $t('dialogs.themeCatalog.downloadFailed', { error: installError }) }}
                 </p>
+                <div v-if="isInstalled(theme.id)" class="grid grid-cols-2 gap-2">
+                  <button
+                    class="flex items-center justify-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-medium text-on-primary transition-opacity hover:opacity-90 disabled:pointer-events-none disabled:opacity-60"
+                    :disabled="isThemeBusy(theme.id)"
+                    @click="switchTheme(theme)"
+                  >
+                    <Loader2 v-if="switchingThemeId === theme.id" class="h-4 w-4 animate-spin" />
+                    <span>{{ switchingThemeId === theme.id ? $t('dialogs.themeCatalog.switching') : $t('dialogs.themeCatalog.switch') }}</span>
+                  </button>
+                  <button
+                    class="flex items-center justify-center gap-2 rounded-full bg-error/10 px-4 py-2 text-sm font-medium text-error transition-colors hover:bg-error/20 disabled:pointer-events-none disabled:opacity-60"
+                    :disabled="isThemeBusy(theme.id)"
+                    @click="uninstallTheme(theme)"
+                  >
+                    <Loader2 v-if="uninstallingThemeId === theme.id" class="h-4 w-4 animate-spin" />
+                    <span>{{ uninstallingThemeId === theme.id ? $t('dialogs.themeCatalog.uninstalling') : $t('dialogs.themeCatalog.uninstall') }}</span>
+                  </button>
+                </div>
                 <button
-                  class="flex w-full items-center justify-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-opacity hover:opacity-90 disabled:pointer-events-none disabled:opacity-60"
-                  :class="isInstalled(theme.id) ? 'bg-error/10 text-error hover:bg-error/20' : 'bg-primary text-on-primary'"
-                  :disabled="installingThemeId === theme.id || uninstallingThemeId === theme.id"
-                  @click="isInstalled(theme.id) ? uninstallTheme(theme) : installTheme(theme)"
+                  v-else
+                  class="flex w-full items-center justify-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-medium text-on-primary transition-opacity hover:opacity-90 disabled:pointer-events-none disabled:opacity-60"
+                  :disabled="isThemeBusy(theme.id)"
+                  @click="installTheme(theme)"
                 >
                   <Loader2 v-if="installingThemeId === theme.id" class="h-4 w-4 animate-spin" />
-                  <Loader2 v-else-if="uninstallingThemeId === theme.id" class="h-4 w-4 animate-spin" />
-                  <span v-if="installingThemeId === theme.id">{{ $t('dialogs.themeCatalog.installing') }}</span>
-                  <span v-else-if="uninstallingThemeId === theme.id">{{ $t('dialogs.themeCatalog.uninstalling') }}</span>
-                  <span v-else-if="isInstalled(theme.id)">{{ $t('dialogs.themeCatalog.uninstall') }}</span>
-                  <span v-else>{{ $t('dialogs.themeCatalog.install') }}</span>
+                  <span>{{ installingThemeId === theme.id ? $t('dialogs.themeCatalog.installing') : $t('dialogs.themeCatalog.install') }}</span>
                 </button>
               </div>
             </article>
@@ -137,6 +151,7 @@ const installError = ref<string | null>(null);
 const failedPreviews = ref<string[]>([]);
 const installedThemeIds = ref<string[]>([]);
 const installingThemeId = ref<string | null>(null);
+const switchingThemeId = ref<string | null>(null);
 const uninstallingThemeId = ref<string | null>(null);
 
 const loadCatalog = async () => {
@@ -162,6 +177,15 @@ const loadInstalledThemes = async () => {
 };
 
 const isInstalled = (themeId: string) => installedThemeIds.value.includes(themeId);
+const isThemeBusy = (themeId: string) =>
+  installingThemeId.value === themeId
+  || switchingThemeId.value === themeId
+  || uninstallingThemeId.value === themeId;
+
+interface InstalledTheme {
+  css: string;
+  controlsThemeColor: boolean;
+}
 
 const installTheme = async (theme: ThemeManifest) => {
   if (installingThemeId.value || isInstalled(theme.id)) return;
@@ -184,6 +208,26 @@ const installTheme = async (theme: ThemeManifest) => {
     installError.value = cause instanceof Error ? cause.message : String(cause);
   } finally {
     installingThemeId.value = null;
+  }
+};
+
+const switchTheme = async (theme: ThemeManifest) => {
+  if (switchingThemeId.value || !isInstalled(theme.id)) return;
+  switchingThemeId.value = theme.id;
+  installError.value = null;
+  try {
+    const installedTheme = await invoke<InstalledTheme>('get_installed_theme', {
+      themeId: theme.id,
+    });
+    activateInstalledTheme(
+      theme.id,
+      installedTheme.css,
+      installedTheme.controlsThemeColor,
+    );
+  } catch (cause) {
+    installError.value = cause instanceof Error ? cause.message : String(cause);
+  } finally {
+    switchingThemeId.value = null;
   }
 };
 
