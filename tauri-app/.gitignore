@@ -12,6 +12,7 @@ dist
 dist-ssr
 *.local
 src/generated/third-party-licenses.html
+src-tauri/binaries/*
 
 # Editor directories and files
 .vscode/*

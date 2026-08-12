@@ -26,3 +26,6 @@ sysinfo = "0.39.6"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2.169"
+
+[build-dependencies]
+tauri-winres = "0.3.6"

@@ -1,6 +1,8 @@
 use crate::mode_lock::{self, RunMode};
 use crate::server::ServerState;
 use serde::Serialize;
+use std::ffi::OsStr;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::{AppHandle, State};
@@ -62,71 +64,62 @@ pub struct ModeStatus {
     pub running: bool,
 }
 
-/// Resolve the `micyou` CLI binary path:
+/// Resolve the `micyou-cli` binary path:
 /// 1. sibling of the current exe (dev builds share target/debug)
 /// 2. parent of the current exe dir (release layouts)
 /// 3. PATH
-pub fn find_cli_binary() -> Option<std::path::PathBuf> {
+pub fn find_cli_binary() -> Option<PathBuf> {
     let exe_name = if cfg!(target_os = "windows") {
-        "micyou.exe"
+        "micyou-cli.exe"
     } else {
-        "micyou"
+        "micyou-cli"
     };
 
+    find_named_binary(exe_name)
+}
+
+fn find_exact_file(dir: &Path, file_name: &str) -> Option<PathBuf> {
+    std::fs::read_dir(dir)
+        .ok()?
+        .filter_map(Result::ok)
+        .find(|entry| entry.file_name() == OsStr::new(file_name) && entry.path().is_file())
+        .map(|entry| entry.path())
+}
+
+fn find_binary_on_path(exe_name: &str) -> Option<PathBuf> {
+    let path = std::env::var_os("PATH")?;
+    std::env::split_paths(&path).find_map(|dir| find_exact_file(&dir, exe_name))
+}
+
+fn find_named_binary(exe_name: &str) -> Option<PathBuf> {
     if let Ok(exe) = std::env::current_exe() {
         if let Some(dir) = exe.parent() {
-            let candidate = dir.join(exe_name);
-            if candidate.exists() {
+            if let Some(candidate) = find_exact_file(dir, exe_name) {
                 return Some(candidate);
             }
             if let Some(grandparent) = dir.parent() {
-                let candidate = grandparent.join(exe_name);
-                if candidate.exists() {
+                if let Some(candidate) = find_exact_file(grandparent, exe_name) {
                     return Some(candidate);
                 }
             }
         }
     }
 
-    // Fall back to PATH lookup
-    if let Ok(output) = Command::new(exe_name).arg("--version").output() {
-        if output.status.success() {
-            return Some(std::path::PathBuf::from(exe_name));
-        }
-    }
-    None
+    // Resolve PATH entries ourselves so Windows cannot substitute a
+    // differently-cased executable for the requested CLI filename.
+    find_binary_on_path(exe_name)
 }
 
 /// Resolve the standalone `micyou-tui` binary using the same lookup order as
 /// the CLI binary.
-pub fn find_tui_binary() -> Option<std::path::PathBuf> {
+pub fn find_tui_binary() -> Option<PathBuf> {
     let exe_name = if cfg!(target_os = "windows") {
         "micyou-tui.exe"
     } else {
         "micyou-tui"
     };
 
-    if let Ok(exe) = std::env::current_exe() {
-        if let Some(dir) = exe.parent() {
-            let candidate = dir.join(exe_name);
-            if candidate.exists() {
-                return Some(candidate);
-            }
-            if let Some(grandparent) = dir.parent() {
-                let candidate = grandparent.join(exe_name);
-                if candidate.exists() {
-                    return Some(candidate);
-                }
-            }
-        }
-    }
-
-    if let Ok(output) = Command::new(exe_name).arg("--version").output() {
-        if output.status.success() {
-            return Some(std::path::PathBuf::from(exe_name));
-        }
-    }
-    None
+    find_named_binary(exe_name)
 }
 
 /// Current lock status for the frontend.
@@ -178,23 +171,23 @@ pub fn open_cli_terminal() -> Result<(), String> {
         let candidates: &[(&str, &[&str])] = &[
             (
                 "kitty",
-                &["--", binary.to_str().unwrap_or("micyou"), "serve"],
+                &["--", binary.to_str().unwrap_or("micyou-cli"), "serve"],
             ),
             (
                 "alacritty",
-                &["-e", binary.to_str().unwrap_or("micyou"), "serve"],
+                &["-e", binary.to_str().unwrap_or("micyou-cli"), "serve"],
             ),
             (
                 "gnome-terminal",
-                &["--", binary.to_str().unwrap_or("micyou"), "serve"],
+                &["--", binary.to_str().unwrap_or("micyou-cli"), "serve"],
             ),
             (
                 "konsole",
-                &["-e", binary.to_str().unwrap_or("micyou"), "serve"],
+                &["-e", binary.to_str().unwrap_or("micyou-cli"), "serve"],
             ),
             (
                 "xterm",
-                &["-e", binary.to_str().unwrap_or("micyou"), "serve"],
+                &["-e", binary.to_str().unwrap_or("micyou-cli"), "serve"],
             ),
         ];
         for (term, args) in candidates {
@@ -223,17 +216,21 @@ pub fn open_cli_terminal() -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
         let bin = binary.to_string_lossy().to_string();
-        // Prefer Windows Terminal if available, otherwise plain cmd start
+        // Launch wt.exe directly so a missing App Execution Alias produces a
+        // real spawn error. `cmd /c start wt ...` itself succeeds even when
+        // `wt` does not exist, which made the old fallback unreachable.
+        if let Some(wt) = find_binary_on_path("wt.exe") {
+            if Command::new(wt)
+                .args(["-d", ".", "cmd", "/k", &bin, "serve"])
+                .spawn()
+                .is_ok()
+            {
+                return Ok(());
+            }
+        }
         Command::new("cmd")
-            .args([
-                "/c", "start", "", "wt", "-d", ".", "cmd", "/k", &bin, "serve",
-            ])
+            .args(["/c", "start", "", "cmd", "/k", &bin, "serve"])
             .spawn()
-            .or_else(|_| {
-                Command::new("cmd")
-                    .args(["/c", "start", "", &bin, "serve"])
-                    .spawn()
-            })
             .map_err(|e| e.to_string())?;
         Ok(())
     }
@@ -288,10 +285,18 @@ pub fn open_tui_terminal() -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
         let bin = binary.to_string_lossy().to_string();
+        if let Some(wt) = find_binary_on_path("wt.exe") {
+            if Command::new(wt)
+                .args(["-d", ".", "cmd", "/k", &bin])
+                .spawn()
+                .is_ok()
+            {
+                return Ok(());
+            }
+        }
         Command::new("cmd")
-            .args(["/c", "start", "", "wt", "-d", ".", "cmd", "/k", &bin])
+            .args(["/c", "start", "", "cmd", "/k", &bin])
             .spawn()
-            .or_else(|_| Command::new("cmd").args(["/c", "start", "", &bin]).spawn())
             .map_err(|e| e.to_string())?;
         Ok(())
     }
@@ -349,7 +354,7 @@ async fn switch_to_terminal(
 }
 
 /// Switch from the GUI to CLI mode: release the GUI lock and launch a terminal
-/// running `micyou serve`. The frontend should exit the app after this succeeds.
+/// running `micyou-cli serve`. The frontend should exit the app after this succeeds.
 #[tauri::command]
 pub async fn switch_to_cli(app: AppHandle, state: State<'_, ServerState>) -> Result<(), String> {
     switch_to_terminal(app, state, TerminalMode::Cli).await
@@ -395,8 +400,10 @@ pub fn save_theme_colors(
 
 #[cfg(test)]
 mod tests {
-    use super::ModeSwitchGuard;
+    use super::{find_exact_file, ModeSwitchGuard};
+    use std::fs;
     use std::sync::atomic::{AtomicBool, Ordering};
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
     fn mode_switch_gate_rejects_a_second_target() {
@@ -419,5 +426,28 @@ mod tests {
 
         assert!(flag.load(Ordering::Acquire));
         assert!(ModeSwitchGuard::acquire(&flag).is_err());
+    }
+
+    #[test]
+    fn binary_lookup_requires_an_exact_case_match() {
+        let suffix = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system clock should be after the Unix epoch")
+            .as_nanos();
+        let dir = std::env::temp_dir().join(format!(
+            "micyou-mode-exact-name-{}-{suffix}",
+            std::process::id()
+        ));
+        fs::create_dir_all(&dir).expect("temporary test directory should be created");
+        fs::write(dir.join("MicYou-CLI.exe"), b"wrong case")
+            .expect("case-variant CLI fixture should be written");
+
+        assert_eq!(find_exact_file(&dir, "micyou-cli.exe"), None);
+
+        let cli = dir.join("micyou-cli.exe");
+        fs::write(&cli, b"cli").expect("CLI fixture should be written");
+        assert_eq!(find_exact_file(&dir, "micyou-cli.exe"), Some(cli));
+
+        fs::remove_dir_all(dir).expect("temporary test directory should be removed");
     }
 }

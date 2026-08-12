@@ -5,10 +5,13 @@
   "type": "module",
   "scripts": {
     "licenses": "node generate-licenses.js",
+    "clean-bundles": "node clean-bundles.js",
     "dev": "npm run licenses && vite",
     "build": "npm run licenses && vue-tsc --noEmit && vite build",
     "preview": "vite preview",
-    "tauri": "tauri",
+    "prepare-sidecars": "node prepare-sidecars.js",
+    "prepare-sidecars:dev": "node prepare-sidecars.js --debug",
+    "tauri": "node run-tauri.js",
     "sync-version": "node sync-version.js"
   },
   "dependencies": {

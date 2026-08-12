@@ -10,6 +10,10 @@ license.workspace = true
 name = "tauri_app_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
+[[bin]]
+name = "micyou"
+path = "src/main.rs"
+
 [features]
 default = ["vbcable", "adb", "web-server"]
 vbcable = []

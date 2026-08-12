@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-MicYou turns Android devices into PC microphones. The Android client captures microphone audio and streams it over the network; the desktop app receives it and plays it back through a virtual mic device (VB-CABLE on Windows, BlackHole on macOS, PipeWire on Linux) or a browser via HTTPS. Two app surfaces share one wire protocol: a single-module Android app (`:composeApp`, Kotlin + Jetpack Compose + Material 3) and a desktop app (`tauri-app/`, Tauri 2 + Rust backend + Vue 3/Vite/Tailwind frontend). The desktop Rust core is reused by three frontends — GUI (Tauri), CLI (`micyou`), and TUI (`micyou-tui`) — which share the same server lifecycle, config files, and DSP settings.
+MicYou turns Android devices into PC microphones. The Android client captures microphone audio and streams it over the network; the desktop app receives it and plays it back through a virtual mic device (VB-CABLE on Windows, BlackHole on macOS, PipeWire on Linux) or a browser via HTTPS. Two app surfaces share one wire protocol: a single-module Android app (`:composeApp`, Kotlin + Jetpack Compose + Material 3) and a desktop app (`tauri-app/`, Tauri 2 + Rust backend + Vue 3/Vite/Tailwind frontend). The desktop Rust core is reused by three frontends — GUI (`micyou`), CLI (`micyou-cli`), and TUI (`micyou-tui`) — which share the same server lifecycle, config files, and DSP settings.
 
 ## Architecture & Data Flow
 
@@ -57,8 +57,8 @@ npm run tauri dev
 npm run tauri build    # runs sync-version + npm run build first (beforeBuildCommand)
 
 # Alternate frontends (Rust workspace, from tauri-app/)
-cargo run -p micyou-cli -- serve        # CLI server (binary: micyou)
-micyou settings get/set, chain list/set # CLI subcommands (clap)
+cargo run -p micyou-cli -- serve            # CLI server (binary: micyou-cli)
+micyou-cli settings get/set, chain list/set # CLI subcommands (clap)
 cargo run -p micyou-tui                 # TUI frontend
 
 # Version bump flow

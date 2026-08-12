@@ -1,5 +1,6 @@
 use crate::config;
 use micyou_audio::dsp::AudioDspSettings;
+#[cfg(target_os = "windows")]
 use std::process::exit;
 use tauri_app_lib::mode_lock as lock;
 
@@ -174,7 +175,7 @@ pub fn cmd_mics() {
         println!("  available: {available}");
         println!("  virtual sink: {device_exists}");
         if available && !device_exists {
-            println!("  run `micyou serve` to auto-setup the virtual sink, or use the GUI");
+            println!("  run `micyou-cli serve` to auto-setup the virtual sink, or use the GUI");
         }
         if !available {
             println!("  PipeWire not detected (is pipewire-pulse running?)");
@@ -196,7 +197,7 @@ pub fn cmd_mics() {
         println!("VB-CABLE status:");
         println!("  installed: {installed}");
         if !installed {
-            println!("  run `micyou mics install` to install VB-CABLE");
+            println!("  run `micyou-cli mics install` to install VB-CABLE");
         }
     }
     #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]

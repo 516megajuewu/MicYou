@@ -3543,6 +3543,7 @@ dependencies = [
  "micyou-plugin",
  "semver",
  "serde_json",
+ "tauri-winres",
  "tokio",
  "wat",
  "zip",
@@ -3590,6 +3591,7 @@ dependencies = [
  "ratatui",
  "serde_json",
  "sysinfo",
+ "tauri-winres",
  "tokio",
 ]
 

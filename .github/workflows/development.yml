@@ -90,19 +90,13 @@ jobs:
       run: npm ci --include=dev
       working-directory: tauri-app
     - name: Build Tauri App (Windows)
-      run: npx @tauri-apps/cli build --no-bundle
+      run: npm run tauri -- build --no-bundle
       working-directory: tauri-app
     - name: Build Inno Setup Installer
       shell: pwsh
       working-directory: tauri-app
       run: |
         $version = '${{ steps.version.outputs.version }}'
-        New-Item -ItemType Directory -Force -Path "src-tauri/target/release" | Out-Null
-        $bin = Get-ChildItem -Path . -Recurse -Filter "*.exe" | Where-Object { $_.Name -match "(micyou|MicYou)" -and $_.FullName -notmatch "bundle" } | Select-Object -First 1
-        if ($bin) {
-          Copy-Item $bin.FullName "src-tauri/target/release/micyou-app.exe" -Force
-          Copy-Item $bin.FullName "src-tauri/target/release/MicYou.exe" -Force
-        }
         iscc /DMyAppVersion="$version" src-tauri/installer.iss
     - name: Prepare Artifact
       shell: pwsh
@@ -163,7 +157,7 @@ jobs:
       working-directory: tauri-app
 
     - name: Build Tauri App (macOS)
-      run: npx @tauri-apps/cli build --bundles dmg --target ${{ matrix.target }}
+      run: npm run tauri -- build --bundles dmg --target ${{ matrix.target }}
       working-directory: tauri-app
     - name: Prepare Artifact
       run: |
@@ -224,7 +218,7 @@ jobs:
       run: npm ci --include=dev
       working-directory: tauri-app
     - name: Build Tauri App (Linux)
-      run: npx @tauri-apps/cli build --bundles deb,rpm,appimage
+      run: npm run tauri -- build --bundles deb,rpm,appimage
       working-directory: tauri-app
     - name: Prepare Artifacts
       run: |

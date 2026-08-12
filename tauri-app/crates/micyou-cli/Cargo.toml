@@ -7,7 +7,7 @@ license.workspace = true
 description = "MicYou command-line interface"
 
 [[bin]]
-name = "micyou"
+name = "micyou-cli"
 path = "src/main.rs"
 
 [dependencies]
@@ -27,3 +27,6 @@ semver = "1"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2.169"
+
+[build-dependencies]
+tauri-winres = "0.3.6"
