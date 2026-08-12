@@ -229,14 +229,15 @@ const fn ort_runtime_filename() -> &'static str {
 }
 
 /// Find the ONNX Runtime shared library bundled alongside the application.
-/// Searches `libs/` relative to the resource root, the executable, and the
-/// compile-time source tree (for `cargo run` / `tauri dev`).
+/// Searches `libs/` relative to the executable / build tree, and the resource
+/// root itself (production builds copy the lib into `resources/`).
 fn find_ort_runtime(resource_root: Option<&std::path::Path>) -> Option<std::path::PathBuf> {
     let filename = ort_runtime_filename();
     let mut candidates: Vec<std::path::PathBuf> = Vec::new();
 
-    // Resource-root sibling: production layout has libs/ next to resources/
+    // Resource root (production: DLL copied into resources/ before bundling)
     if let Some(root) = resource_root {
+        candidates.push(root.join(filename));
         if let Some(parent) = root.parent() {
             candidates.push(parent.join("libs").join(filename));
         }
@@ -248,7 +249,6 @@ fn find_ort_runtime(resource_root: Option<&std::path::Path>) -> Option<std::path
         .and_then(|p| p.parent().map(std::path::Path::to_path_buf))
     {
         candidates.push(exe_dir.join("libs").join(filename));
-        // Linux deb: /usr/lib/micyou/libs/
         if let Some(prefix) = exe_dir.parent() {
             candidates.push(
                 prefix
