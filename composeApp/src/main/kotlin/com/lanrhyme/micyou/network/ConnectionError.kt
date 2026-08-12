@@ -19,22 +19,14 @@ enum class ConnectionErrorType {
     // 权限相关错误
     PermissionDenied,        // 权限不足
 
-    // 设备相关错误
-    DeviceNotFound,          // 设备未找到
-    UsbConnectionFailed,     // USB 连接失败
-    AdbCommandFailed,        // ADB 命令执行失败
-
     // 协议相关错误
     HandshakeFailed,         // 握手失败（协议不匹配）
-    ProtocolError,           // 协议错误
-    VersionMismatch,         // 版本不匹配
 
     // UDP 相关错误
     UdpPortBlocked,          // UDP 端口被阻止
 
     // 音频相关错误
     AudioDeviceError,        // 音频设备错误
-    AudioFormatError,        // 音频格式不支持
 
     // 通用错误
     UnknownError             // 未知的错误类型
@@ -60,82 +52,62 @@ data class ConnectionErrorDetails(
  * 用于分析和生成详细的错误信息
  */
 object ConnectionErrorHelper {
-    
+
     /**
      * 根据异常分析错误类型
      */
     fun analyzeError(exception: Exception, mode: ConnectionMode): ConnectionErrorType {
         val message = exception.message ?: ""
-        
+
         return when {
             // 网络超时
             message.contains("timeout", ignoreCase = true) ||
             message.contains("Timeout", ignoreCase = true) ->
                 ConnectionErrorType.NetworkTimeout
-            
+
             // 端口占用
             message.contains("Bind", ignoreCase = true) ||
             message.contains("port is already in use", ignoreCase = true) ||
             message.contains("Address already in use", ignoreCase = true) ->
                 ConnectionErrorType.PortInUse
-            
+
             // 连接被拒绝
             message.contains("Connection refused", ignoreCase = true) ||
             message.contains("refused", ignoreCase = true) ->
                 ConnectionErrorType.ConnectionRefused
-            
+
             // 网络不可达
             message.contains("unreachable", ignoreCase = true) ||
             message.contains("No route to host", ignoreCase = true) ||
             message.contains("Network is unreachable", ignoreCase = true) ->
                 ConnectionErrorType.NetworkUnreachable
-            
+
             // 权限不足
             message.contains("permission", ignoreCase = true) ||
             message.contains("access denied", ignoreCase = true) ||
             message.contains("privilege", ignoreCase = true) ->
                 ConnectionErrorType.PermissionDenied
-            
-            // ADB 相关
-            message.contains("adb", ignoreCase = true) ->
-                ConnectionErrorType.AdbCommandFailed
-            
-            // USB 相关
-            message.contains("usb", ignoreCase = true) ||
-            message.contains("USB", ignoreCase = true) ->
-                ConnectionErrorType.UsbConnectionFailed
-            
+
             // 握手失败
             message.contains("handshake", ignoreCase = true) ||
             message.contains("握手", ignoreCase = true) ->
                 ConnectionErrorType.HandshakeFailed
-            
+
             // 音频相关
             message.contains("audio", ignoreCase = true) ||
             message.contains("Audio", ignoreCase = true) ->
                 ConnectionErrorType.AudioDeviceError
-            
+
             // UDP 相关
             message.contains("udp", ignoreCase = true) ||
             message.contains("UDP", ignoreCase = true) ->
                 ConnectionErrorType.UdpPortBlocked
-            
+
             // 其他
             else -> ConnectionErrorType.UnknownError
         }
     }
-    
-    private fun extractAdbCommand(message: String): String? {
-        val delimiters = listOf("：", ":")
-        for (delimiter in delimiters) {
-            val afterDelimiter = message.substringAfter(delimiter).trim()
-            if (afterDelimiter.isNotBlank() && afterDelimiter != message) {
-                return afterDelimiter
-            }
-        }
-        return null
-    }
-    
+
     /**
      * 生成详细的错误信息（需要配合 Localization）
      */
@@ -158,7 +130,7 @@ object ConnectionErrorHelper {
                     getString(R.string.errorSuggestionTryDifferentPort)
                 )
             )
-            
+
             ConnectionErrorType.PortInUse -> ConnectionErrorDetails(
                 type = type,
                 originalMessage = originalMessage,
@@ -169,12 +141,12 @@ object ConnectionErrorHelper {
                     getString(R.string.errorSuggestionCheckOtherApps)
                 )
             )
-            
+
             ConnectionErrorType.ConnectionRefused -> ConnectionErrorDetails(
                 type = type,
                 originalMessage = originalMessage,
                 localizedTitle = getString(R.string.errorConnectionRefusedTitle),
-                localizedMessage = if (mode == ConnectionMode.Wifi) 
+                localizedMessage = if (mode == ConnectionMode.Wifi)
                     String.format(getString(R.string.errorConnectionRefusedWifiMessage), ip ?: "")
                 else getString(R.string.errorConnectionRefusedMessage),
                 recoverySuggestions = listOf(
@@ -182,7 +154,7 @@ object ConnectionErrorHelper {
                     getString(R.string.errorSuggestionCheckServerConfig)
                 )
             )
-            
+
             ConnectionErrorType.NetworkUnreachable -> ConnectionErrorDetails(
                 type = type,
                 originalMessage = originalMessage,
@@ -194,7 +166,7 @@ object ConnectionErrorHelper {
                     getString(R.string.errorSuggestionCheckWifiConnected)
                 )
             )
-            
+
             ConnectionErrorType.PermissionDenied -> ConnectionErrorDetails(
                 type = type,
                 originalMessage = originalMessage,
@@ -204,54 +176,7 @@ object ConnectionErrorHelper {
                     getString(R.string.errorSuggestionCheckSettings)
                 )
             )
-            
-            ConnectionErrorType.DeviceNotFound -> ConnectionErrorDetails(
-                type = type,
-                originalMessage = originalMessage,
-                localizedTitle = getString(R.string.errorDeviceNotFoundTitle),
-                localizedMessage = getString(R.string.errorDeviceNotFoundMessage),
-                recoverySuggestions = listOf(
-                    getString(R.string.errorSuggestionCheckNetworkConnection)
-                )
-            )
 
-            ConnectionErrorType.UsbConnectionFailed -> {
-                val command = extractAdbCommand(originalMessage)
-                ConnectionErrorDetails(
-                    type = type,
-                    originalMessage = originalMessage,
-                    localizedTitle = getString(R.string.errorUsbConnectionFailedTitle),
-                    localizedMessage = getString(R.string.errorUsbConnectionFailedMessage),
-                    recoverySuggestions = buildList {
-                        add(getString(R.string.errorSuggestionCheckUsbCable))
-                        add(getString(R.string.errorSuggestionEnableUsbDebugging))
-                        if (command != null) {
-                            add(String.format(getString(R.string.errorSuggestionRunAdbCommand), command))
-                        }
-                    },
-                    showHelpButton = true,
-                    helpUrl = "https://github.com/LanRhyme/MicYou/blob/master/docs/FAQ.md#usb"
-                )
-            }
-            
-            ConnectionErrorType.AdbCommandFailed -> {
-                val command = extractAdbCommand(originalMessage)
-                ConnectionErrorDetails(
-                    type = type,
-                    originalMessage = originalMessage,
-                    localizedTitle = getString(R.string.errorAdbCommandFailedTitle),
-                    localizedMessage = getString(R.string.errorAdbCommandFailedMessage),
-                    recoverySuggestions = buildList {
-                        add(getString(R.string.errorSuggestionCheckAdbInstalled))
-                        if (command != null) {
-                            add(String.format(getString(R.string.errorSuggestionRunAdbManually), command))
-                        }
-                    },
-                    showHelpButton = true,
-                    helpUrl = "https://github.com/LanRhyme/MicYou/blob/master/docs/FAQ.md#usb"
-                )
-            }
-            
             ConnectionErrorType.HandshakeFailed -> ConnectionErrorDetails(
                 type = type,
                 originalMessage = originalMessage,
@@ -262,18 +187,7 @@ object ConnectionErrorHelper {
                     getString(R.string.errorSuggestionRestartApp)
                 )
             )
-            
-            ConnectionErrorType.ProtocolError -> ConnectionErrorDetails(
-                type = type,
-                originalMessage = originalMessage,
-                localizedTitle = getString(R.string.errorProtocolErrorTitle),
-                localizedMessage = getString(R.string.errorProtocolErrorMessage),
-                recoverySuggestions = listOf(
-                    getString(R.string.errorSuggestionRestartApp),
-                    getString(R.string.errorSuggestionCheckVersion)
-                )
-            )
-            
+
             ConnectionErrorType.AudioDeviceError -> ConnectionErrorDetails(
                 type = type,
                 originalMessage = originalMessage,
@@ -284,31 +198,7 @@ object ConnectionErrorHelper {
                     getString(R.string.errorSuggestionRestartApp)
                 )
             )
-            
-            ConnectionErrorType.AudioFormatError -> ConnectionErrorDetails(
-                type = type,
-                originalMessage = originalMessage,
-                localizedTitle = getString(R.string.errorAudioFormatTitle),
-                localizedMessage = getString(R.string.errorAudioFormatMessage),
-                recoverySuggestions = listOf(
-                    getString(R.string.errorSuggestionChangeAudioConfig),
-                    getString(R.string.errorSuggestionUseDefaultConfig)
-                )
-            )
-            
-            ConnectionErrorType.VersionMismatch -> ConnectionErrorDetails(
-                type = type,
-                originalMessage = originalMessage,
-                localizedTitle = getString(R.string.errorVersionMismatchTitle),
-                localizedMessage = getString(R.string.errorVersionMismatchMessage),
-                recoverySuggestions = listOf(
-                    getString(R.string.errorSuggestionUpdateApp),
-                    getString(R.string.errorSuggestionCheckVersion)
-                ),
-                showHelpButton = true,
-                helpUrl = "https://github.com/LanRhyme/MicYou/releases"
-            )
-            
+
             ConnectionErrorType.UnknownError -> ConnectionErrorDetails(
                 type = type,
                 originalMessage = originalMessage,
@@ -321,7 +211,7 @@ object ConnectionErrorHelper {
                 showHelpButton = true,
                 helpUrl = "https://github.com/LanRhyme/MicYou/issues"
             )
-            
+
             ConnectionErrorType.UdpPortBlocked -> ConnectionErrorDetails(
                 type = type,
                 originalMessage = originalMessage,

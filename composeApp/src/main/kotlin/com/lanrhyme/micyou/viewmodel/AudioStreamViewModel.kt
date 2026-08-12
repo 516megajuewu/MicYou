@@ -13,9 +13,6 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import com.lanrhyme.micyou.audio.AudioEngine
 import com.lanrhyme.micyou.audio.AudioFormat
-import com.lanrhyme.micyou.audio.AudioLevelData
-import com.lanrhyme.micyou.audio.AudioLevelHistory
-import com.lanrhyme.micyou.audio.AudioMetrics
 import com.lanrhyme.micyou.audio.ChannelCount
 import com.lanrhyme.micyou.audio.SampleRate
 import com.lanrhyme.micyou.network.calculateUdpPort
@@ -25,13 +22,9 @@ import com.lanrhyme.micyou.network.DeviceDiscoveryManager
 import com.lanrhyme.micyou.network.DiscoveredDevice
 import com.lanrhyme.micyou.settings.Settings
 import com.lanrhyme.micyou.settings.SettingsFactory
-import com.lanrhyme.micyou.ui.MonitoringMetricsHistory
 import com.lanrhyme.micyou.util.AppLanguage
 import com.lanrhyme.micyou.util.Constants
 import com.lanrhyme.micyou.util.Logger
-import com.lanrhyme.micyou.util.PerformanceConfig
-import com.lanrhyme.micyou.audio.AudioEffectType
-import com.lanrhyme.micyou.audio.EqualizerConfig
 import com.lanrhyme.micyou.viewmodel.AudioStreamUiState
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -40,11 +33,8 @@ data class AudioStreamUiState(
     val transportProtocol: TransportProtocol = TransportProtocol.Both,
     val streamState: StreamState = StreamState.Idle,
     val ipAddress: String = "192.168.1.5",
-    val bindAddress: String = "0.0.0.0",
-    val isAutoBindAddress: Boolean = true,
     val port: String = Constants.DEFAULT_TCP_PORT.toString(),
     val errorMessage: String? = null,
-    val monitoringEnabled: Boolean = false,
     val sampleRate: SampleRate = SampleRate.Rate48000,
     val channelCount: ChannelCount = ChannelCount.Stereo,
     val audioFormat: AudioFormat = AudioFormat.PCM_FLOAT,
@@ -57,37 +47,7 @@ data class AudioStreamUiState(
     // UDP Warning Dialog State
     val showUdpWarningDialog: Boolean = false,
 
-    // Audio Processing Settings
-    val enableNS: Boolean = false,
-    val nsType: NoiseReductionType = NoiseReductionType.RNNoise,
-    val enableAGC: Boolean = false,
-    val agcTargetLevel: Int = 32000,
-    val agcAttackRate: Float = 0.01f,
-    val agcDecayRate: Float = 0.005f,
-    val enableVAD: Boolean = false,
-    val vadThreshold: Int = 10,
-    val enableDereverb: Boolean = false,
-    val dereverbLevel: Float = 0.5f,
-    val amplification: Float = 15.0f,
-    val nsIntensity: Float = 1.0f,
-    val equalizerConfig: EqualizerConfig = EqualizerConfig(),
-    val processingChain: List<AudioEffectType> = listOf(
-        AudioEffectType.NoiseReduction,
-        AudioEffectType.Dereverb,
-        AudioEffectType.Equalizer,
-        AudioEffectType.Amplifier,
-        AudioEffectType.AGC,
-        AudioEffectType.VAD
-    ),
-    val androidAudioSourceName: String = "Mic",
-    val audioConfigRevision: Int = 0,
-
-    // Performance Settings
-    val performanceMode: String = "Default",
-    val performanceConfig: PerformanceConfig = PerformanceConfig.DEFAULT,
-
-    // Monitoring Panel State
-    val showMonitoringPanel: Boolean = false
+    val androidAudioSourceName: String = "Mic"
 )
 
 class AudioStreamViewModel : ViewModel() {
@@ -102,25 +62,11 @@ class AudioStreamViewModel : ViewModel() {
 
     // 音频电平相关
     val audioLevels = _audioEngine.audioLevels
-    val rawSpectrum = _audioEngine.rawSpectrum
-    val processedSpectrum = _audioEngine.processedSpectrum
-    val audioLevelData = _audioEngine.audioLevelData
-    val audioMetrics = _audioEngine.audioMetrics
 
     // 设备发现
     private val discoveryManager = DeviceDiscoveryManager()
     val discoveredDevices: StateFlow<List<DiscoveredDevice>> = discoveryManager.discoveredDevices
     val isDiscovering: StateFlow<Boolean> = discoveryManager.isDiscovering
-
-    // 音频历史记录（用于可视化）
-    private val audioLevelHistory = AudioLevelHistory(maxDurationSeconds = 10)
-    private val _levelHistory = MutableStateFlow<List<AudioLevelHistory.AudioLevelSample>>(emptyList())
-    val levelHistory: StateFlow<List<AudioLevelHistory.AudioLevelSample>> = _levelHistory.asStateFlow()
-    
-    // 监控指标历史记录
-    private val metricsHistory = MonitoringMetricsHistory(maxSamples = 120) // 记录约 1 分钟的历史（500ms 间隔）
-    private val _metricsHistoryFlow = MutableStateFlow<List<AudioMetrics>>(emptyList())
-    val metricsHistoryFlow: StateFlow<List<AudioMetrics>> = _metricsHistoryFlow.asStateFlow()
 
     private val settings = SettingsFactory.getSettings()
     private var isStartStreamRequestPending = false
@@ -143,129 +89,42 @@ class AudioStreamViewModel : ViewModel() {
         val effectiveMode = savedMode
         val savedProtocolName = settings.getString("transport_protocol", TransportProtocol.Both.name)
         val savedProtocol = try { TransportProtocol.valueOf(savedProtocolName) } catch(e: Exception) { TransportProtocol.Both }
-                val savedIp = settings.getString("ip_address", "192.168.1.5")
-        val savedBindAddress = settings.getString("bind_address", "0.0.0.0")
-        val savedSelectedIp = settings.getString("selected_ip_address", "")
-        val savedAutoBindSetting = settings.getBoolean("is_auto_bind_address", false)
-        val effectiveIp = savedIp
-        val effectiveBindAddress = "0.0.0.0"
-        val savedIsAutoBind = false
+    val savedIp = settings.getString("ip_address", "192.168.1.5")
     val savedPort = settings.getString("port", Constants.DEFAULT_TCP_PORT.toString())
-    val savedMonitoring = false
-        settings.putBoolean("monitoring_enabled", false)
     val savedSampleRateName = settings.getString("sample_rate", SampleRate.Rate48000.name)
     val savedSampleRate = try { SampleRate.valueOf(savedSampleRateName) } catch(e: Exception) { SampleRate.Rate48000 }
     val savedChannelCountName = settings.getString("channel_count", ChannelCount.Stereo.name)
     val savedChannelCount = try { ChannelCount.valueOf(savedChannelCountName) } catch(e: Exception) { ChannelCount.Stereo }
     val savedAudioFormatName = settings.getString("audio_format", AudioFormat.PCM_FLOAT.name)
     val savedAudioFormat = try { AudioFormat.valueOf(savedAudioFormatName) } catch(e: Exception) { AudioFormat.PCM_FLOAT }
-    val savedNS = settings.getBoolean("enable_ns", false)
-    val savedNSTypeName = settings.getString("ns_type", NoiseReductionType.RNNoise.name)
-    val savedNSType = NoiseReductionType.entries.firstOrNull { it.name == savedNSTypeName }
-        ?: NoiseReductionType.RNNoise
-    val savedAGC = settings.getBoolean("enable_agc", false)
-    val savedAGCTarget = settings.getInt("agc_target", 32000)
-    val savedVAD = settings.getBoolean("enable_vad", false)
-    val savedVADThreshold = settings.getInt("vad_threshold", 10)
-    val savedDereverb = settings.getBoolean("enable_dereverb", false)
-    val savedDereverbLevel = settings.getFloat("dereverb_level", 0.5f)
-    val savedAmplification = settings.getFloat("amplification", 15.0f)
-    val savedNsIntensity = settings.getFloat("ns_intensity", 1.0f)
-    val savedAgcAttackRate = settings.getFloat("agc_attack_rate", 0.01f)
-    val savedAgcDecayRate = settings.getFloat("agc_decay_rate", 0.005f)
-    val savedChainStr = settings.getString("processing_chain", "")
-    var savedChain = if (savedChainStr.isEmpty()) {
-        listOf(
-            AudioEffectType.NoiseReduction,
-            AudioEffectType.Dereverb,
-            AudioEffectType.Equalizer,
-            AudioEffectType.Amplifier,
-            AudioEffectType.AGC,
-            AudioEffectType.VAD
-        )
-    } else {
-        savedChainStr.split(",").mapNotNull { name ->
-            AudioEffectType.entries.find { it.name == name }
-        }.toMutableList().apply {
-            if (!contains(AudioEffectType.Equalizer)) {
-                // Insert Equalizer before Amplifier if it exists, otherwise before AGC/VAD
-                val ampIndex = indexOf(AudioEffectType.Amplifier)
-                if (ampIndex != -1) {
-                    add(ampIndex, AudioEffectType.Equalizer)
-                } else {
-                    val lastSafeIndex = (size - 2).coerceAtLeast(0)
-                    add(lastSafeIndex, AudioEffectType.Equalizer)
-                }
-            }
-        }
-    }
 
     val savedAndroidAudioSourceName = settings.getString("android_audio_source", "Mic")
     val savedIsAutoConfig = settings.getBoolean("is_auto_config", true)
-    val savedPerformanceMode = settings.getString("performance_mode", "Default")
-    val savedBufferSizeMultiplier = settings.getFloat("buffer_size_multiplier", 1.0f)
-    
-    val savedEqEnabled = settings.getBoolean("equalizer_enabled", false)
-    val savedEqPreAmp = settings.getFloat("equalizer_preamp", 0f)
-    val savedEqGainsStr = settings.getString("equalizer_gains", "")
-    val savedEqGains = if (savedEqGainsStr.isEmpty()) List(10) { 0f } else {
-        savedEqGainsStr.split(",").mapNotNull { it.toFloatOrNull() }.takeIf { it.size == 10 } ?: List(10) { 0f }
-    }
-    val savedEqualizerConfig = EqualizerConfig(savedEqEnabled, savedEqGains, savedEqPreAmp)
 
         _uiState.update {
             it.copy(
                 mode = effectiveMode,
                 transportProtocol = savedProtocol,
-                ipAddress = effectiveIp,
-                bindAddress = effectiveBindAddress,
-                isAutoBindAddress = savedIsAutoBind,
+                ipAddress = savedIp,
                 port = savedPort,
-                monitoringEnabled = savedMonitoring,
                 sampleRate = savedSampleRate,
                 channelCount = savedChannelCount,
                 audioFormat = savedAudioFormat,
-                enableNS = savedNS,
-                nsType = savedNSType,
-                enableAGC = savedAGC,
-                agcTargetLevel = savedAGCTarget,
-                enableVAD = savedVAD,
-                vadThreshold = savedVADThreshold,
-                enableDereverb = savedDereverb,
-                dereverbLevel = savedDereverbLevel,
-                amplification = savedAmplification,
-                nsIntensity = savedNsIntensity,
-                agcAttackRate = savedAgcAttackRate,
-                agcDecayRate = savedAgcDecayRate,
-                processingChain = savedChain,
-                equalizerConfig = savedEqualizerConfig,
                 androidAudioSourceName = savedAndroidAudioSourceName,
-                isAutoConfig = savedIsAutoConfig,
-                performanceMode = savedPerformanceMode,
-                performanceConfig = PerformanceConfig.withBufferSizeMultiplier(savedBufferSizeMultiplier)
+                isAutoConfig = savedIsAutoConfig
             )
         }
-        
+
         // Apply auto config on startup if enabled
         if (savedIsAutoConfig) {
             applyAutoConfig()
         }
-        
-        _audioEngine.setMonitoring(savedMonitoring)
-        updateAudioEngineConfig()
     }
 
     private fun setupAudioEngineObservers() {
         auxiliaryScope.launch {
             _audioEngine.streamState.collect { state ->
                 _uiState.update { it.copy(streamState = state) }
-                // 当停止时清空历史记录
-                if (state == StreamState.Idle) {
-                    audioLevelHistory.clear()
-                    _levelHistory.value = emptyList()
-                    metricsHistory.clear()
-                    _metricsHistoryFlow.value = emptyList()
-                }
             }
         }
 
@@ -285,54 +144,7 @@ class AudioStreamViewModel : ViewModel() {
             }
         }
 
-        // 监听音频电平数据并更新历史记录
-        auxiliaryScope.launch {
-            _audioEngine.audioLevelData.collect { levelData ->
-                audioLevelHistory.addSample(levelData)
-                _levelHistory.value = audioLevelHistory.getSamples()
-            }
-        }
-
-        // 监听音频指标数据并更新历史记录
-        auxiliaryScope.launch {
-            _audioEngine.audioMetrics.collect { metrics ->
-                if (metrics != null) {
-                    metricsHistory.addSample(metrics)
-                    _metricsHistoryFlow.value = metricsHistory.getSamples()
-                }
-            }
-        }
-
         // Auto-start handled via MainViewModel
-    }
-
-    fun updateAudioEngineConfig() {
-        val s = _uiState.value
-        _audioEngine.updateConfig(
-            enableNS = s.enableNS,
-            nsType = s.nsType,
-            nsIntensity = s.nsIntensity,
-            enableAGC = s.enableAGC,
-            agcTargetLevel = s.agcTargetLevel,
-            agcAttackRate = s.agcAttackRate,
-            agcDecayRate = s.agcDecayRate,
-            enableVAD = s.enableVAD,
-            vadThreshold = s.vadThreshold,
-            enableDereverb = s.enableDereverb,
-            dereverbLevel = s.dereverbLevel,
-            amplification = s.amplification,
-            processingChain = s.processingChain,
-            equalizerConfig = s.equalizerConfig
-        )
-        _uiState.update { it.copy(audioConfigRevision = it.audioConfigRevision + 1) }
-    }
-
-    fun setEqualizerConfig(config: EqualizerConfig) {
-        _uiState.update { it.copy(equalizerConfig = config) }
-        settings.putBoolean("equalizer_enabled", config.enabled)
-        settings.putFloat("equalizer_preamp", config.preAmp)
-        settings.putString("equalizer_gains", config.gains.joinToString(","))
-        updateAudioEngineConfig()
     }
 
     private fun applyAutoConfig() {
@@ -419,8 +231,6 @@ class AudioStreamViewModel : ViewModel() {
 
         _uiState.update { it.copy(streamState = StreamState.Connecting, errorMessage = null, showErrorDialog = false, errorDetails = null) }
 
-        updateAudioEngineConfig()
-
         try {
             Logger.d("AudioStreamViewModel", "Calling _audioEngine.start()")
             _audioEngine.start(ip, port, mode, true, sampleRate, channelCount, audioFormat, _uiState.value.transportProtocol)
@@ -490,7 +300,7 @@ class AudioStreamViewModel : ViewModel() {
             }
             else -> current.port
         }
-        
+
         // Auto-configure if enabled
         if (current.isAutoConfig) {
             applyAutoConfig()
@@ -515,9 +325,9 @@ class AudioStreamViewModel : ViewModel() {
         _uiState.update { it.copy(transportProtocol = protocol) }
         settings.putString("transport_protocol", protocol.name)
     }
-    
-    fun setIp(ip: String, isAutoSelect: Boolean = false, restartStream: Boolean = false) {
-        Logger.d("AudioStreamViewModel", "Setting IP to $ip, autoSelect=$isAutoSelect, restartStream=$restartStream")
+
+    fun setIp(ip: String, restartStream: Boolean = false) {
+        Logger.d("AudioStreamViewModel", "Setting IP to $ip, restartStream=$restartStream")
         val wasRunning = _uiState.value.streamState == StreamState.Streaming || _uiState.value.streamState == StreamState.Connecting
 
         _uiState.update {
@@ -559,12 +369,6 @@ class AudioStreamViewModel : ViewModel() {
         }
     }
 
-    fun setMonitoringEnabled(enabled: Boolean) {
-        _uiState.update { it.copy(monitoringEnabled = enabled) }
-        settings.putBoolean("monitoring_enabled", enabled)
-        _audioEngine.setMonitoring(enabled)
-    }
-
     fun setSampleRate(rate: SampleRate) {
         _uiState.update { it.copy(sampleRate = rate) }
         settings.putString("sample_rate", rate.name)
@@ -578,93 +382,6 @@ class AudioStreamViewModel : ViewModel() {
     fun setAudioFormat(format: AudioFormat) {
         _uiState.update { it.copy(audioFormat = format) }
         settings.putString("audio_format", format.name)
-    }
-    
-    // --- Audio Processing Setters ---
-
-    fun setAndroidAudioProcessing(enabled: Boolean) {
-        _uiState.update { it.copy(enableNS = enabled, enableAGC = enabled) }
-        settings.putBoolean("enable_ns", enabled)
-        settings.putBoolean("enable_agc", enabled)
-        updateAudioEngineConfig()
-    }
-
-    fun setEnableNS(enabled: Boolean) {
-        _uiState.update { it.copy(enableNS = enabled) }
-        settings.putBoolean("enable_ns", enabled)
-        updateAudioEngineConfig()
-    }
-    
-    fun setNsType(type: NoiseReductionType) {
-        _uiState.update { it.copy(nsType = type) }
-        settings.putString("ns_type", type.name)
-        updateAudioEngineConfig()
-    }
-    
-    fun setEnableAGC(enabled: Boolean) {
-        _uiState.update { it.copy(enableAGC = enabled) }
-        settings.putBoolean("enable_agc", enabled)
-        updateAudioEngineConfig()
-    }
-    
-    fun setAgcTargetLevel(level: Int) {
-        _uiState.update { it.copy(agcTargetLevel = level) }
-        settings.putInt("agc_target", level)
-        updateAudioEngineConfig()
-    }
-    
-    fun setEnableVAD(enabled: Boolean) {
-        _uiState.update { it.copy(enableVAD = enabled) }
-        settings.putBoolean("enable_vad", enabled)
-        updateAudioEngineConfig()
-    }
-    
-    fun setVadThreshold(threshold: Int) {
-        _uiState.update { it.copy(vadThreshold = threshold) }
-        settings.putInt("vad_threshold", threshold)
-        updateAudioEngineConfig()
-    }
-    
-    fun setEnableDereverb(enabled: Boolean) {
-        _uiState.update { it.copy(enableDereverb = enabled) }
-        settings.putBoolean("enable_dereverb", enabled)
-        updateAudioEngineConfig()
-    }
-    
-    fun setDereverbLevel(level: Float) {
-        _uiState.update { it.copy(dereverbLevel = level) }
-        settings.putFloat("dereverb_level", level)
-        updateAudioEngineConfig()
-    }
-
-    fun setNsIntensity(intensity: Float) {
-        _uiState.update { it.copy(nsIntensity = intensity) }
-        settings.putFloat("ns_intensity", intensity)
-        updateAudioEngineConfig()
-    }
-
-    fun setAgcAttackRate(rate: Float) {
-        _uiState.update { it.copy(agcAttackRate = rate) }
-        settings.putFloat("agc_attack_rate", rate)
-        updateAudioEngineConfig()
-    }
-
-    fun setAgcDecayRate(rate: Float) {
-        _uiState.update { it.copy(agcDecayRate = rate) }
-        settings.putFloat("agc_decay_rate", rate)
-        updateAudioEngineConfig()
-    }
-
-    fun setProcessingChain(chain: List<AudioEffectType>) {
-        _uiState.update { it.copy(processingChain = chain) }
-        settings.putString("processing_chain", chain.joinToString(",") { it.name })
-        updateAudioEngineConfig()
-    }
-    
-    fun setAmplification(amp: Float) {
-        _uiState.update { it.copy(amplification = amp) }
-        settings.putFloat("amplification", amp)
-        updateAudioEngineConfig()
     }
 
     fun setAndroidAudioSource(sourceName: String) {
@@ -681,66 +398,17 @@ class AudioStreamViewModel : ViewModel() {
         }
     }
 
-    fun setMonitoringPanelVisible(visible: Boolean) {
-        _uiState.update { it.copy(showMonitoringPanel = visible) }
-    }
-
     fun dismissErrorDialog() {
         _uiState.update { it.copy(showErrorDialog = false) }
     }
-    
+
     fun dismissUdpWarningDialog() {
         _uiState.update { it.copy(showUdpWarningDialog = false) }
     }
-    
+
     fun retryAfterError() {
         dismissErrorDialog()
         startStream()
-    }
-
-    // ==================== 性能配置方法 ====================
-
-    /**
-     * 设置性能模式
-     */
-    fun setPerformanceMode(mode: String) {
-        val config = PerformanceConfig.fromMode(mode)
-
-        _uiState.update { it.copy(
-            performanceConfig = config,
-            performanceMode = mode
-        ) }
-
-        settings.putString("performance_mode", mode)
-        _audioEngine.updatePerformanceConfig(config)
-    }
-
-    /**
-     * 设置缓冲区大小倍数
-     */
-    fun setBufferSizeMultiplier(multiplier: Float) {
-        val config = PerformanceConfig.withBufferSizeMultiplier(multiplier)
-
-        _uiState.update { it.copy(
-            performanceConfig = config
-        ) }
-
-        settings.putFloat("buffer_size_multiplier", multiplier)
-        _audioEngine.updatePerformanceConfig(config)
-    }
-
-    /**
-     * 获取峰值电平（最近N秒内）
-     */
-    suspend fun getPeakLevel(seconds: Int = 3): Float {
-        return audioLevelHistory.getPeakInRange(seconds)
-    }
-
-    /**
-     * 获取平均 RMS（最近N秒内）
-     */
-    suspend fun getAverageRms(seconds: Int = 3): Float {
-        return audioLevelHistory.getAverageRms(seconds)
     }
 
     fun close(): Job = synchronized(closeLock) {

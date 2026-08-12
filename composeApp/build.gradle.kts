@@ -116,5 +116,3 @@ dependencies {
 
     debugImplementation(libs.androidx.compose.ui.tooling)
 }
-
-tasks.register("prepareKotlinBuildScriptModel") {}
