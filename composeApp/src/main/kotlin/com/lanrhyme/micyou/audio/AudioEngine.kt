@@ -58,7 +58,6 @@ import kotlin.coroutines.coroutineContext
 import kotlin.math.roundToInt
 import com.lanrhyme.micyou.audio.AndroidAudioSource
 import com.lanrhyme.micyou.audio.AudioLevelData
-import com.lanrhyme.micyou.audio.AudioMetrics
 import com.lanrhyme.micyou.network.AudioPacketMessage
 import com.lanrhyme.micyou.network.AudioPacketMessageOrdered
 import com.lanrhyme.micyou.network.CODEC_OPUS
@@ -74,9 +73,7 @@ import com.lanrhyme.micyou.service.AudioService
 import com.lanrhyme.micyou.util.ContextHelper
 import com.lanrhyme.micyou.util.getString
 import com.lanrhyme.micyou.util.Logger
-import com.lanrhyme.micyou.util.PerformanceConfig
 import com.lanrhyme.micyou.viewmodel.ConnectionMode
-import com.lanrhyme.micyou.viewmodel.NoiseReductionType
 import com.lanrhyme.micyou.viewmodel.StreamState
 import com.lanrhyme.micyou.viewmodel.TransportProtocol
 import com.lanrhyme.micyou.network.hasControlMessage
@@ -358,15 +355,8 @@ class AudioEngine constructor() {
     private val _audioLevels = MutableStateFlow(0f)
     val audioLevels: Flow<Float> = _audioLevels
 
-    private val _rawSpectrum = MutableStateFlow(FloatArray(0))
-    val rawSpectrum: Flow<FloatArray> = _rawSpectrum
-
-    private val _processedSpectrum = MutableStateFlow(FloatArray(0))
-    val processedSpectrum: Flow<FloatArray> = _processedSpectrum
     private val _audioLevelData = MutableStateFlow(AudioLevelData.SILENT)
     val audioLevelData: Flow<AudioLevelData> = _audioLevelData
-    private val _audioMetrics = MutableStateFlow<AudioMetrics?>(null)
-    val audioMetrics: Flow<AudioMetrics?> = _audioMetrics
     private val _lastError = MutableStateFlow<String?>(null)
     val lastError: Flow<String?> = _lastError
 
@@ -398,7 +388,7 @@ class AudioEngine constructor() {
     private val closeLock = Any()
     private var closeJob: Job? = null
     private val proto = ProtoBuf { }
-    
+
     @Volatile
     private var sendChannel: Channel<MessageWrapper>? = null
     @Volatile
@@ -409,14 +399,11 @@ class AudioEngine constructor() {
     private var activeInput: ByteReadChannel? = null
     @Volatile
     private var activeOutput: ByteWriteChannel? = null
-    
+
     @Volatile
     private var udpSocket: DatagramSocket? = null
     @Volatile
     private var udpServerAddress: InetSocketAddress? = null
-
-    @Volatile
-    private var enableStreamingNotification: Boolean = true
 
     @Volatile
     private var enableNS: Boolean = false
@@ -445,9 +432,9 @@ class AudioEngine constructor() {
     private val CHECK_2 = "MicYouCheck2"
 
     suspend fun start(
-        ip: String, 
-        port: Int, 
-        mode: ConnectionMode, 
+        ip: String,
+        port: Int,
+        mode: ConnectionMode,
         isClient: Boolean,
         sampleRate: SampleRate,
         channelCount: ChannelCount,
@@ -533,7 +520,7 @@ class AudioEngine constructor() {
                     var selectorManager: SelectorManager? = null
                     var closeConnection: () -> Unit = {}
                     val sessionJobIdentity = requireNotNull(coroutineContext[Job])
-                    
+
                     try {
                         if (lifecycleGeneration != sessionGeneration || !desiredRunning) {
                             throw CancellationException("Audio session superseded before initialization")
@@ -542,9 +529,9 @@ class AudioEngine constructor() {
                         // Opus 编码器仅支持 8/12/16/24/48kHz；把 44.1kHz 采集映射到 48kHz，
                         // 保证线上 codec 始终合法（44.1kHz 单独配置的用户极少）。
                         val opusSampleRate = if (androidSampleRate in OPUS_SAMPLE_RATES) androidSampleRate else 48000
-                        val androidChannelConfig = if (channelCount == ChannelCount.Stereo) 
-                            android.media.AudioFormat.CHANNEL_IN_STEREO 
-                        else 
+                        val androidChannelConfig = if (channelCount == ChannelCount.Stereo)
+                            android.media.AudioFormat.CHANNEL_IN_STEREO
+                        else
                             android.media.AudioFormat.CHANNEL_IN_MONO
                         val resolvedAudioFormat = resolveAudioFormat(audioFormat)
                         if (resolvedAudioFormat.captureFormat != audioFormat) {
@@ -624,7 +611,7 @@ class AudioEngine constructor() {
                             } else {
                                 Logger.d("AudioEngine", "NoiseSuppressor not available")
                             }
-                            
+
                             if (AutomaticGainControl.isAvailable()) {
                                 sessionAutomaticGainControl = AutomaticGainControl.create(sessionRecorder.audioSessionId)
                                 sessionAutomaticGainControl?.enabled = enableAGC
@@ -636,7 +623,7 @@ class AudioEngine constructor() {
                         } catch (e: Exception) {
                              Logger.w("AudioEngine", "Failed to initialize audio effects: ${e.message}")
                         }
-                        
+
                         val sessionSelectorManager = SelectorManager(Dispatchers.IO)
                         selectorManager = sessionSelectorManager
 
@@ -1129,7 +1116,7 @@ class AudioEngine constructor() {
             throw e
         }
     }
-    
+
     /**
      * 把任意采集格式的 PCM 字节转成 16-bit LE Short（Opus 编码输入格式）。
      * @return 写入 out 的 sample 数量
@@ -1222,7 +1209,7 @@ class AudioEngine constructor() {
             updatedFailures
         }
     }
-    
+
     fun stop() {
         lifecycleScope.launch {
             try {
@@ -1466,12 +1453,6 @@ class AudioEngine constructor() {
             Logger.w("AudioEngine", "Failed to stop streaming notification: ${e.message}")
         }
     }
-    
-    fun setMonitoring(enabled: Boolean) { }
-
-    val installProgress: Flow<String?> = MutableStateFlow(null)
-    
-    suspend fun installDriver() { }
 
     suspend fun setMute(muted: Boolean) {
         _isMuted.value = muted
@@ -1481,44 +1462,6 @@ class AudioEngine constructor() {
              } catch (e: Exception) {
                  Logger.e("AudioEngine", "Failed to send mute message: ${e.message}")
              }
-        }
-    }
-
-    fun updateConfig(
-        enableNS: Boolean,
-        nsType: NoiseReductionType,
-        nsIntensity: Float,
-        enableAGC: Boolean,
-        agcTargetLevel: Int,
-        agcAttackRate: Float,
-        agcDecayRate: Float,
-        enableVAD: Boolean,
-        vadThreshold: Int,
-        enableDereverb: Boolean,
-        dereverbLevel: Float,
-        amplification: Float,
-        processingChain: List<AudioEffectType>,
-        equalizerConfig: EqualizerConfig
-    ) {
-        val nsChanged = this.enableNS != enableNS
-        val agcChanged = this.enableAGC != enableAGC
-
-        this.enableNS = enableNS
-        this.enableAGC = enableAGC
-        // Note: nsIntensity, agcAttackRate, agcDecayRate, dereverbLevel, amplification,
-        // processingChain, and equalizerConfig are currently ignored on Android
-        // as it uses hardware-based processing.
-
-        try {
-            noiseSuppressor?.enabled = enableNS
-            automaticGainControl?.enabled = enableAGC
-        } catch (e: Exception) {
-            Logger.e("AudioEngine", "Error updating audio effects: ${e.message}")
-        }
-
-        if ((nsChanged || agcChanged) && desiredRunning && _state.value == StreamState.Streaming) {
-            Logger.i("AudioEngine", "Hardware processing changed, restarting audio stream...")
-            scheduleConfigRestart()
         }
     }
 
@@ -1565,16 +1508,6 @@ class AudioEngine constructor() {
             } catch (e: Exception) {
                 Logger.e("AudioEngine", "Failed to restart audio stream after config change", e)
             }
-        }
-    }
-
-    fun setStreamingNotificationEnabled(enabled: Boolean) {
-        enableStreamingNotification = enabled
-        if (_state.value == StreamState.Streaming && !enabled) {
-            Logger.w(
-                "AudioEngine",
-                "Streaming notification cannot be hidden while Android requires a microphone foreground service"
-            )
         }
     }
 
@@ -1641,10 +1574,6 @@ class AudioEngine constructor() {
         val rms = Math.sqrt(sum / sampleCount).toFloat().coerceIn(0f, 1f)
     val peak = maxSample.toFloat().coerceIn(0f, 1f)
         return AudioLevelData.fromRmsAndPeak(rms, peak)
-    }
-
-    fun updatePerformanceConfig(config: PerformanceConfig) {
-        Logger.d("AudioEngine", "Android does not support dynamic performance config adjustment")
     }
 }
 

@@ -294,7 +294,8 @@ private fun FloatingBubbleGrid(
     val surfaceColor = MaterialTheme.colorScheme.surface
 
     // Use a scrollable FlowRow-like layout
-    // Since FlowRow may not be available in all KMP targets, we use a Column of Rows
+    // FlowRow is available on Android, but the manual row layout keeps the
+    // bubble wrapping independent of the container width measurement
     Column(
         modifier = modifier
             .verticalScroll(scrollState)

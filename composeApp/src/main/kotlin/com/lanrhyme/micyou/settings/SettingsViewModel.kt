@@ -29,7 +29,6 @@ data class SettingsUiState(
     val useExpressiveShapes: Boolean = true,
     val language: AppLanguage = AppLanguage.System,
     val autoStart: Boolean = false,
-    val enableStreamingNotification: Boolean = true,
     val keepScreenOn: Boolean = false,
     val autoCheckUpdate: Boolean = true,
     val useMirrorDownload: Boolean = false,
@@ -60,13 +59,12 @@ class SettingsViewModel : ViewModel() {
     val savedPaletteStyleName = settings.getString("palette_style", PaletteStyle.TonalSpot.name)
     val savedPaletteStyle = try { PaletteStyle.valueOf(savedPaletteStyleName) } catch(e: Exception) { PaletteStyle.TonalSpot }
     val savedUseExpressiveShapes = settings.getBoolean("use_expressive_shapes", true)
-    val initialLanguage = try { 
-            AppLanguage.valueOf(settings.getString("language", AppLanguage.System.name)) 
-        } catch(e: Exception) { 
-            AppLanguage.System 
+    val initialLanguage = try {
+            AppLanguage.valueOf(settings.getString("language", AppLanguage.System.name))
+        } catch(e: Exception) {
+            AppLanguage.System
         }
     val savedAutoStart = settings.getBoolean("auto_start", false)
-    val savedEnableStreamingNotification = settings.getBoolean("enable_streaming_notification", true)
     val savedKeepScreenOn = settings.getBoolean("keep_screen_on", false)
     val savedVisualizerStyleName = settings.getString("visualizer_style", VisualizerStyle.VolumeRing.name)
     val savedVisualizerStyle = try {
@@ -98,7 +96,6 @@ class SettingsViewModel : ViewModel() {
                 useExpressiveShapes = savedUseExpressiveShapes,
                 language = initialLanguage,
                 autoStart = savedAutoStart,
-                enableStreamingNotification = savedEnableStreamingNotification,
                 keepScreenOn = savedKeepScreenOn,
                 visualizerStyle = savedVisualizerStyle,
                 backgroundSettings = BackgroundSettings(
@@ -112,7 +109,7 @@ class SettingsViewModel : ViewModel() {
                 useMirrorDownload = savedUseMirrorDownload,
                 mirrorCdk = savedMirrorCdk,
                 showFirstLaunchDialog = shouldShowFirstLaunchDialog
-            ) 
+            )
         }
     }
 
@@ -155,11 +152,6 @@ class SettingsViewModel : ViewModel() {
     fun setAutoStart(enabled: Boolean) {
         _uiState.update { it.copy(autoStart = enabled) }
         settings.putBoolean("auto_start", enabled)
-    }
-
-    fun setEnableStreamingNotification(enabled: Boolean) {
-        _uiState.update { it.copy(enableStreamingNotification = enabled) }
-        settings.putBoolean("enable_streaming_notification", enabled)
     }
 
     fun setKeepScreenOn(enabled: Boolean) {
@@ -214,35 +206,35 @@ class SettingsViewModel : ViewModel() {
         _uiState.update { it.copy(backgroundSettings = newSettings) }
         settings.putString("background_image_path", path ?: "")
     }
-    
+
     fun setBackgroundBrightness(brightness: Float) {
         val newSettings = _uiState.value.backgroundSettings.copy(brightness = brightness)
         _uiState.update { it.copy(backgroundSettings = newSettings) }
         settings.putFloat("background_brightness", brightness)
     }
-    
+
     fun setBackgroundBlur(blurRadius: Float) {
         val newSettings = _uiState.value.backgroundSettings.copy(blurRadius = blurRadius)
         _uiState.update { it.copy(backgroundSettings = newSettings) }
         settings.putFloat("background_blur", blurRadius)
     }
-    
+
     fun setCardOpacity(opacity: Float) {
         val newSettings = _uiState.value.backgroundSettings.copy(cardOpacity = opacity)
         _uiState.update { it.copy(backgroundSettings = newSettings) }
         settings.putFloat("card_opacity", opacity)
     }
-    
+
     fun setEnableHazeEffect(enabled: Boolean) {
         val newSettings = _uiState.value.backgroundSettings.copy(enableHazeEffect = enabled)
         _uiState.update { it.copy(backgroundSettings = newSettings) }
         settings.putBoolean("enable_haze_effect", enabled)
     }
-    
+
     fun clearBackgroundImage() {
         setBackgroundImage("")
     }
-    
+
     fun pickBackgroundImage() {
         BackgroundImagePicker.pickImage(viewModelScope) { path ->
             path?.let { setBackgroundImage(it) }
