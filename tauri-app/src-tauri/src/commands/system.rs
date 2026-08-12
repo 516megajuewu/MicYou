@@ -213,12 +213,9 @@ fn should_capture_loopback(
 }
 
 /// Locate the directory containing MicYou's bundled runtime resources (ONNX
-/// models and the `alsa/` config). The path cannot be derived from
-/// `resource_dir()` alone on a packaged deb: the binary is installed as
-/// `/usr/bin/micyou-app` (Cargo package name) while the deb bundler places
-/// resources under `/usr/lib/<productName>/resources`, so the Tauri-resolved
-/// resource dir (`/usr/lib/<crate name>`) does not exist. We therefore probe a
-/// candidate list ending in a scan of `/usr/lib/*`.
+/// models and the ALSA config). Linux packages use the standard
+/// /usr/bin + /usr/lib/micyou/resources layout, while AppImage exposes the
+/// same tree below its temporary mount point.
 fn find_resource_dir(resource_dir: Option<&std::path::Path>) -> Option<std::path::PathBuf> {
     const MARKERS: [&str; 2] = ["purevox6.onnx", "aec7_ep0185.onnx"];
 
@@ -239,22 +236,13 @@ fn find_resource_dir(resource_dir: Option<&std::path::Path>) -> Option<std::path
     {
         candidates.push(executable_dir.clone());
         candidates.push(executable_dir.join("resources"));
+        if let Some(prefix) = executable_dir.parent() {
+            candidates.push(prefix.join("lib").join("micyou").join("resources"));
+        }
     }
 
     // Compile-time fallback for `cargo run` from the workspace.
     candidates.push(std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources"));
-
-    // Packaged deb/appimage: resources live under /usr/lib/<productName>/resources,
-    // which does not always match the binary-derived resource_dir().
-    if let Ok(entries) = std::fs::read_dir("/usr/lib") {
-        for entry in entries.flatten() {
-            if let Ok(ft) = entry.file_type() {
-                if ft.is_dir() {
-                    candidates.push(entry.path().join("resources"));
-                }
-            }
-        }
-    }
 
     candidates
         .into_iter()
@@ -323,12 +311,17 @@ pub fn ensure_audio_output_started(
     output_buffer_ms: usize,
     resource_dir: Option<&std::path::Path>,
 ) -> bool {
+    #[cfg(target_os = "linux")]
+    let resolved_resource_dir = find_resource_dir(resource_dir);
+
     // On Linux, create the PipeWire virtual sink/source before opening output.
     #[cfg(target_os = "linux")]
     {
-        if output_device.is_none() && crate::pipewire::is_available() && !crate::pipewire::is_setup()
+        if output_device.is_none()
+            && crate::pipewire::is_available()
+            && !crate::pipewire::is_setup()
         {
-            if crate::pipewire::setup(resource_dir) {
+            if crate::pipewire::setup(resolved_resource_dir.as_deref()) {
                 log::info!("[PipeWire] Virtual device ready, ALSA will route to virtual sink");
             } else {
                 log::warn!("[PipeWire] Setup failed, falling back to default device");

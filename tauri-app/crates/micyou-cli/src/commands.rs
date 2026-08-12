@@ -1,5 +1,6 @@
 use crate::config;
 use micyou_audio::dsp::AudioDspSettings;
+#[cfg(target_os = "windows")]
 use std::process::exit;
 use tauri_app_lib::mode_lock as lock;
 

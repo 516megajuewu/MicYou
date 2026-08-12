@@ -1,5 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
+  "productName": "micyou",
   "app": {
     "windows": [
       {
@@ -11,5 +12,15 @@
         "backgroundColor": "#00000000"
       }
     ]
+  },
+  "bundle": {
+    "linux": {
+      "deb": {
+        "desktopTemplate": "packaging/micyou.desktop.hbs"
+      },
+      "rpm": {
+        "desktopTemplate": "packaging/micyou.desktop.hbs"
+      }
+    }
   }
 }
