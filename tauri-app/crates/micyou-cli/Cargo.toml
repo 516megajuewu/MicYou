@@ -7,7 +7,7 @@ license.workspace = true
 description = "MicYou command-line interface"
 
 [[bin]]
-name = "micyou"
+name = "micyou-cli"
 path = "src/main.rs"
 
 [dependencies]

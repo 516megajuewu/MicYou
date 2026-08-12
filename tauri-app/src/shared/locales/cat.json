@@ -271,7 +271,7 @@
       "desc": "CLI 和 TUI 模式内存占用更少喵，在终端里跑喵~",
       "switchButton": "切换到 CLI 模式喵~",
       "switchTuiButton": "切换到 TUI 模式喵~",
-      "confirmSwitch": "要切换到 CLI 模式喵？图形界面会关闭，终端会打开跑 micyou serve 喵~",
+      "confirmSwitch": "要切换到 CLI 模式喵？图形界面会关闭，终端会打开跑 micyou-cli serve 喵~",
       "confirmSwitchTui": "要切换到 TUI 模式喵？图形界面会关闭，终端会打开跑 micyou-tui 喵~",
       "switchFailed": "切换失败喵~ (´;ω;`)",
       "guiCurrent": "图形界面 (GUI) 喵~",

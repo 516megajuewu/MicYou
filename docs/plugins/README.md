@@ -56,15 +56,15 @@ MicYou 插件系统允许第三方为桌面端与（未来）安卓端扩展能�
 ## 开发工具
 
 ```bash
-micyou plugin create dev.micyou.myplugin --kind utility --capabilities config.read   # wasm 骨架默认 Rust（自动编译）
-micyou plugin create dev.micyou.myplugin --lang wat                                 # 高级场景才手写 WAT
-micyou plugin create dev.micyou.mynative --runtime native --kind dsp
-micyou plugin validate ./myplugin
-micyou plugin install ./myplugin            # 一键部署到应用插件目录
-micyou plugin dev ./myplugin                # 监听变更自动重装（开发循环）
-micyou plugin package ./myplugin -o out.zip
-micyou plugin bump ./myplugin               # 版本 patch +1
-micyou plugin list                          # 列出已安装插件（id/版本/运行时/状态）
+micyou-cli plugin create dev.micyou.myplugin --kind utility --capabilities config.read   # wasm 骨架默认 Rust（自动编译）
+micyou-cli plugin create dev.micyou.myplugin --lang wat                                 # 高级场景才手写 WAT
+micyou-cli plugin create dev.micyou.mynative --runtime native --kind dsp
+micyou-cli plugin validate ./myplugin
+micyou-cli plugin install ./myplugin            # 一键部署到应用插件目录
+micyou-cli plugin dev ./myplugin                # 监听变更自动重装（开发循环）
+micyou-cli plugin package ./myplugin -o out.zip
+micyou-cli plugin bump ./myplugin               # 版本 patch +1
+micyou-cli plugin list                          # 列出已安装插件（id/版本/运行时/状态）
 
 应用内：设置-插件 → 插件市场（浏览 MicYou-Plugins 仓库：封面图/运行时/能力/平台/架构，
 安装前展示能力确认，一键安装；插件 zip 由各插件仓库 CI 打包发布 GitHub Release，

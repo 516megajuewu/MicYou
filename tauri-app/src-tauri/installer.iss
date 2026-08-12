@@ -4,7 +4,7 @@
 #endif
 #define MyAppPublisher "LanRhyme"
 #define MyAppURL "https://github.com/LanRhyme/MicYou"
-#define MyAppExeName "micyou-gui.exe"
+#define MyAppExeName "micyou.exe"
 
 [Setup]
 AppId={{C8E6D8A6-3A1B-4E38-B76B-C9DB2A0058C0}
@@ -36,8 +36,8 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
-Source: "..\target\release\micyou-gui.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "binaries\micyou-x86_64-pc-windows-msvc.exe"; DestDir: "{app}"; DestName: "micyou.exe"; Flags: ignoreversion
+Source: "..\target\release\micyou.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "binaries\micyou-cli-x86_64-pc-windows-msvc.exe"; DestDir: "{app}"; DestName: "micyou-cli.exe"; Flags: ignoreversion
 Source: "binaries\micyou-tui-x86_64-pc-windows-msvc.exe"; DestDir: "{app}"; DestName: "micyou-tui.exe"; Flags: ignoreversion
 
 [Icons]

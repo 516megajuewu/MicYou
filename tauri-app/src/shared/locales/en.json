@@ -273,7 +273,7 @@
       "desc": "CLI and TUI modes use less memory and run in a terminal",
       "switchButton": "Switch to CLI Mode",
       "switchTuiButton": "Switch to TUI Mode",
-      "confirmSwitch": "Switch to CLI mode? The GUI will close and a terminal will run micyou serve",
+      "confirmSwitch": "Switch to CLI mode? The GUI will close and a terminal will run micyou-cli serve",
       "confirmSwitchTui": "Switch to TUI mode? The GUI will close and a terminal will run micyou-tui",
       "switchFailed": "Switch failed",
       "guiCurrent": "GUI",

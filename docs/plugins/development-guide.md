@@ -120,13 +120,13 @@
   - 要求：按平台分别编译（.so / .dylib / .dll），须声明 `arches`
   - 注意：process() 内禁止调用宿主 API（实时安全）
 
-### 开发工具（micyou plugin）
+### 开发工具（micyou-cli plugin）
 
 ```bash
-micyou plugin create dev.micyou.myplugin          # 生成 wasm 骨架（默认）
-micyou plugin create dev.micyou.mynative --runtime native
-micyou plugin validate ./myplugin                 # 校验 plugin.json 与入口产物
-micyou plugin package ./myplugin -o out.zip       # 打包为可导入 zip
+micyou-cli plugin create dev.micyou.myplugin          # 生成 wasm 骨架（默认）
+micyou-cli plugin create dev.micyou.mynative --runtime native
+micyou-cli plugin validate ./myplugin                 # 校验 plugin.json 与入口产物
+micyou-cli plugin package ./myplugin -o out.zip       # 打包为可导入 zip
 ```
 
 - `create` 生成 plugin.json + 入口模板 + panel.html + README
@@ -303,7 +303,7 @@ C 插件直接 `#include "micyou_plugin_abi.h"` 实现符号即可，导出宏�
 WASM 插件是 core wasm 模块（无需 WASI），在 `wasmi` 纯 Rust 解释器中沙箱执行
 
 > **用高级语言写，别手写 WAT**
-> 推荐用 Rust 编译到 `wasm32-unknown-unknown`（`micyou plugin create --runtime wasm`
+> 推荐用 Rust 编译到 `wasm32-unknown-unknown`（`micyou-cli plugin create --runtime wasm`
 > 默认就生成 Rust 骨架并自动编译），类型安全、可维护、标准库可用
 > WAT 手写仅保留给体积极致或零工具链的高级场景（`--lang wat`）
 
@@ -338,7 +338,7 @@ WASM 插件是 core wasm 模块（无需 WASI），在 `wasmi` 纯 Rust 解释�
 
 ### 完整最小示例（Rust）
 
-`micyou plugin create dev.micyou.hello --runtime wasm` 生成完整 Rust 骨架（推荐路径）
+`micyou-cli plugin create dev.micyou.hello --runtime wasm` 生成完整 Rust 骨架（推荐路径）
 
 #### 构建
 
@@ -348,7 +348,7 @@ cargo build --release                      # 骨架内执行（.cargo/config.tom
 cp target/wasm32-unknown-unknown/release/myplugin.wasm main.wasm
 ```
 
-`micyou plugin create` 已内置编译：检测到 wasm32 目标时自动产出 `main.wasm`
+`micyou-cli plugin create` 已内置编译：检测到 wasm32 目标时自动产出 `main.wasm`
 
 #### 核心骨架（src/lib.rs）
 
@@ -398,11 +398,11 @@ pub extern "C" fn handle_message(ptr: *const u8, len: i32) -> i32 {
 ```
 
 > 完整模板含全部工具函数（字符串写入/读取、payload 读取）与 `process` DSP 示例，
-> 见 `micyou plugin create --runtime wasm` 生成的骨架
+> 见 `micyou-cli plugin create --runtime wasm` 生成的骨架
 
 ### 高级场景：手写 WAT（不推荐）
 
-仅当需要极致体积或无法引入工具链时，用 `micyou plugin create <id> --runtime wasm --lang wat`
+仅当需要极致体积或无法引入工具链时，用 `micyou-cli plugin create <id> --runtime wasm --lang wat`
 生成 WAT 骨架（内置 wat crate 直接编译 main.wasm）
 
 ```
@@ -531,7 +531,7 @@ host->send_message(host->ctx,
 2. **用构建工具内联**：vite/esbuild 开发时引用模块，发布前内联为单文件
    - `vite build` + `vite-plugin-singlefile`
    - esbuild：`esbuild src/main.ts --bundle --outfile=panel.html --loader:.html=copy`（CSS 用 `--bundle` 内联）
-3. **调试**：面板内 `call('log', {level:'debug', message: ...})` 写宿主日志，`micyou plugin dev <dir>` 监听变更自动重装，重启应用即可看到新面板
+3. **调试**：面板内 `call('log', {level:'debug', message: ...})` 写宿主日志，`micyou-cli plugin dev <dir>` 监听变更自动重装，重启应用即可看到新面板
 
 主题变量：宿主注入全部 `--*` CSS 变量（Material 3 HSL 三元组，用 `hsl(var(--primary))` 等引用），切主题时面板自动重载
 3. 面板内联脚本通过 postMessage 桥与宿主通信（见 `usePluginPanelBridge`）：
@@ -586,7 +586,7 @@ await call('play', { id: 'beep' });
 
 ## 端到端开发流程
 
-从零到市场发布的完整流程（配合 `micyou plugin` 工具链）
+从零到市场发布的完整流程（配合 `micyou-cli plugin` 工具链）
 
 ### 第 0 步：规划
 
@@ -602,11 +602,11 @@ await call('play', { id: 'beep' });
 
 ```bash
 # WASM 插件（默认 Rust 骨架，自动编译 main.wasm）
-micyou plugin create dev.yourname.myplugin \
+micyou-cli plugin create dev.yourname.myplugin \
   --kind utility --capabilities config.read,config.write
 
 # Native 插件
-micyou plugin create dev.yourname.mydsp \
+micyou-cli plugin create dev.yourname.mydsp \
   --runtime native --kind dsp
 ```
 
@@ -615,7 +615,7 @@ micyou plugin create dev.yourname.mydsp \
 ### 第 2 步：开发循环（热重装）
 
 ```bash
-micyou plugin dev <插件目录>
+micyou-cli plugin dev <插件目录>
 ```
 
 - 首次自动 validate + install（部署到 `~/.config/micyou/plugins/<id>/`）
@@ -626,7 +626,7 @@ micyou plugin dev <插件目录>
 ### 第 3 步：验证
 
 ```bash
-micyou plugin validate <插件目录>
+micyou-cli plugin validate <插件目录>
 # 校验 manifest 结构 + 入口产物存在性
 ```
 
@@ -635,7 +635,7 @@ micyou plugin validate <插件目录>
 ### 第 4 步：打包
 
 ```bash
-micyou plugin package <插件目录> -o myplugin.zip
+micyou-cli plugin package <插件目录> -o myplugin.zip
 # zip 根目录含 plugin.json，应用内可导入
 ```
 
@@ -661,9 +661,9 @@ micyou plugin package <插件目录> -o myplugin.zip
 ### 第 6 步：迭代与维护
 
 ```bash
-micyou plugin bump <插件目录>        # patch +1
-micyou plugin bump <插件目录> 2.0.0  # 指定版本
-micyou plugin package <插件目录> -o plugin.zip
+micyou-cli plugin bump <插件目录>        # patch +1
+micyou-cli plugin bump <插件目录> 2.0.0  # 指定版本
+micyou-cli plugin package <插件目录> -o plugin.zip
 ```
 发布新版本 = 插件仓库打新 release（新 zip 资产）+ 更新市场 `plugin/<id>/plugin.json`
 的 version 与 downloadUrl 并推送，用户应用内「检查更新」拉取

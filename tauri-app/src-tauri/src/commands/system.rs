@@ -376,7 +376,7 @@ pub async fn start_server(
 }
 
 /// Core server startup, independent of the Tauri runtime.
-/// Shared by the GUI, CLI (`micyou serve`) and TUI (`micyou-tui`).
+/// Shared by the GUI, CLI (`micyou-cli serve`) and TUI (`micyou-tui`).
 pub async fn start_server_inner(
     state: &ServerState,
     port: u16,

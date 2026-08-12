@@ -25,7 +25,7 @@ const target = process.env.TAURI_ENV_TARGET_TRIPLE || hostTargetTriple();
 const profile = debug ? 'debug' : 'release';
 const extension = target.includes('windows') ? '.exe' : '';
 const outputDir = path.join(appDir, 'src-tauri', 'binaries');
-const sidecars = ['micyou', 'micyou-tui'];
+const sidecars = ['micyou-cli', 'micyou-tui'];
 mkdirSync(outputDir, { recursive: true });
 
 const cargoArgs = [

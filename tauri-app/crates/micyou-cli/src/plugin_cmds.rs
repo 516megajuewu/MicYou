@@ -1,4 +1,4 @@
-//! `micyou plugin` — plugin development toolkit.
+//! `micyou-cli plugin` — plugin development toolkit.
 //!
 //! Subcommands:
 //! - `validate <dir>`  validate a plugin directory's plugin.json
@@ -228,7 +228,7 @@ fn bump(dir: &str, version: Option<&str>) -> Result<(), String> {
     std::fs::write(&manifest_path, out + "
 ").map_err(|e| format!("write: {e}"))?;
     println!("bumped {cur} -> {next} in {}", manifest_path.display());
-    println!("  tip: `micyou plugin package {dir}` to repackage");
+    println!("  tip: `micyou-cli plugin package {dir}` to repackage");
     Ok(())
 }
 
@@ -459,7 +459,7 @@ rustflags = ["-C", "link-arg=--export-memory"]
 "#;
 
 const WASM_TEMPLATE_WAT: &str = r#";; MicYou WASM plugin template
-;; Build: micyou plugin package <dir> (or compile with wat2wasm)
+;; Build: micyou-cli plugin package <dir> (or compile with wat2wasm)
 ;; Host API 一览见 docs/plugins/api-reference.md（WASM import 表）
 (module
   (import "micyou" "log" (func $log (param i32 i32)))
@@ -767,7 +767,7 @@ fn create(
         }
     }
     println!(
-        "created {runtime} plugin skeleton in {}/  \n  next: `micyou plugin dev {out_dir}` (watch) or `micyou plugin install {out_dir}`",
+        "created {runtime} plugin skeleton in {}/  \n  next: `micyou-cli plugin dev {out_dir}` (watch) or `micyou-cli plugin install {out_dir}`",
         dir.display()
     );
     Ok(())
@@ -780,7 +780,7 @@ const WASM_README: &str = r#"# 插件骨架
 
 ## 安装
 - 开发：把本目录放入 ~/.config/micyou/plugins/<id>/
-- 分发：`micyou plugin package .` 打包 zip 后在应用内导入
+- 分发：`micyou-cli plugin package .` 打包 zip 后在应用内导入
 
 ## 面板
 panel.html 通过 postMessage 桥调用宿主 API（get_config/set_config/trigger 等）
@@ -797,11 +797,11 @@ const WASM_RUST_README: &str = r#"# WASM 插件骨架（Rust）
 3. 复制产物为入口：`cp target/wasm32-unknown-unknown/release/myplugin.wasm main.wasm`
 
 ## 开发循环
-`micyou plugin dev .` 监听变更自动重装（可先执行一次构建）
+`micyou-cli plugin dev .` 监听变更自动重装（可先执行一次构建）
 
 ## 安装
-- 开发：`micyou plugin install .`
-- 分发：`micyou plugin package . -o out.zip` 后在应用内导入
+- 开发：`micyou-cli plugin install .`
+- 分发：`micyou-cli plugin package . -o out.zip` 后在应用内导入
 
 ## 模板说明
 - `src/lib.rs`：宿主导入（module "micyou"）与宿主契约导出（alloc/dealloc/
@@ -812,7 +812,7 @@ const WASM_RUST_README: &str = r#"# WASM 插件骨架（Rust）
 - 面板：panel.html 通过 postMessage 桥调用宿主 API
 
 ## 手动 WAT 路径（不推荐）
-`micyou plugin create <id> --runtime wasm --lang wat` 生成 WAT 骨架，
+`micyou-cli plugin create <id> --runtime wasm --lang wat` 生成 WAT 骨架，
 仅适合体积极致/无工具链的高级场景
 "#;
 

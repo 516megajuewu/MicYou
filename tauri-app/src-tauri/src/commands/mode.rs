@@ -64,15 +64,15 @@ pub struct ModeStatus {
     pub running: bool,
 }
 
-/// Resolve the `micyou` CLI binary path:
+/// Resolve the `micyou-cli` binary path:
 /// 1. sibling of the current exe (dev builds share target/debug)
 /// 2. parent of the current exe dir (release layouts)
 /// 3. PATH
 pub fn find_cli_binary() -> Option<PathBuf> {
     let exe_name = if cfg!(target_os = "windows") {
-        "micyou.exe"
+        "micyou-cli.exe"
     } else {
-        "micyou"
+        "micyou-cli"
     };
 
     find_named_binary(exe_name)
@@ -105,8 +105,8 @@ fn find_named_binary(exe_name: &str) -> Option<PathBuf> {
         }
     }
 
-    // Resolve PATH entries ourselves so Windows cannot match `MicYou.exe`
-    // when the requested CLI filename is the case-distinct `micyou.exe`.
+    // Resolve PATH entries ourselves so Windows cannot substitute a
+    // differently-cased executable for the requested CLI filename.
     find_binary_on_path(exe_name)
 }
 
@@ -171,23 +171,23 @@ pub fn open_cli_terminal() -> Result<(), String> {
         let candidates: &[(&str, &[&str])] = &[
             (
                 "kitty",
-                &["--", binary.to_str().unwrap_or("micyou"), "serve"],
+                &["--", binary.to_str().unwrap_or("micyou-cli"), "serve"],
             ),
             (
                 "alacritty",
-                &["-e", binary.to_str().unwrap_or("micyou"), "serve"],
+                &["-e", binary.to_str().unwrap_or("micyou-cli"), "serve"],
             ),
             (
                 "gnome-terminal",
-                &["--", binary.to_str().unwrap_or("micyou"), "serve"],
+                &["--", binary.to_str().unwrap_or("micyou-cli"), "serve"],
             ),
             (
                 "konsole",
-                &["-e", binary.to_str().unwrap_or("micyou"), "serve"],
+                &["-e", binary.to_str().unwrap_or("micyou-cli"), "serve"],
             ),
             (
                 "xterm",
-                &["-e", binary.to_str().unwrap_or("micyou"), "serve"],
+                &["-e", binary.to_str().unwrap_or("micyou-cli"), "serve"],
             ),
         ];
         for (term, args) in candidates {
@@ -354,7 +354,7 @@ async fn switch_to_terminal(
 }
 
 /// Switch from the GUI to CLI mode: release the GUI lock and launch a terminal
-/// running `micyou serve`. The frontend should exit the app after this succeeds.
+/// running `micyou-cli serve`. The frontend should exit the app after this succeeds.
 #[tauri::command]
 pub async fn switch_to_cli(app: AppHandle, state: State<'_, ServerState>) -> Result<(), String> {
     switch_to_terminal(app, state, TerminalMode::Cli).await
@@ -439,13 +439,14 @@ mod tests {
             std::process::id()
         ));
         fs::create_dir_all(&dir).expect("temporary test directory should be created");
-        fs::write(dir.join("MicYou.exe"), b"gui").expect("GUI fixture should be written");
+        fs::write(dir.join("MicYou-CLI.exe"), b"wrong case")
+            .expect("case-variant CLI fixture should be written");
 
-        assert_eq!(find_exact_file(&dir, "micyou.exe"), None);
+        assert_eq!(find_exact_file(&dir, "micyou-cli.exe"), None);
 
-        let cli = dir.join("micyou.exe");
+        let cli = dir.join("micyou-cli.exe");
         fs::write(&cli, b"cli").expect("CLI fixture should be written");
-        assert_eq!(find_exact_file(&dir, "micyou.exe"), Some(cli));
+        assert_eq!(find_exact_file(&dir, "micyou-cli.exe"), Some(cli));
 
         fs::remove_dir_all(dir).expect("temporary test directory should be removed");
     }

@@ -271,7 +271,7 @@
       "desc": "CLI 和 TUI 模式使用較少記憶體，在終端機中執行",
       "switchButton": "切換到 CLI 模式",
       "switchTuiButton": "切換到 TUI 模式",
-      "confirmSwitch": "切換到 CLI 模式？圖形介面將關閉，終端機會開啟並執行 micyou serve",
+      "confirmSwitch": "切換到 CLI 模式？圖形介面將關閉，終端機會開啟並執行 micyou-cli serve",
       "confirmSwitchTui": "切換到 TUI 模式？圖形介面將關閉，終端機會開啟並執行 micyou-tui",
       "switchFailed": "切換失敗",
       "guiCurrent": "圖形介面 (GUI)",

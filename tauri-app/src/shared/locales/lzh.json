@@ -271,7 +271,7 @@
       "desc": "CLI 与 TUI 模式耗内存寡，运行于终端",
       "switchButton": "切至 CLI 模式",
       "switchTuiButton": "切至 TUI 模式",
-      "confirmSwitch": "欲切至 CLI 模式乎？图形界面将闭，终端将启 micyou serve",
+      "confirmSwitch": "欲切至 CLI 模式乎？图形界面将闭，终端将启 micyou-cli serve",
       "confirmSwitchTui": "欲切至 TUI 模式乎？图形界面将闭，终端将启 micyou-tui",
       "switchFailed": "切换败",
       "guiCurrent": "图形界面 (GUI)",

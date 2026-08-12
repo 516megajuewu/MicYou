@@ -52,11 +52,11 @@ fn install_alsa_stderr_filter() {
 
 #[derive(Parser)]
 #[command(
-    name = "micyou",
+    name = "micyou-cli",
     version,
     about = "MicYou CLI - turn your Android device into a PC microphone",
     long_about = "MicYou CLI runs the audio server with minimal memory footprint.\n\
-                  Use `micyou serve` to start the server, or `micyou --help` for all commands."
+                  Use `micyou-cli serve` to start the server, or `micyou-cli --help` for all commands."
 )]
 struct Cli {
     #[command(subcommand)]
@@ -125,7 +125,7 @@ enum SettingsAction {
         /// 设置键名，如 gain / nsEnabled / outputBufferMs
         key: Option<String>,
     },
-    /// 修改设置，如 `micyou settings set gain 10`
+    /// 修改设置，如 `micyou-cli settings set gain 10`
     Set {
         /// 设置键名
         key: String,
@@ -140,7 +140,7 @@ enum SettingsAction {
 enum ChainAction {
     /// 显示当前处理链路
     List,
-    /// 设置处理链路顺序，如 `micyou chain set AEC,NoiseReduction,Dereverb`
+    /// 设置处理链路顺序，如 `micyou-cli chain set AEC,NoiseReduction,Dereverb`
     Set {
         /// 逗号分隔的链路项
         chain: String,
@@ -151,7 +151,7 @@ enum ChainAction {
 enum ServerAction {
     /// 显示当前服务器连接设置
     Get,
-    /// 修改服务器设置，如 `micyou server set port 8554` / `micyou server set mode usb`
+    /// 修改服务器设置，如 `micyou-cli server set port 8554` / `micyou-cli server set mode usb`
     Set {
         /// 键名：port / webPort / mode / bindAddress / autoBind / outputDevice
         key: String,
