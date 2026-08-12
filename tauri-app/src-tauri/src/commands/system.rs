@@ -212,6 +212,64 @@ fn should_capture_loopback(
     transport_active && audio_received && aec_enabled && runtime_available
 }
 
+/// Platform-specific ONNX Runtime shared library filename.
+const fn ort_runtime_filename() -> &'static str {
+    #[cfg(target_os = "windows")]
+    {
+        "onnxruntime.dll"
+    }
+    #[cfg(target_os = "macos")]
+    {
+        "libonnxruntime.dylib"
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    {
+        "libonnxruntime.so"
+    }
+}
+
+/// Find the ONNX Runtime shared library bundled alongside the application.
+/// Searches `libs/` relative to the resource root, the executable, and the
+/// compile-time source tree (for `cargo run` / `tauri dev`).
+fn find_ort_runtime(resource_root: Option<&std::path::Path>) -> Option<std::path::PathBuf> {
+    let filename = ort_runtime_filename();
+    let mut candidates: Vec<std::path::PathBuf> = Vec::new();
+
+    // Resource-root sibling: production layout has libs/ next to resources/
+    if let Some(root) = resource_root {
+        if let Some(parent) = root.parent() {
+            candidates.push(parent.join("libs").join(filename));
+        }
+    }
+
+    // Executable-relative
+    if let Some(exe_dir) = std::env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(std::path::Path::to_path_buf))
+    {
+        candidates.push(exe_dir.join("libs").join(filename));
+        // Linux deb: /usr/lib/micyou/libs/
+        if let Some(prefix) = exe_dir.parent() {
+            candidates.push(
+                prefix
+                    .join("lib")
+                    .join("micyou")
+                    .join("libs")
+                    .join(filename),
+            );
+        }
+    }
+
+    // Dev mode: src-tauri/libs/
+    candidates.push(
+        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("libs")
+            .join(filename),
+    );
+
+    candidates.into_iter().find(|p| p.exists())
+}
+
 /// Locate the directory containing MicYou's bundled runtime resources (ONNX
 /// models and the ALSA config). Linux packages use the standard
 /// /usr/bin + /usr/lib/micyou/resources layout, while AppImage exposes the
@@ -427,6 +485,23 @@ pub async fn start_server_inner(
     // startup. On a packaged deb this does NOT equal Tauri's resource_dir().
     let resource_root = find_resource_dir(resource_dir.as_deref());
 
+    // Load the ONNX Runtime shared library.  The official Microsoft build uses
+    // runtime CPUID dispatch for AVX2/SSE kernels, so it works on CPUs without
+    // AVX2 (unlike the pykeio prebuilt binaries with x86-64-v3 baseline).
+    if let Some(ort_path) = find_ort_runtime(resource_root.as_deref()) {
+        if let Err(e) = micyou_audio::init_ort_runtime(&ort_path) {
+            log::error!(
+                "Failed to load ONNX Runtime from {}: {e}",
+                ort_path.display()
+            );
+        }
+    } else {
+        log::warn!(
+            "ONNX Runtime library ({}) not found",
+            ort_runtime_filename()
+        );
+    }
+
     let resolved_output_device = output_device;
     // Bound queued latency: Android packets are ~7 ms, so 128 slots provide ample
     // scheduling headroom without retaining seconds of stale audio.
@@ -601,8 +676,11 @@ pub async fn start_server_inner(
                                     None => true,
                                 };
                                 if needs_decoder {
-                                    let created = crate::opus::Channels::from_channel_count(channels)
-                                        .and_then(|ch| crate::opus::Decoder::new(sample_rate, ch).ok());
+                                    let created =
+                                        crate::opus::Channels::from_channel_count(channels)
+                                            .and_then(|ch| {
+                                                crate::opus::Decoder::new(sample_rate, ch).ok()
+                                            });
                                     opus_decoder = created.map(|dec| (sample_rate, channels, dec));
                                     if opus_decoder.is_none() {
                                         eprintln!(
@@ -616,10 +694,14 @@ pub async fn start_server_inner(
                                     if opus_float_buf.len() != target_frames {
                                         opus_float_buf.resize(target_frames, 0.0);
                                     }
-                                    match decoder.decode_float(&audio_data.buffer, &mut opus_float_buf) {
+                                    match decoder
+                                        .decode_float(&audio_data.buffer, &mut opus_float_buf)
+                                    {
                                         Ok(frames) => {
                                             pcm_f32.clear();
-                                            pcm_f32.extend_from_slice(&opus_float_buf[..frames * channels]);
+                                            pcm_f32.extend_from_slice(
+                                                &opus_float_buf[..frames * channels],
+                                            );
                                         }
                                         Err(e) => {
                                             eprintln!("[Audio] Opus decode error: {}", e);
@@ -642,7 +724,8 @@ pub async fn start_server_inner(
                                 match audio_data.audio_format {
                                     2 => {
                                         for chunk in audio_data.buffer.chunks_exact(2) {
-                                            let sample_i16 = i16::from_le_bytes([chunk[0], chunk[1]]);
+                                            let sample_i16 =
+                                                i16::from_le_bytes([chunk[0], chunk[1]]);
                                             pcm_f32.push(sample_i16 as f32 / 32768.0);
                                         }
                                     }
@@ -754,8 +837,7 @@ pub async fn start_server_inner(
                                     processed
                                 };
 
-                                audio_output_shared
-                                    .push(pcm_f32.clone(), channels.max(1));
+                                audio_output_shared.push(pcm_f32.clone(), channels.max(1));
 
                                 frame_counter = frame_counter.wrapping_add(1);
                                 if frame_counter.is_multiple_of(6) {

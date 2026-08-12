@@ -148,12 +148,23 @@ fn onnx_warning_logger() -> ort::logging::LoggerFunction {
     })
 }
 
+/// Initialize the ONNX Runtime by dynamically loading the shared library from
+/// the given path.  With `load-dynamic` this must be called once before any
+/// [`Session`](ort::session::Session) is built.
+
+#[cfg(feature = "noise-suppression")]
+pub fn init_ort_runtime(lib_path: &std::path::Path) -> Result<(), Box<dyn std::error::Error>> {
+    ort::init_from(lib_path)?
+        .with_logger(onnx_warning_logger())
+        .commit();
+    ort::environment::Environment::current()?.set_log_level(ort::logging::LogLevel::Warning);
+    Ok(())
+}
+
+/// Apply the log-level guard before building the first session.
+/// `init_ort_runtime` must already have been called so the environment exists.
 #[cfg(feature = "noise-suppression")]
 fn configure_onnx_logging() -> ort::Result<()> {
-    // `ort`'s tracing-enabled default environment registers a verbose global
-    // logger. Configure it before the first Session is built; session-level
-    // severity alone does not suppress environment initialization messages.
-    ort::init().with_logger(onnx_warning_logger()).commit();
     ort::environment::Environment::current()?.set_log_level(ort::logging::LogLevel::Warning);
     Ok(())
 }

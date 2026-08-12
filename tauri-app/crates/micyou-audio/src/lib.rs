@@ -9,12 +9,8 @@ pub use aec::AecFailure;
 #[cfg(feature = "dsp")]
 pub use dsp::{AudioDspSettings, DspProcessor, EqualizerConfig};
 pub use engine::{AudioOutputManager, RubatoResampler};
-pub use mixer::{SoundMixer, SoundEffect};
 pub use loopback::LoopbackCapture;
+pub use mixer::{SoundEffect, SoundMixer};
 
-pub fn init_onnx_runtime() {
-    #[cfg(feature = "noise-suppression")]
-    {
-        // Standard ORT initializes automatically
-    }
-}
+#[cfg(feature = "noise-suppression")]
+pub use dsp::init_ort_runtime;
