@@ -27,3 +27,6 @@ semver = "1"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2.169"
+
+[build-dependencies]
+tauri-winres = "0.3.6"
