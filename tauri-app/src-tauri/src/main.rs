@@ -19,6 +19,5 @@ fn main() {
     #[cfg(target_os = "linux")]
     configure_renderer();
 
-    micyou_audio::init_onnx_runtime();
     tauri_app_lib::run()
 }
