@@ -22,16 +22,32 @@ const THEME_CLASSES = Object.keys(BUILTIN_THEMES).concat('theme-custom', 'theme-
 const THEME_COLOR_CLASSES = Object.keys(BUILTIN_THEMES).map((name) => name.replace('theme-', 'theme-color-')).concat('theme-color-custom', 'theme-color-system');
 const STYLE_CLASSES = ['style-default', 'style-glass'];
 
+// Single source of truth for theme default values. `useStorage` init and
+// resetThemeToDefaults() both reference this — change a default here once.
+// `colorMode` is consumed by SettingsDialog's useColorMode reset.
+export const DEFAULT_THEME = {
+  colorMode: 'auto',
+  themeMode: 'system' as ThemeMode,
+  themeColor: 'theme-blue',
+  uiStyle: 'style-default',
+  customH: 215,
+  customS: 35,
+  customL: 55,
+  customVariant: 'TonalSpot',
+  customCss: '',
+  customCssEnabled: true,
+};
+
 // Versioned keys intentionally avoid silently migrating the previous theme data.
-const themeMode = useStorage<ThemeMode>('micyou_theme_v2_mode', 'system');
-const themeColor = useStorage<string>('micyou_theme_v2_color', 'theme-blue');
-const uiStyle = useStorage<string>('micyou_theme_v2_ui_style', 'style-default');
-const customH = useStorage<number>('micyou_theme_v2_custom_h', 215);
-const customS = useStorage<number>('micyou_theme_v2_custom_s', 35);
-const customL = useStorage<number>('micyou_theme_v2_custom_l', 55);
-const customVariant = useStorage<string>('micyou_theme_v2_variant', 'TonalSpot');
-const customCss = useStorage<string>('micyou_theme_v2_css', '');
-const customCssEnabled = useStorage<boolean>('micyou_theme_v2_css_enabled', true);
+const themeMode = useStorage<ThemeMode>('micyou_theme_v2_mode', DEFAULT_THEME.themeMode);
+const themeColor = useStorage<string>('micyou_theme_v2_color', DEFAULT_THEME.themeColor);
+const uiStyle = useStorage<string>('micyou_theme_v2_ui_style', DEFAULT_THEME.uiStyle);
+const customH = useStorage<number>('micyou_theme_v2_custom_h', DEFAULT_THEME.customH);
+const customS = useStorage<number>('micyou_theme_v2_custom_s', DEFAULT_THEME.customS);
+const customL = useStorage<number>('micyou_theme_v2_custom_l', DEFAULT_THEME.customL);
+const customVariant = useStorage<string>('micyou_theme_v2_variant', DEFAULT_THEME.customVariant);
+const customCss = useStorage<string>('micyou_theme_v2_css', DEFAULT_THEME.customCss);
+const customCssEnabled = useStorage<boolean>('micyou_theme_v2_css_enabled', DEFAULT_THEME.customCssEnabled);
 const installedThemeId = useStorage<string>('micyou_theme_v2_installed_id', '');
 const installedThemeCss = useStorage<string>('micyou_theme_v2_installed_css', '');
 const installedThemeControlsColor = useStorage<boolean>('micyou_theme_v2_installed_controls_color', true);
@@ -220,6 +236,35 @@ export function clearInstalledTheme() {
   installedThemeControlsColor.value = true;
 }
 
+// Reset every theme field to DEFAULT_THEME (single source of truth) and tear
+// down any installed theme package. The applyTheme watchEffect recomputes CSS
+// + writes theme.json; SettingsDialog calls saveUiPrefs() afterwards to sync
+// ui.json. No second copy of defaults lives here.
+// Returns true if an installed theme package existed but its backend removal
+// failed (frontend is already cleared) — caller surfaces a partial-success.
+export async function resetThemeToDefaults(): Promise<boolean> {
+  themeMode.value = DEFAULT_THEME.themeMode;
+  themeColor.value = DEFAULT_THEME.themeColor;
+  uiStyle.value = DEFAULT_THEME.uiStyle;
+  customH.value = DEFAULT_THEME.customH;
+  customS.value = DEFAULT_THEME.customS;
+  customL.value = DEFAULT_THEME.customL;
+  customVariant.value = DEFAULT_THEME.customVariant;
+  customCss.value = DEFAULT_THEME.customCss;
+  customCssEnabled.value = DEFAULT_THEME.customCssEnabled;
+  const id = installedThemeId.value;
+  if (id) {
+    clearInstalledTheme();
+    try {
+      await invoke('remove_installed_theme', { themeId: id });
+    } catch (e) {
+      console.warn('Failed to remove installed theme:', e);
+      return true; // installed-theme package removal failed (frontend already cleared)
+    }
+  }
+  return false;
+}
+
 export function useTheme() {
   void initializeSystemAccent();
 
@@ -256,6 +301,7 @@ export function useTheme() {
     installedThemeCss,
     installedThemeControlsColor,
     clearInstalledTheme,
+    resetThemeToDefaults,
     systemAccent,
     systemAccentLoading,
   };
