@@ -100,3 +100,8 @@ Special thanks to [CQU Open Source Software Mirror](https://mirrors.cqu.edu.cn/)
 Special thanks to [MirrorChyan](https://mirrorchyan.com/en/get-start) for providing a high-speed mirror download service for this project.
 
 Special thanks to all the [contributors](https://github.com/LanRhyme/MicYou/graphs/contributors) for helping to make the project even better.
+
+## License
+
+This project is licensed under the [GNU General Public License v3.0 with MicYou Plugin Exception](./LICENSE)
+

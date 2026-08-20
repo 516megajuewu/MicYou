@@ -97,3 +97,8 @@ Made with [contrib.rocks](https://contrib.rocks).
 特別感謝 [Mirror 醬](https://mirrorchyan.com/zh/get-start) 為本專案提供高速鏡像下載服務。
 
 特別感謝所有的 [貢獻者](https://github.com/LanRhyme/MicYou/graphs/contributors) 你們讓專案變得更好。
+
+## 許可證
+
+本專案基於 [GNU General Public License v3.0 附帶 MicYou Plugin Exception](./LICENSE) 開源
+

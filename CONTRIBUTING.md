@@ -141,4 +141,4 @@ Before opening a pull request:
 - Make sure the Android debug build (`./gradlew :composeApp:assembleDebug`) and the desktop build (`cd tauri-app && npm run build`) pass.
 - CI (`.github/workflows/development.yml`) builds the Android debug APK and the Tauri packages for Windows, macOS, and Linux on every push and pull request.
 
-By contributing, you agree to follow the project's [Code of Conduct](./CODE_OF_CONDUCT.md).
+By contributing, you agree that your contributions will be licensed under the project's [GNU General Public License v3.0 with MicYou Plugin Exception](./LICENSE) and to follow the project's [Code of Conduct](./CODE_OF_CONDUCT.md)
