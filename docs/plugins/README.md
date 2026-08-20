@@ -9,12 +9,14 @@ MicYou 插件系统允许第三方为桌面端与（未来）安卓端扩展能�
 | [用户指南](user-guide.md) | 安装卸载、GUI 管理、配置与跨端同步使用 |
 | [API 参考](api-reference.md) | Host API、Plugin API、消息协议、错误码与权限清单 |
 | [架构与扩展](architecture-extensibility.md) | 安卓端扩展计划、版本兼容、安全模型 |
+| [市场与许可规范](marketplace-policy.md) | 插件许可证例外条款、市场准入要求与安全审核规范 |
 
 ## 快速导航
 
 - 想写插件：读 [开发指南](development-guide.md)
 - 想装插件：读 [用户指南](user-guide.md)
 - 想了解协议与权限：读 [API 参考](api-reference.md)
+- 想了解市场政策与许可条款：读 [市场与许可规范](marketplace-policy.md)
 - 想知道安卓端怎么规划：读 [架构与扩展](architecture-extensibility.md)
 
 ## 示例插件

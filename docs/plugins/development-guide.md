@@ -143,7 +143,7 @@ micyou-cli plugin package ./myplugin -o out.zip       # 打包为可导入 zip
 | `version` | string | ✅ | semver |
 | `author` | string | | 作者（邮箱或昵称） |
 | `description` | string | | 简述 |
-| `license` | string | | SPDX 许可标识（如 MIT、GPL-3.0-only） |
+| `license` | string | | SPDX 许可标识（非商业插件可为 MIT、Apache-2.0 等，详见市场与许可规范） |
 | `homepage` | string | | 项目主页 |
 | `repository` | string | | 源码仓库 |
 | `keywords` | string[] | | 搜索关键词 |
