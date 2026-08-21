@@ -17,7 +17,7 @@ opus-decoder = { git = "https://github.com/tfr0305/Rusopus.git", branch = "maste
 version = "2.0.1"
 authors = ["LanRhyme"]
 edition = "2021"
-license = "GPL-3.0-or-later WITH MicYou-Plugin-Exception"
+license = "GPL-3.0-or-later"
 
 [workspace.metadata.tools]
 cargo-about = "0.9.1"
