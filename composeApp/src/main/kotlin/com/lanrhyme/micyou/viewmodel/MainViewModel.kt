@@ -86,6 +86,8 @@ data class AppUiState(
     val isMuted: Boolean = false,
     val isAutoConfig: Boolean = true,
     val autoReconnect: Boolean = true,
+    val nextReconnectAtMillis: Long? = null,
+    val reconnectAttempt: Int = 0,
 
     // Error Dialog State
     val showErrorDialog: Boolean = false,
@@ -215,6 +217,8 @@ class MainViewModel : ViewModel() {
                         isMuted = audioState.isMuted,
                         isAutoConfig = audioState.isAutoConfig,
                         autoReconnect = audioState.autoReconnect,
+                        nextReconnectAtMillis = audioState.nextReconnectAtMillis,
+                        reconnectAttempt = audioState.reconnectAttempt,
                         showErrorDialog = audioState.showErrorDialog,
                         errorDetails = audioState.errorDetails,
                         showUdpWarningDialog = audioState.showUdpWarningDialog,

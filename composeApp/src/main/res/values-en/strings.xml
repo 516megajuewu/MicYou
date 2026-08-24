@@ -27,6 +27,7 @@
     <string name="autoStartLabel">Auto Start</string>
     <string name="autoReconnectDesc">Automatically reconnect when the connection drops</string>
     <string name="autoReconnectLabel">Auto Reconnect</string>
+    <string name="autoReconnectCountdown">Auto reconnect in %1$ds (attempt %2$d)</string>
     <string name="autoSourceAuto">Auto (Recommended)</string>
     <string name="backgroundBlurLabel">Blur</string>
     <string name="backgroundBrightnessLabel">Brightness</string>

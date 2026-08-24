@@ -58,6 +58,10 @@ data class AudioStreamUiState(
     val isMuted: Boolean = false,
     val isAutoConfig: Boolean = true,
     val autoReconnect: Boolean = true,
+    /** 下次自动重连的时间点（epoch ms）；null 表示当前没有排期的重连 */
+    val nextReconnectAtMillis: Long? = null,
+    /** 即将执行的自动重连尝试次数（从 1 开始） */
+    val reconnectAttempt: Int = 0,
     // Error Dialog State
     val showErrorDialog: Boolean = false,
     val errorDetails: ConnectionErrorDetails? = null,
@@ -147,9 +151,32 @@ class AudioStreamViewModel : ViewModel() {
                 _uiState.update { it.copy(streamState = state) }
                 when (state) {
                     StreamState.Streaming -> resetAutoReconnect()
+                    StreamState.Connecting -> lastConnectingAtMillis = System.currentTimeMillis()
                     StreamState.Error -> scheduleAutoReconnect()
                     else -> {}
                 }
+            }
+        }
+
+        // Connecting 卡死看门狗：任何未知路径导致连接建立阶段长时间无事件时，
+        // 强制清理僵死会话并恢复自动重连链路（正常路径由 15s 总超时兜底，
+        // 看门狗是最后一道防线，阈值大于总超时避免误伤）。
+        auxiliaryScope.launch {
+            while (true) {
+                delay(1000)
+                if (_uiState.value.streamState != StreamState.Connecting) continue
+                val waitedMs = System.currentTimeMillis() - lastConnectingAtMillis
+                if (waitedMs < CONNECTING_WATCHDOG_TIMEOUT_MS) continue
+                Logger.w("AudioStreamViewModel", "Connecting stuck for ${waitedMs}ms, watchdog forcing recovery")
+                try {
+                    // 非用户主动停止：保留 desiredRunning，仅清理会话资源
+                    _audioEngine.stopAndWait(userInitiated = false)
+                } catch (e: Exception) {
+                    Logger.w("AudioStreamViewModel", "Watchdog stop failed: ${e.message}")
+                }
+                if (!canAutoReconnect()) continue
+                _uiState.update { it.copy(streamState = StreamState.Error) }
+                scheduleAutoReconnect()
             }
         }
 
@@ -204,6 +231,8 @@ class AudioStreamViewModel : ViewModel() {
         }
 
         isStartStreamRequestPending = true
+        // 手动发起的启动：取消排期中的自动重连，避免与本次启动并发执行
+        cancelAutoReconnect()
         auxiliaryScope.launch {
             try {
                 startStreamInternal()
@@ -255,6 +284,8 @@ class AudioStreamViewModel : ViewModel() {
         val audioFormat = _uiState.value.audioFormat
 
         _uiState.update { it.copy(streamState = StreamState.Connecting, errorMessage = null, showErrorDialog = false, errorDetails = null) }
+        // 从尝试起点刷新看门狗计时，避免依赖引擎事件的到达时机造成误判
+        lastConnectingAtMillis = System.currentTimeMillis()
 
         try {
             Logger.d("AudioStreamViewModel", "Calling _audioEngine.start()")
@@ -473,10 +504,13 @@ class AudioStreamViewModel : ViewModel() {
         const val RECONNECT_MAX_BACKOFF_EXP = 10
         /** 连接建立总超时（TCP connect + 握手）；网络不可达时兜底失败进入退避，不卡 Connecting */
         const val STREAM_START_TIMEOUT_MS = 15000L
+        /** Connecting 卡死看门狗阈值：大于总超时，仅拦截未知路径的僵死会话 */
+        const val CONNECTING_WATCHDOG_TIMEOUT_MS = 20000L
     }
 
     private var reconnectJob: Job? = null
     private var reconnectAttempts = 0
+    private var lastConnectingAtMillis = 0L
 
     fun setAutoReconnect(enabled: Boolean) {
         Logger.i("AudioStreamViewModel", "Setting auto reconnect to $enabled")
@@ -490,19 +524,30 @@ class AudioStreamViewModel : ViewModel() {
     /**
      * 断连后由 streamState 观察者触发：按退避策略（3s 起、指数增长、30s 封顶）
      * 调度一次重连尝试；失败后再次进入 Error 状态会继续下一轮退避。
+     * 幂等：已有排期在等待时直接返回，避免观察者与显式调用双路径导致
+     * 尝试计数膨胀、倒计时被反复重置。
      */
     private fun scheduleAutoReconnect() {
         if (!canAutoReconnect()) return
-        reconnectJob?.cancel()
+        if (reconnectJob?.isActive == true) return
         val attempt = reconnectAttempts + 1
         reconnectAttempts = attempt
         val backoffExp = (attempt - 1).coerceAtMost(RECONNECT_MAX_BACKOFF_EXP)
         val delayMs = minOf(RECONNECT_INITIAL_DELAY_MS shl backoffExp, RECONNECT_MAX_DELAY_MS)
         Logger.i("AudioStreamViewModel", "Auto-reconnect attempt $attempt scheduled in ${delayMs}ms")
+        _uiState.update {
+            it.copy(
+                nextReconnectAtMillis = System.currentTimeMillis() + delayMs,
+                reconnectAttempt = attempt
+            )
+        }
         reconnectJob = auxiliaryScope.launch {
             delay(delayMs)
-            // 等待期间可能已被用户停止/重试/关闭，或状态已变化
-            if (!canAutoReconnect() || _uiState.value.streamState != StreamState.Error) return@launch
+            // 等待期间可能已被用户停止/重试/关闭；状态守卫放宽到 Idle：
+            // 引擎清理路径可能把状态落成 Idle（而非 Error），此时同样应继续重连
+            if (!canAutoReconnect()) return@launch
+            val currentState = _uiState.value.streamState
+            if (currentState != StreamState.Error && currentState != StreamState.Idle) return@launch
             Logger.i("AudioStreamViewModel", "Auto-reconnect attempt $attempt executing")
             startStreamInternal(fromReconnect = true)
         }
@@ -524,6 +569,7 @@ class AudioStreamViewModel : ViewModel() {
     private fun resetAutoReconnect() {
         reconnectAttempts = 0
         cancelAutoReconnect()
+        _uiState.update { it.copy(nextReconnectAtMillis = null, reconnectAttempt = 0) }
     }
 
     fun close(): Job = synchronized(closeLock) {

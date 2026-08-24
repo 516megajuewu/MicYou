@@ -592,6 +592,47 @@ private fun ConnectionConfigCard(
 
 // ==================== Main Control ====================
 
+/**
+ * 自动重连倒计时提示：Error 状态且存在已排期的重连时，每秒刷新剩余秒数。
+ */
+@Composable
+private fun ReconnectCountdownHint(state: AppUiState) {
+    val targetMillis = state.nextReconnectAtMillis
+    val active = state.streamState == StreamState.Error && targetMillis != null
+
+    var secondsLeft by remember { mutableStateOf(0) }
+    LaunchedEffect(active, targetMillis) {
+        if (!active || targetMillis == null) {
+            secondsLeft = 0
+            return@LaunchedEffect
+        }
+        while (true) {
+            val remaining = ((targetMillis - System.currentTimeMillis()) / 1000L).toInt() + 1
+            secondsLeft = remaining.coerceAtLeast(0)
+            if (remaining <= 0) break
+            delay(200)
+        }
+    }
+
+    AnimatedVisibility(
+        visible = active && secondsLeft > 0,
+        enter = fadeIn() + expandVertically(),
+        exit = fadeOut() + shrinkVertically()
+    ) {
+        Surface(
+            shape = MaterialTheme.shapes.small,
+            color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f)
+        ) {
+            Text(
+                stringResource(R.string.autoReconnectCountdown, secondsLeft, state.reconnectAttempt),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+            )
+        }
+    }
+}
+
 @Composable
 private fun MainControlCard(
     state: AppUiState,
@@ -708,6 +749,9 @@ private fun MainControlCard(
                         }
                     }
                 }
+
+                // 自动重连倒计时提示
+                ReconnectCountdownHint(state)
             }
 
             // Audio visualizer
