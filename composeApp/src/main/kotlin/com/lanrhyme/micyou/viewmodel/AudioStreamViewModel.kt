@@ -21,6 +21,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -55,6 +56,7 @@ data class AudioStreamUiState(
     val audioFormat: AudioFormat = AudioFormat.PCM_FLOAT,
     val isMuted: Boolean = false,
     val isAutoConfig: Boolean = true,
+    val autoReconnect: Boolean = true,
     // Error Dialog State
     val showErrorDialog: Boolean = false,
     val errorDetails: ConnectionErrorDetails? = null,
@@ -115,6 +117,7 @@ class AudioStreamViewModel : ViewModel() {
 
     val savedAndroidAudioSourceName = settings.getString("android_audio_source", "Mic")
     val savedIsAutoConfig = settings.getBoolean("is_auto_config", true)
+    val savedAutoReconnect = settings.getBoolean("auto_reconnect", true)
 
         _uiState.update {
             it.copy(
@@ -126,7 +129,8 @@ class AudioStreamViewModel : ViewModel() {
                 channelCount = savedChannelCount,
                 audioFormat = savedAudioFormat,
                 androidAudioSourceName = savedAndroidAudioSourceName,
-                isAutoConfig = savedIsAutoConfig
+                isAutoConfig = savedIsAutoConfig,
+                autoReconnect = savedAutoReconnect
             )
         }
 
@@ -140,6 +144,11 @@ class AudioStreamViewModel : ViewModel() {
         auxiliaryScope.launch {
             _audioEngine.streamState.collect { state ->
                 _uiState.update { it.copy(streamState = state) }
+                when (state) {
+                    StreamState.Streaming -> resetAutoReconnect()
+                    StreamState.Error -> scheduleAutoReconnect()
+                    else -> {}
+                }
             }
         }
 
@@ -203,7 +212,7 @@ class AudioStreamViewModel : ViewModel() {
         }
     }
 
-    private suspend fun startStreamInternal() {
+    private suspend fun startStreamInternal(fromReconnect: Boolean = false) {
         Logger.i("AudioStreamViewModel", "Starting stream")
         val mode = _uiState.value.mode
         val ip = _uiState.value.ipAddress
@@ -275,8 +284,9 @@ class AudioStreamViewModel : ViewModel() {
                 it.copy(
                     streamState = StreamState.Error,
                     errorMessage = errorDetails.localizedMessage,
-                    showErrorDialog = true,
-                    errorDetails = errorDetails
+                    // 自动重连失败的提示由错误横幅展示，不反复弹对话框打扰用户
+                    showErrorDialog = !fromReconnect,
+                    errorDetails = if (fromReconnect) null else errorDetails
                 )
             }
             return
@@ -285,6 +295,8 @@ class AudioStreamViewModel : ViewModel() {
 
     fun stopStream() {
         Logger.i("AudioStreamViewModel", "Stopping stream")
+        // 用户主动停止：取消挂起的自动重连，避免停止后被意外重连
+        resetAutoReconnect()
         if (isStopStreamRequestPending) {
             Logger.d("AudioStreamViewModel", "Stop stream request ignored: stop already pending")
             return
@@ -352,8 +364,9 @@ class AudioStreamViewModel : ViewModel() {
         }
         settings.putString("ip_address", ip.ifBlank { _uiState.value.ipAddress })
 
-        // 如果要求重启流（IP 切换时），先停止再启动
+    // 若要求重启流（IP 切换时），先停止再启动
         if (restartStream && wasRunning) {
+            resetAutoReconnect()
             auxiliaryScope.launch(Dispatchers.IO) {
                 try {
                     _audioEngine.stopAndWait()
@@ -423,12 +436,77 @@ class AudioStreamViewModel : ViewModel() {
 
     fun retryAfterError() {
         dismissErrorDialog()
+        // 手动重试：取消退避中的自动重连，立即重试
+        resetAutoReconnect()
         startStream()
+    }
+
+    // ===== 自动重连 =====
+
+    private companion object {
+        /** 首次重连延迟 */
+        const val RECONNECT_INITIAL_DELAY_MS = 3000L
+        /** 重连延迟上限（指数退避封顶） */
+        const val RECONNECT_MAX_DELAY_MS = 30000L
+        /** 指数退避指数上限，避免位移溢出 */
+        const val RECONNECT_MAX_BACKOFF_EXP = 10
+    }
+
+    private var reconnectJob: Job? = null
+    private var reconnectAttempts = 0
+
+    fun setAutoReconnect(enabled: Boolean) {
+        Logger.i("AudioStreamViewModel", "Setting auto reconnect to $enabled")
+        _uiState.update { it.copy(autoReconnect = enabled) }
+        settings.putBoolean("auto_reconnect", enabled)
+        if (!enabled) {
+            resetAutoReconnect()
+        }
+    }
+
+    /**
+     * 断连后由 streamState 观察者触发：按退避策略（3s 起、指数增长、30s 封顶）
+     * 调度一次重连尝试；失败后再次进入 Error 状态会继续下一轮退避。
+     */
+    private fun scheduleAutoReconnect() {
+        if (!canAutoReconnect()) return
+        reconnectJob?.cancel()
+        val attempt = reconnectAttempts + 1
+        reconnectAttempts = attempt
+        val backoffExp = (attempt - 1).coerceAtMost(RECONNECT_MAX_BACKOFF_EXP)
+        val delayMs = minOf(RECONNECT_INITIAL_DELAY_MS shl backoffExp, RECONNECT_MAX_DELAY_MS)
+        Logger.i("AudioStreamViewModel", "Auto-reconnect attempt $attempt scheduled in ${delayMs}ms")
+        reconnectJob = auxiliaryScope.launch {
+            delay(delayMs)
+            // 等待期间可能已被用户停止/重试/关闭，或状态已变化
+            if (!canAutoReconnect() || _uiState.value.streamState != StreamState.Error) return@launch
+            Logger.i("AudioStreamViewModel", "Auto-reconnect attempt $attempt executing")
+            startStreamInternal(fromReconnect = true)
+        }
+    }
+
+    /**
+     * 仅当自动重连开启、引擎仍期望运行（未被主动停止/关闭）、
+     * 且 ViewModel 尚未关闭时才允许继续重连。
+     */
+    private fun canAutoReconnect(): Boolean =
+        !closed.get() && _uiState.value.autoReconnect && _audioEngine.isUserWantsStreamRunning()
+
+    private fun cancelAutoReconnect() {
+        reconnectJob?.cancel()
+        reconnectJob = null
+    }
+
+    /** 取消挂起的重连并清零重试计数（流成功后/主动停止时调用） */
+    private fun resetAutoReconnect() {
+        reconnectAttempts = 0
+        cancelAutoReconnect()
     }
 
     fun close(): Job = synchronized(closeLock) {
         closeJob?.let { return@synchronized it }
         closed.set(true)
+        resetAutoReconnect()
         discoveryManager.stopDiscovery()
         val engineCloseJob = _audioEngine.close()
         auxiliaryScope.cancel()

@@ -367,6 +367,12 @@ class AudioEngine constructor() {
     val streamState: Flow<StreamState> = _state
 
     fun currentStreamState(): StreamState = _state.value
+
+    /**
+     * 用户意图仍在运行：既没有被主动停止（stop/close），也没被停止超时强制放弃。
+     * 断连后仅当该标志为 true 时才允许自动重连，避免用户主动停止后被意外重连。
+     */
+    fun isUserWantsStreamRunning(): Boolean = desiredRunning && !closed.get()
     private val _audioLevels = MutableStateFlow(0f)
     val audioLevels: Flow<Float> = _audioLevels
 

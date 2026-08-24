@@ -191,6 +191,17 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
+            // 设置中的"自动串流"：打开 App 且权限已授予时自动开始连接
+            // key 覆盖权限状态（用户授予/拒绝后也会重新评估）
+            LaunchedEffect(currentPermissionsState.value, permissionDialogDismissed.value) {
+                val granted = hasAllRequiredPermissions(currentPermissionsState.value)
+                if (uiState.autoStart && granted && permissionDialogDismissed.value &&
+                    uiState.streamState == StreamState.Idle
+                ) {
+                    appViewModel.startStream()
+                }
+            }
+
             LaunchedEffect(shouldQuickStart, streamState) {
                 if (shouldQuickStart && !needsPermissions) {
                     when (streamState) {

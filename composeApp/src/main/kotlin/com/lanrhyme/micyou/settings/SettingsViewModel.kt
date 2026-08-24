@@ -43,7 +43,7 @@ data class SettingsUiState(
     val paletteStyle: PaletteStyle = PaletteStyle.TonalSpot,
     val useExpressiveShapes: Boolean = true,
     val language: AppLanguage = AppLanguage.System,
-    val autoStart: Boolean = false,
+    val autoStart: Boolean = true,
     val keepScreenOn: Boolean = false,
     val autoCheckUpdate: Boolean = true,
     val useMirrorDownload: Boolean = false,
@@ -79,7 +79,7 @@ class SettingsViewModel : ViewModel() {
         } catch(e: Exception) {
             AppLanguage.System
         }
-    val savedAutoStart = settings.getBoolean("auto_start", false)
+    val savedAutoStart = settings.getBoolean("auto_start", true)
     val savedKeepScreenOn = settings.getBoolean("keep_screen_on", false)
     val savedVisualizerStyleName = settings.getString("visualizer_style", VisualizerStyle.VolumeRing.name)
     val savedVisualizerStyle = try {

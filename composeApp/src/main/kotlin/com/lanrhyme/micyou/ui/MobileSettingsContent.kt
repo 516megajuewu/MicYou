@@ -305,6 +305,34 @@ private fun LazyListScope.generalSettingsItems(
 
         items.add { isFirst, isLast ->
             ExpressiveSettingsSwitchItem(
+                headline = stringResource(R.string.autoReconnectLabel),
+                supporting = stringResource(R.string.autoReconnectDesc),
+                checked = state.autoReconnect,
+                onCheckedChange = { viewModel.setAutoReconnect(it) },
+                isFirst = isFirst,
+                isLast = isLast,
+                containerColor = containerColor,
+                hazeState = hazeState,
+                enableHaze = enableHaze
+            )
+        }
+
+        items.add { isFirst, isLast ->
+            ExpressiveSettingsSwitchItem(
+                headline = stringResource(R.string.autoStartLabel),
+                supporting = stringResource(R.string.autoStartDesc),
+                checked = state.autoStart,
+                onCheckedChange = { viewModel.setAutoStart(it) },
+                isFirst = isFirst,
+                isLast = isLast,
+                containerColor = containerColor,
+                hazeState = hazeState,
+                enableHaze = enableHaze
+            )
+        }
+
+        items.add { isFirst, isLast ->
+            ExpressiveSettingsSwitchItem(
                 headline = stringResource(R.string.keepScreenOnLabel),
                 supporting = stringResource(R.string.keepScreenOnDesc),
                 checked = state.keepScreenOn,

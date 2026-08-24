@@ -85,6 +85,7 @@ data class AppUiState(
     val audioFormat: AudioFormat = AudioFormat.PCM_FLOAT,
     val isMuted: Boolean = false,
     val isAutoConfig: Boolean = true,
+    val autoReconnect: Boolean = true,
 
     // Error Dialog State
     val showErrorDialog: Boolean = false,
@@ -103,7 +104,7 @@ data class AppUiState(
     val paletteStyle: PaletteStyle = PaletteStyle.TonalSpot,
     val useExpressiveShapes: Boolean = true,
     val language: AppLanguage = AppLanguage.System,
-    val autoStart: Boolean = false,
+    val autoStart: Boolean = true,
     val keepScreenOn: Boolean = false,
     val autoCheckUpdate: Boolean = true,
     val useMirrorDownload: Boolean = false,
@@ -213,6 +214,7 @@ class MainViewModel : ViewModel() {
                         audioFormat = audioState.audioFormat,
                         isMuted = audioState.isMuted,
                         isAutoConfig = audioState.isAutoConfig,
+                        autoReconnect = audioState.autoReconnect,
                         showErrorDialog = audioState.showErrorDialog,
                         errorDetails = audioState.errorDetails,
                         showUdpWarningDialog = audioState.showUdpWarningDialog,
@@ -271,6 +273,7 @@ class MainViewModel : ViewModel() {
     fun setAudioFormat(format: AudioFormat) = audioStreamViewModel.setAudioFormat(format)
     fun setAndroidAudioSource(sourceName: String) = audioStreamViewModel.setAndroidAudioSource(sourceName)
     fun setAutoConfig(enabled: Boolean) = audioStreamViewModel.setAutoConfig(enabled)
+    fun setAutoReconnect(enabled: Boolean) = audioStreamViewModel.setAutoReconnect(enabled)
     fun dismissErrorDialog() = audioStreamViewModel.dismissErrorDialog()
     fun dismissUdpWarningDialog() = audioStreamViewModel.dismissUdpWarningDialog()
     fun retryAfterError() = audioStreamViewModel.retryAfterError()
