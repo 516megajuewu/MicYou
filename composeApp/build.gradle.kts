@@ -78,9 +78,12 @@ android {
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
 
-            if (hasReleaseSigning) {
-                signingConfig = signingConfigs.getByName("release")
-            }
+            // 有正式签名密钥时用正式签名；否则回退到 debug keystore
+            // 保证 assembleRelease 在无 ANDROID_KEYSTORE_* 环境（如 fork 仓库 CI）时
+            // 仍能产出带签名、可直接安装的 APK，R8/shrinkResources 依然生效
+            signingConfig =
+                if (hasReleaseSigning) signingConfigs.getByName("release")
+                else signingConfigs.getByName("debug")
         }
     }
     compileOptions {
