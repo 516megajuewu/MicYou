@@ -27,6 +27,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
 import com.lanrhyme.micyou.audio.AudioEngine
 import com.lanrhyme.micyou.audio.AudioFormat
 import com.lanrhyme.micyou.audio.ChannelCount
@@ -257,10 +258,26 @@ class AudioStreamViewModel : ViewModel() {
 
         try {
             Logger.d("AudioStreamViewModel", "Calling _audioEngine.start()")
-            _audioEngine.start(ip, port, mode, true, sampleRate, channelCount, audioFormat, _uiState.value.transportProtocol)
+            try {
+                // 连接建立阶段兜底超时：TCP connect/握手在网络不可达（如 Wi-Fi 断网/重开、
+                // 目标 IP 失效）时可能长时间挂起。必须在 UI 层限制总时长，保证失败后进入
+                // 退避重连，避免界面长期停留在 Connecting。
+                withTimeout(STREAM_START_TIMEOUT_MS) {
+                    _audioEngine.start(ip, port, mode, true, sampleRate, channelCount, audioFormat, _uiState.value.transportProtocol)
+                }
+            } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
+                // 转成普通超时异常，复用下方 catch(Exception) 的错误分析/本地化路径
+                throw java.net.SocketTimeoutException("Stream start timed out after ${STREAM_START_TIMEOUT_MS}ms")
+            }
             Logger.i("AudioStreamViewModel", "Stream started successfully")
         } catch (e: kotlinx.coroutines.CancellationException) {
             Logger.i("AudioStreamViewModel", "Stream start cancelled by user")
+            // 自动重连尝试被取消/取代（上层竞态）时，若不恢复调度，UI 会卡在 Connecting
+            // 且不再有任何事件触发重连。这里显式恢复：状态回置 Error 并按退避继续。
+            if (fromReconnect && canAutoReconnect()) {
+                _uiState.update { it.copy(streamState = StreamState.Error) }
+                scheduleAutoReconnect()
+            }
             return
         } catch (e: Exception) {
             Logger.e("AudioStreamViewModel", "Failed to start stream", e)
@@ -288,6 +305,10 @@ class AudioStreamViewModel : ViewModel() {
                     showErrorDialog = !fromReconnect,
                     errorDetails = if (fromReconnect) null else errorDetails
                 )
+            }
+            // 显式调度下一次退避重连（观察者针对引擎自发 Error 也会触发，此处双保险且幂等）
+            if (fromReconnect) {
+                scheduleAutoReconnect()
             }
             return
         }
@@ -450,6 +471,8 @@ class AudioStreamViewModel : ViewModel() {
         const val RECONNECT_MAX_DELAY_MS = 30000L
         /** 指数退避指数上限，避免位移溢出 */
         const val RECONNECT_MAX_BACKOFF_EXP = 10
+        /** 连接建立总超时（TCP connect + 握手）；网络不可达时兜底失败进入退避，不卡 Connecting */
+        const val STREAM_START_TIMEOUT_MS = 15000L
     }
 
     private var reconnectJob: Job? = null

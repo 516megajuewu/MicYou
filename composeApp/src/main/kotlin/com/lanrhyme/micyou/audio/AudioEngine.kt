@@ -287,6 +287,8 @@ class AudioEngine constructor() {
         private const val AUDIO_READ_IDLE_DELAY_MS = 5L
         private const val STOP_TIMEOUT_MS = 5000L
         private const val CLOSE_FINAL_WAIT_MS = 15000L
+        /** TCP 连接/握手超时：目标不可达（如 WiFi 断网/错 IP）时快速失败，避免重连卡在 Connecting */
+        private const val CONNECT_TIMEOUT_MS = 10000L
         private const val FEC_GROUP_SIZE = 12 // 每 12 个包生成一个 FEC 包（约 87ms @44100Hz）
         private const val RECORDER_TEARDOWN_BLOCKED_ERROR =
             "Native audio recorder teardown is still in progress; restart the app process to recover"
@@ -500,10 +502,19 @@ class AudioEngine constructor() {
                         stopTimedOutResources = null
                     }
                     if (wasDesiredRunning && job?.isCompleted == false) {
-                        Logger.w("AudioEngine", "AudioEngine already running, ignoring start request")
-                        connectionComplete.complete(Unit)
-                        startIgnored = true
-                        return@withLock
+                        // 流已在运行（Streaming）时重复 start 保持幂等；但上一轮会话仍在
+                        // Connecting/Error/清理中（自动重连竞态）时若静默返回成功，上层会
+                        // 误以为已连上，UI 卡在 Connecting 且不再调度重连——此时必须抛出异常
+                        // 让上层走错误流并按退避策略重新调度。
+                        if (_state.value == StreamState.Streaming) {
+                            Logger.w("AudioEngine", "AudioEngine already running, ignoring start request")
+                            connectionComplete.complete(Unit)
+                            startIgnored = true
+                            return@withLock
+                        }
+                        throw IllegalStateException(
+                            "AudioEngine previous session still active (state=${_state.value}), rejecting start request"
+                        )
                     }
                     desiredRunning = true
                     startRequestGeneration++
@@ -655,10 +666,17 @@ class AudioEngine constructor() {
                         if (transportProtocol == TransportProtocol.Tcp || transportProtocol == TransportProtocol.Both) {
                             Logger.i("AudioEngine", "Connecting via TCP to $targetIp:$port")
                             val socketBuilder = aSocket(sessionSelectorManager)
-                            tcpSocket = socketBuilder.tcp().connect(targetIp, port) {
-                                keepAlive = true
-                                socketTimeout = 10000L
-                                noDelay = true
+                            withTimeoutOrNull(CONNECT_TIMEOUT_MS) {
+                                tcpSocket = socketBuilder.tcp().connect(targetIp, port) {
+                                    keepAlive = true
+                                    socketTimeout = 10000L
+                                    noDelay = true
+                                }
+                            }
+                            if (tcpSocket == null) {
+                                throw java.net.SocketTimeoutException(
+                                    "TCP connect to $targetIp:$port timed out after $CONNECT_TIMEOUT_MS ms"
+                                )
                             }
                             Logger.i("AudioEngine", "TCP connected to $targetIp:$port")
                             input = tcpSocket.openReadChannel()
@@ -702,25 +720,32 @@ class AudioEngine constructor() {
                             val out = output ?: throw IllegalStateException("TCP output channel unavailable")
                             val inChannel = input ?: throw IllegalStateException("TCP input channel unavailable")
                             Logger.d("AudioEngine", "Starting handshake")
-                            out.writeFully(CHECK_1.encodeToByteArray())
-                            out.flush()
-                            val responseBuffer = ByteArray(CHECK_2.length)
-                            inChannel.readFully(responseBuffer, 0, responseBuffer.size)
+                            val handshakeDone = withTimeoutOrNull(CONNECT_TIMEOUT_MS) {
+                                out.writeFully(CHECK_1.encodeToByteArray())
+                                out.flush()
+                                val responseBuffer = ByteArray(CHECK_2.length)
+                                inChannel.readFully(responseBuffer, 0, responseBuffer.size)
 
-                            if (!responseBuffer.decodeToString().equals(CHECK_2)) {
-                                val msg = getString(R.string.errorHandshakeFailedDetailed)
-                                Logger.e("AudioEngine", "Handshake failed: received ${responseBuffer.decodeToString()}")
-                                throw IllegalStateException(msg)
+                                if (!responseBuffer.decodeToString().equals(CHECK_2)) {
+                                    val msg = getString(R.string.errorHandshakeFailedDetailed)
+                                    Logger.e("AudioEngine", "Handshake failed: received ${responseBuffer.decodeToString()}")
+                                    throw IllegalStateException(msg)
+                                }
+                                Logger.i("AudioEngine", "Handshake successful")
+                                val connectBytes = proto.encodeToByteArray(
+                                    MessageWrapper.serializer(),
+                                    MessageWrapper(connect = ConnectMessage(sessionId))
+                                )
+                                out.writeInt(PACKET_MAGIC)
+                                out.writeInt(connectBytes.size)
+                                out.writeFully(connectBytes)
+                                out.flush()
                             }
-                            Logger.i("AudioEngine", "Handshake successful")
-                            val connectBytes = proto.encodeToByteArray(
-                                MessageWrapper.serializer(),
-                                MessageWrapper(connect = ConnectMessage(sessionId))
-                            )
-                            out.writeInt(PACKET_MAGIC)
-                            out.writeInt(connectBytes.size)
-                            out.writeFully(connectBytes)
-                            out.flush()
+                            if (handshakeDone == null) {
+                                throw java.net.SocketTimeoutException(
+                                    "TCP handshake to $targetIp:$port timed out after $CONNECT_TIMEOUT_MS ms"
+                                )
+                            }
                         } else {
                             // UDP-only 模式不需要握手（但这可能会有连接问题）
                             Logger.w("AudioEngine", "UDP-only mode: skipping handshake")
