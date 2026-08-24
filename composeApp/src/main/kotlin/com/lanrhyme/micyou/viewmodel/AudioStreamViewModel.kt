@@ -94,6 +94,15 @@ class AudioStreamViewModel : ViewModel() {
     private var isStartStreamRequestPending = false
     private var isStopStreamRequestPending = false
 
+    /**
+     * 用户意图：用户最后一次明确想要流继续运行的标志。
+     * 注意不能依赖引擎内部 desiredRunning —— 引擎在 stop 超时等异常路径会把
+     * desiredRunning 置 false 且无人复位，若重连门槛依赖它会导致重连链一次
+     * 性断裂（表现：UI 停在"未知网络错误"，只有手动点才能恢复）。
+     */
+    @Volatile
+    private var userWantsRunning = false
+
     init {
         loadSettings()
         setupAudioEngineObservers()
@@ -231,6 +240,7 @@ class AudioStreamViewModel : ViewModel() {
         }
 
         isStartStreamRequestPending = true
+        userWantsRunning = true
         // 手动发起的启动：取消排期中的自动重连，避免与本次启动并发执行
         cancelAutoReconnect()
         auxiliaryScope.launch {
@@ -348,6 +358,7 @@ class AudioStreamViewModel : ViewModel() {
     fun stopStream() {
         Logger.i("AudioStreamViewModel", "Stopping stream")
         // 用户主动停止：取消挂起的自动重连，避免停止后被意外重连
+        userWantsRunning = false
         resetAutoReconnect()
         if (isStopStreamRequestPending) {
             Logger.d("AudioStreamViewModel", "Stop stream request ignored: stop already pending")
@@ -554,11 +565,13 @@ class AudioStreamViewModel : ViewModel() {
     }
 
     /**
-     * 仅当自动重连开启、引擎仍期望运行（未被主动停止/关闭）、
+     * 仅当自动重连开启、用户意图仍为运行（未被主动停止/关闭）、
      * 且 ViewModel 尚未关闭时才允许继续重连。
+     * 用户意图由 ViewModel 自持（userWantsRunning），不依赖引擎内部状态，
+     * 避免引擎异常路径的副作用（如 stop 超时置 desiredRunning=false）掐断重连。
      */
     private fun canAutoReconnect(): Boolean =
-        !closed.get() && _uiState.value.autoReconnect && _audioEngine.isUserWantsStreamRunning()
+        !closed.get() && _uiState.value.autoReconnect && userWantsRunning
 
     private fun cancelAutoReconnect() {
         reconnectJob?.cancel()
@@ -575,6 +588,7 @@ class AudioStreamViewModel : ViewModel() {
     fun close(): Job = synchronized(closeLock) {
         closeJob?.let { return@synchronized it }
         closed.set(true)
+        userWantsRunning = false
         resetAutoReconnect()
         discoveryManager.stopDiscovery()
         val engineCloseJob = _audioEngine.close()

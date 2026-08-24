@@ -370,11 +370,6 @@ class AudioEngine constructor() {
 
     fun currentStreamState(): StreamState = _state.value
 
-    /**
-     * 用户意图仍在运行：既没有被主动停止（stop/close），也没被停止超时强制放弃。
-     * 断连后仅当该标志为 true 时才允许自动重连，避免用户主动停止后被意外重连。
-     */
-    fun isUserWantsStreamRunning(): Boolean = desiredRunning && !closed.get()
     private val _audioLevels = MutableStateFlow(0f)
     val audioLevels: Flow<Float> = _audioLevels
 
@@ -495,7 +490,7 @@ class AudioEngine constructor() {
                     val wasDesiredRunning = desiredRunning
                     val timedOutJob = stopTimedOutJob
                     if (timedOutJob != null && !timedOutJob.isCompleted) {
-                        throw IllegalStateException("Previous audio session did not stop within $STOP_TIMEOUT_MS ms")
+                        throw IllegalStateException("Previous audio session stop timed out after $STOP_TIMEOUT_MS ms")
                     }
                     if (timedOutJob?.isCompleted == true) {
                         stopTimedOutJob = null
@@ -1127,7 +1122,7 @@ class AudioEngine constructor() {
                     true
                 } == true
                 if (!previousStopped) {
-                    val error = IllegalStateException("Previous audio session did not stop within $STOP_TIMEOUT_MS ms")
+                    val error = IllegalStateException("Previous audio session stop timed out after $STOP_TIMEOUT_MS ms")
                     startStopMutex.withLock {
                         if (requestToken == startRequestGeneration) {
                             desiredRunning = false
