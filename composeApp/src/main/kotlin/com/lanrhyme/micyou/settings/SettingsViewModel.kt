@@ -51,7 +51,6 @@ data class SettingsUiState(
     val visualizerStyle: VisualizerStyle = VisualizerStyle.VolumeRing,
     val backgroundSettings: BackgroundSettings = BackgroundSettings(),
     val snackbarMessage: String? = null,
-    val showFirstLaunchDialog: Boolean = false,
     val showMirrorCdkDialog: Boolean = false
 )
 
@@ -95,11 +94,6 @@ class SettingsViewModel : ViewModel() {
     val savedAutoCheckUpdate = settings.getBoolean("auto_check_update", true)
     val savedUseMirrorDownload = settings.getBoolean("use_mirror_download", false)
     val savedMirrorCdk = settings.getString("mirror_cdk", "")
-    val hasLaunchedBefore = settings.getBoolean("has_launched_before", false)
-    val shouldShowFirstLaunchDialog = !hasLaunchedBefore
-        if (shouldShowFirstLaunchDialog) {
-            settings.putBoolean("has_launched_before", true)
-        }
 
         _uiState.update {
             it.copy(
@@ -122,8 +116,7 @@ class SettingsViewModel : ViewModel() {
                 ),
                 autoCheckUpdate = savedAutoCheckUpdate,
                 useMirrorDownload = savedUseMirrorDownload,
-                mirrorCdk = savedMirrorCdk,
-                showFirstLaunchDialog = shouldShowFirstLaunchDialog
+                mirrorCdk = savedMirrorCdk
             )
         }
     }
@@ -262,10 +255,6 @@ class SettingsViewModel : ViewModel() {
 
     fun clearSnackbar() {
         _uiState.update { it.copy(snackbarMessage = null) }
-    }
-
-    fun dismissFirstLaunchDialog() {
-        _uiState.update { it.copy(showFirstLaunchDialog = false) }
     }
 
     fun exportLog(onResult: (String?) -> Unit) {

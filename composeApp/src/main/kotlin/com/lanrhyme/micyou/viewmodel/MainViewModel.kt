@@ -77,7 +77,7 @@ data class AppUiState(
     val mode: ConnectionMode = ConnectionMode.Wifi,
     val transportProtocol: TransportProtocol = TransportProtocol.Both,
     val streamState: StreamState = StreamState.Idle,
-    val ipAddress: String = "192.168.1.5",
+    val ipAddress: String = "",
     val port: String = Constants.DEFAULT_TCP_PORT.toString(),
     val errorMessage: String? = null,
     val sampleRate: SampleRate = SampleRate.Rate48000,
@@ -114,7 +114,6 @@ data class AppUiState(
     val showMirrorCdkDialog: Boolean = false,
     val visualizerStyle: VisualizerStyle = VisualizerStyle.VolumeRing,
     val backgroundSettings: BackgroundSettings = BackgroundSettings(),
-    val showFirstLaunchDialog: Boolean = false,
 
 
     // Update State
@@ -238,7 +237,6 @@ class MainViewModel : ViewModel() {
                         showMirrorCdkDialog = settingsState.showMirrorCdkDialog,
                         visualizerStyle = settingsState.visualizerStyle,
                         backgroundSettings = settingsState.backgroundSettings,
-                        showFirstLaunchDialog = settingsState.showFirstLaunchDialog,
 
                         updateInfo = updateState.updateInfo,
                         updateDownloadState = updateState.updateDownloadState,
@@ -307,7 +305,6 @@ class MainViewModel : ViewModel() {
     fun pickBackgroundImage() = settingsViewModel.pickBackgroundImage()
     fun showSnackbar(message: String) = settingsViewModel.showSnackbar(message)
     fun clearSnackbar() = settingsViewModel.clearSnackbar()
-    fun dismissFirstLaunchDialog() = settingsViewModel.dismissFirstLaunchDialog()
     fun exportLog(onResult: (String?) -> Unit) = settingsViewModel.exportLog(onResult)
 
 

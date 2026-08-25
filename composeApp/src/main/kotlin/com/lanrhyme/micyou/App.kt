@@ -25,8 +25,6 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -43,7 +41,6 @@ import com.lanrhyme.micyou.util.currentTimeSeconds
 import com.lanrhyme.micyou.util.formatBytes
 import com.lanrhyme.micyou.util.setAppLocale
 import com.lanrhyme.micyou.viewmodel.UpdateDownloadState
-import com.lanrhyme.micyou.util.openUrl
 import com.lanrhyme.micyou.util.PermissionState
 import com.lanrhyme.micyou.viewmodel.MainViewModel
 import androidx.activity.ComponentActivity
@@ -76,7 +73,6 @@ fun App(
     key(languageCode) {
         val seedColorObj = androidx.compose.ui.graphics.Color(uiState.seedColor.toInt())
         val updateInfo = uiState.updateInfo
-        val showFirstLaunchDialog = uiState.showFirstLaunchDialog && isPermissionDialogDismissed
 
         AppTheme(
             themeMode = uiState.themeMode,
@@ -165,110 +161,6 @@ fun App(
                             TextButton(onClick = { finalViewModel.dismissUpdateDialog() }) {
                                 Text(stringResource(R.string.updateLater))
                             }
-                        }
-                    }
-                )
-            }
-
-            // First Launch Dialog
-            if (showFirstLaunchDialog) {
-                AlertDialog(
-                    onDismissRequest = { },
-                    title = { Text(stringResource(R.string.firstLaunchTitle)) },
-                    text = {
-                        Column(
-                            modifier = Modifier
-                                .widthIn(min = 320.dp, max = 420.dp)
-                                .heightIn(max = 400.dp)
-                                .verticalScroll(rememberScrollState()),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            Text(
-                                text = stringResource(R.string.firstLaunchMessage),
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-
-                            Spacer(modifier = Modifier.height(4.dp))
-
-                            Text(
-                                text = stringResource(R.string.firstLaunchQuickStartTitle),
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-
-                            // Step 1: Install PC Server
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.surfaceContainerHighest
-                                )
-                            ) {
-                                Column(modifier = Modifier.padding(12.dp)) {
-                                    Text(
-                                        text = stringResource(R.string.firstLaunchStep1Title),
-                                        style = MaterialTheme.typography.titleSmall,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                    Text(
-                                        text = stringResource(R.string.firstLaunchStep1Desc),
-                                        style = MaterialTheme.typography.bodySmall
-                                    )
-                                }
-                            }
-
-                            // Step 2: Connect
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.surfaceContainerHighest
-                                )
-                            ) {
-                                Column(modifier = Modifier.padding(12.dp)) {
-                                    Text(
-                                        text = stringResource(R.string.firstLaunchStep2Title),
-                                        style = MaterialTheme.typography.titleSmall,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                    Text(
-                                        text = stringResource(R.string.firstLaunchStep2Desc),
-                                        style = MaterialTheme.typography.bodySmall
-                                    )
-                                }
-                            }
-
-                            // Step 3: Start
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.surfaceContainerHighest
-                                )
-                            ) {
-                                Column(modifier = Modifier.padding(12.dp)) {
-                                    Text(
-                                        text = stringResource(R.string.firstLaunchStep3Title),
-                                        style = MaterialTheme.typography.titleSmall,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                    Text(
-                                        text = stringResource(R.string.firstLaunchStep3Desc),
-                                        style = MaterialTheme.typography.bodySmall
-                                    )
-                                }
-                            }
-                        }
-                    },
-                    confirmButton = {
-                        TextButton(onClick = {
-                            openUrl("https://github.com/LanRhyme/MicYou")
-                        }) {
-                            Text(stringResource(R.string.firstLaunchDownloadPc))
-                        }
-                    },
-                    dismissButton = {
-                        TextButton(onClick = {
-                            finalViewModel.dismissFirstLaunchDialog()
-                        }) {
-                            Text(stringResource(R.string.firstLaunchGotItButton))
                         }
                     }
                 )

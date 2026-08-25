@@ -49,7 +49,8 @@ data class AudioStreamUiState(
     val mode: ConnectionMode = ConnectionMode.Wifi,
     val transportProtocol: TransportProtocol = TransportProtocol.Both,
     val streamState: StreamState = StreamState.Idle,
-    val ipAddress: String = "192.168.1.5",
+    /** 目标服务端 IP；空表示尚未配置（未手动输入且未发现服务端），此时禁止自动连接 */
+    val ipAddress: String = "",
     val port: String = Constants.DEFAULT_TCP_PORT.toString(),
     val errorMessage: String? = null,
     val sampleRate: SampleRate = SampleRate.Rate48000,
@@ -103,6 +104,13 @@ class AudioStreamViewModel : ViewModel() {
     @Volatile
     private var userWantsRunning = false
 
+    /**
+     * 用户已请求连接但目标地址尚未配置：等待 mDNS 发现服务端后自动接续连接。
+     * 避免在没有任何服务端信息时盲连一个默认 IP。
+     */
+    @Volatile
+    private var pendingAutoConnect = false
+
     init {
         loadSettings()
         setupAudioEngineObservers()
@@ -120,7 +128,7 @@ class AudioStreamViewModel : ViewModel() {
         val effectiveMode = savedMode
         val savedProtocolName = settings.getString("transport_protocol", TransportProtocol.Both.name)
         val savedProtocol = try { TransportProtocol.valueOf(savedProtocolName) } catch(e: Exception) { TransportProtocol.Both }
-    val savedIp = settings.getString("ip_address", "192.168.1.5")
+    val savedIp = settings.getString("ip_address", "")
     val savedPort = settings.getString("port", Constants.DEFAULT_TCP_PORT.toString())
     val savedSampleRateName = settings.getString("sample_rate", SampleRate.Rate48000.name)
     val savedSampleRate = try { SampleRate.valueOf(savedSampleRateName) } catch(e: Exception) { SampleRate.Rate48000 }
@@ -205,6 +213,38 @@ class AudioStreamViewModel : ViewModel() {
             }
         }
 
+        // 服务端自动发现：
+        // 1) 尚未配置地址时（首次安装）自动填入并接续连接，避免盲连默认 IP；
+        // 2) 已配置但重连连续失败时，若发现的服务端地址与当前不同（如路由器
+        //    重启后 DHCP 换了 PC 的 IP），自动切换到新地址，否则会永远重连到
+        //    一个已失效的地址。
+        auxiliaryScope.launch {
+            discoveryManager.discoveredDevices.collect { devices ->
+                val device = devices.firstOrNull() ?: return@collect
+                val current = _uiState.value
+                val addressMissing = current.ipAddress.isBlank()
+                val addressStale = !addressMissing &&
+                    current.streamState == StreamState.Error &&
+                    reconnectAttempts >= ADOPT_DISCOVERED_AFTER_ATTEMPTS &&
+                    device.hostAddress != current.ipAddress
+                if (!addressMissing && !addressStale) return@collect
+
+                Logger.i(
+                    "AudioStreamViewModel",
+                    "Adopting discovered server ${device.hostAddress}:${device.port} (missing=$addressMissing, stale=$addressStale)"
+                )
+                setIp(device.hostAddress)
+                setPort(device.port.toString())
+
+                if (pendingAutoConnect || userWantsRunning) {
+                    pendingAutoConnect = false
+                    // 地址已更新：取消排期中的旧重连，立即用新地址尝试
+                    cancelAutoReconnect()
+                    startStream()
+                }
+            }
+        }
+
         // Auto-start handled via MainViewModel
     }
 
@@ -243,6 +283,17 @@ class AudioStreamViewModel : ViewModel() {
         userWantsRunning = true
         // 手动发起的启动：取消排期中的自动重连，避免与本次启动并发执行
         cancelAutoReconnect()
+
+        // 目标地址尚未配置（首次安装且未扫描到服务端）：不盲连默认 IP，
+        // 改为登记待连接意图，等 mDNS 发现服务端后由发现观察者接续启动。
+        if (_uiState.value.mode == ConnectionMode.Wifi && _uiState.value.ipAddress.isBlank()) {
+            Logger.i("AudioStreamViewModel", "No target address yet, waiting for discovery")
+            pendingAutoConnect = true
+            isStartStreamRequestPending = false
+            discoveryManager.startDiscovery()
+            return
+        }
+
         auxiliaryScope.launch {
             try {
                 startStreamInternal()
@@ -271,14 +322,18 @@ class AudioStreamViewModel : ViewModel() {
             else -> rawPort
         }
 
-        // IP 地址验证
-        if (ip.isBlank()) {
+        // IP 地址验证（USB 模式由引擎强制走 127.0.0.1，无需地址）
+        if (ip.isBlank() && mode != ConnectionMode.Usb) {
                 Logger.e("AudioStreamViewModel", "IP address is empty")
+                // 不弹对话框：地址缺失时登记待连接意图，等发现服务端后自动接续
+                pendingAutoConnect = true
+                discoveryManager.startDiscovery()
                 _uiState.update {
                     it.copy(
-                        streamState = StreamState.Error,
-                        errorMessage = "IP 地址不能为空",
-                        showErrorDialog = true
+                        streamState = StreamState.Idle,
+                        errorMessage = null,
+                        showErrorDialog = false,
+                        errorDetails = null
                     )
                 }
                 return
@@ -342,15 +397,13 @@ class AudioStreamViewModel : ViewModel() {
                 it.copy(
                     streamState = StreamState.Error,
                     errorMessage = errorDetails.localizedMessage,
-                    // 自动重连失败的提示由错误横幅展示，不反复弹对话框打扰用户
-                    showErrorDialog = !fromReconnect,
-                    errorDetails = if (fromReconnect) null else errorDetails
+                    // 自动重连开启时一律不弹模态对话框，错误信息由横幅 + 倒计时呈现
+                    showErrorDialog = !fromReconnect && !it.autoReconnect,
+                    errorDetails = if (fromReconnect || it.autoReconnect) null else errorDetails
                 )
             }
-            // 显式调度下一次退避重连（观察者针对引擎自发 Error 也会触发，此处双保险且幂等）
-            if (fromReconnect) {
-                scheduleAutoReconnect()
-            }
+            // 任何连接失败都进入退避重连（包括首次手动连接失败）；调度本身幂等
+            scheduleAutoReconnect()
             return
         }
     }
@@ -359,6 +412,7 @@ class AudioStreamViewModel : ViewModel() {
         Logger.i("AudioStreamViewModel", "Stopping stream")
         // 用户主动停止：取消挂起的自动重连，避免停止后被意外重连
         userWantsRunning = false
+        pendingAutoConnect = false
         resetAutoReconnect()
         if (isStopStreamRequestPending) {
             Logger.d("AudioStreamViewModel", "Stop stream request ignored: stop already pending")
@@ -517,6 +571,8 @@ class AudioStreamViewModel : ViewModel() {
         const val STREAM_START_TIMEOUT_MS = 15000L
         /** Connecting 卡死看门狗阈值：大于总超时，仅拦截未知路径的僵死会话 */
         const val CONNECTING_WATCHDOG_TIMEOUT_MS = 20000L
+        /** 连续重连失败达到该次数后，允许采用 mDNS 发现到的新地址（应对 DHCP 换 IP） */
+        const val ADOPT_DISCOVERED_AFTER_ATTEMPTS = 2
     }
 
     private var reconnectJob: Job? = null
@@ -559,6 +615,10 @@ class AudioStreamViewModel : ViewModel() {
             if (!canAutoReconnect()) return@launch
             val currentState = _uiState.value.streamState
             if (currentState != StreamState.Error && currentState != StreamState.Idle) return@launch
+            // 网络恢复后 mDNS 发现可能已被系统中断，重启发现以便感知服务端新地址
+            if (_uiState.value.mode == ConnectionMode.Wifi) {
+                discoveryManager.startDiscovery()
+            }
             Logger.i("AudioStreamViewModel", "Auto-reconnect attempt $attempt executing")
             startStreamInternal(fromReconnect = true)
         }
@@ -589,6 +649,7 @@ class AudioStreamViewModel : ViewModel() {
         closeJob?.let { return@synchronized it }
         closed.set(true)
         userWantsRunning = false
+        pendingAutoConnect = false
         resetAutoReconnect()
         discoveryManager.stopDiscovery()
         val engineCloseJob = _audioEngine.close()
