@@ -607,7 +607,8 @@ private fun ReconnectCountdownHint(state: AppUiState) {
             return@LaunchedEffect
         }
         while (true) {
-            val remaining = ((targetMillis - System.currentTimeMillis()) / 1000L).toInt() + 1
+            // 向上取整：剩余 2500ms 显示 3 秒，剩余 3000ms 显示 3 秒（正好）
+            val remaining = ((targetMillis - System.currentTimeMillis() + 999L) / 1000L).toInt()
             secondsLeft = remaining.coerceAtLeast(0)
             if (remaining <= 0) break
             delay(200)
