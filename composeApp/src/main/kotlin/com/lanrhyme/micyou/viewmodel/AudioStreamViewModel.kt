@@ -41,6 +41,7 @@ import com.lanrhyme.micyou.settings.Settings
 import com.lanrhyme.micyou.settings.SettingsFactory
 import com.lanrhyme.micyou.util.AppLanguage
 import com.lanrhyme.micyou.util.Constants
+import com.lanrhyme.micyou.util.ContextHelper
 import com.lanrhyme.micyou.util.Logger
 import com.lanrhyme.micyou.viewmodel.AudioStreamUiState
 import java.util.concurrent.atomic.AtomicBoolean
@@ -114,6 +115,7 @@ class AudioStreamViewModel : ViewModel() {
     init {
         loadSettings()
         setupAudioEngineObservers()
+        registerNetworkCallback()
         if (_uiState.value.mode == ConnectionMode.Wifi) {
             discoveryManager.startDiscovery()
         }
@@ -402,8 +404,17 @@ class AudioStreamViewModel : ViewModel() {
                     errorDetails = if (fromReconnect || it.autoReconnect) null else errorDetails
                 )
             }
-            // 任何连接失败都进入退避重连（包括首次手动连接失败）；调度本身幂等
-            scheduleAutoReconnect()
+            // 失败后保证进入退避重连链：手动/自动路径都可能走到这里。
+            // 若当前正是重连 job 内部（isActive），由 job 内部的后续推进兜底；
+            // 外部入口的幂等检查保证不重复创建。若 isActive 已结束（比如重连
+            // job 因取消而跳过推进），这里必须补一次调度，防止中断。
+            if (fromReconnect) {
+                if (reconnectJob?.isActive != true) {
+                    scheduleNextReconnect()
+                }
+            } else {
+                scheduleNextReconnect()
+            }
             return
         }
     }
@@ -579,6 +590,13 @@ class AudioStreamViewModel : ViewModel() {
     private var reconnectAttempts = 0
     private var lastConnectingAtMillis = 0L
 
+    /**
+     * 重连代数：每次创建新一轮重连递增。被取消/取代的旧 job 通过
+     * "自身的 gen != 当前 gen"判断自身已失效，在其后无论失败还是被取消，
+     * 都不会再推进链条或与新一轮交错，从根上杜绝并发双会话竞态。
+     */
+    private var reconnectGeneration = 0L
+
     fun setAutoReconnect(enabled: Boolean) {
         Logger.i("AudioStreamViewModel", "Setting auto reconnect to $enabled")
         _uiState.update { it.copy(autoReconnect = enabled) }
@@ -591,17 +609,30 @@ class AudioStreamViewModel : ViewModel() {
     /**
      * 断连后由 streamState 观察者触发：按退避策略（3s 起、指数增长、30s 封顶）
      * 调度一次重连尝试；失败后再次进入 Error 状态会继续下一轮退避。
-     * 幂等：已有排期在等待时直接返回，避免观察者与显式调用双路径导致
-     * 尝试计数膨胀、倒计时被反复重置。
+     * 外部入口幂等：已有排期/进行中的重连时直接返回，避免观察者与显式调用
+     * 双路径重复调度。重连 job 内部执行完会自行推进下一轮（见 scheduleNextReconnect）。
      */
     private fun scheduleAutoReconnect() {
         if (!canAutoReconnect()) return
         if (reconnectJob?.isActive == true) return
+        scheduleNextReconnect()
+    }
+
+    /**
+     * 创建/推进下一轮重连（不经幂等检查）。
+     * 必须由重连 job 内部调用以保证"上一轮失败后链条不中断"：
+     * 若失败时依赖外部入口重排，会因幂等检查（执行中 isActive=true）被拒绝，
+     * 且 job 结束后引擎状态已是 Error 无新事件，观察者不会再来触发 —— 链条会
+     * 永久断裂，表现为"连接超时横幅 + 倒计时消失 + 不再重连"。
+     */
+    private fun scheduleNextReconnect() {
+        reconnectGeneration++
+        val generation = reconnectGeneration
         val attempt = reconnectAttempts + 1
         reconnectAttempts = attempt
         val backoffExp = (attempt - 1).coerceAtMost(RECONNECT_MAX_BACKOFF_EXP)
         val delayMs = minOf(RECONNECT_INITIAL_DELAY_MS shl backoffExp, RECONNECT_MAX_DELAY_MS)
-        Logger.i("AudioStreamViewModel", "Auto-reconnect attempt $attempt scheduled in ${delayMs}ms")
+        Logger.i("AudioStreamViewModel", "Auto-reconnect attempt $attempt scheduled in ${delayMs}ms (gen=$generation)")
         _uiState.update {
             it.copy(
                 nextReconnectAtMillis = System.currentTimeMillis() + delayMs,
@@ -610,6 +641,8 @@ class AudioStreamViewModel : ViewModel() {
         }
         reconnectJob = auxiliaryScope.launch {
             delay(delayMs)
+            // 若已被取消/取代（新的一轮已经创建），本 job 直接失效退出
+            if (generation != reconnectGeneration) return@launch
             // 等待期间可能已被用户停止/重试/关闭；状态守卫放宽到 Idle：
             // 引擎清理路径可能把状态落成 Idle（而非 Error），此时同样应继续重连
             if (!canAutoReconnect()) return@launch
@@ -619,8 +652,16 @@ class AudioStreamViewModel : ViewModel() {
             if (_uiState.value.mode == ConnectionMode.Wifi) {
                 discoveryManager.startDiscovery()
             }
-            Logger.i("AudioStreamViewModel", "Auto-reconnect attempt $attempt executing")
+            Logger.i("AudioStreamViewModel", "Auto-reconnect attempt $attempt executing (gen=$generation)")
             startStreamInternal(fromReconnect = true)
+            // 核心修复：本 job 已执行完毕，无论成功与否都在此推进下一轮，
+            // 不依赖外部入口（其幂等检查会在此处被误伤）。gen 守卫保证
+            // 被取消/取代的旧 job 不会与新一代交错推进。
+            if (generation == reconnectGeneration &&
+                _uiState.value.streamState != StreamState.Streaming && canAutoReconnect()
+            ) {
+                scheduleNextReconnect()
+            }
         }
     }
 
@@ -634,6 +675,9 @@ class AudioStreamViewModel : ViewModel() {
         !closed.get() && _uiState.value.autoReconnect && userWantsRunning
 
     private fun cancelAutoReconnect() {
+        // 递增代数使所有已排期/进行中的重连 job 立即失效，
+        // 即使它们正在执行或即将完成，也不会再推进链条
+        reconnectGeneration++
         reconnectJob?.cancel()
         reconnectJob = null
     }
@@ -650,6 +694,7 @@ class AudioStreamViewModel : ViewModel() {
         closed.set(true)
         userWantsRunning = false
         pendingAutoConnect = false
+        unregisterNetworkCallback()
         resetAutoReconnect()
         discoveryManager.stopDiscovery()
         val engineCloseJob = _audioEngine.close()
@@ -672,6 +717,54 @@ class AudioStreamViewModel : ViewModel() {
     fun restartDiscovery() {
         discoveryManager.stopDiscovery()
         discoveryManager.startDiscovery()
+    }
+
+    // ===== 网络恢复监听 =====
+    // 快速开关 WiFi 场景下，网络恢复的瞬间立即触发一次连接尝试，
+    // 避免卡在退避等待（可长达 30s），提高重连体验。
+
+    private var networkCallback: android.net.ConnectivityManager.NetworkCallback? = null
+
+    private fun registerNetworkCallback() {
+        try {
+            val context = ContextHelper.getContext() ?: return
+            val cm = context.getSystemService(android.content.Context.CONNECTIVITY_SERVICE)
+                as? android.net.ConnectivityManager ?: return
+            val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+            networkCallback = object : android.net.ConnectivityManager.NetworkCallback() {
+                override fun onAvailable(network: android.net.Network) {
+                    mainHandler.post {
+                        if (closed.get()) return@post
+                        val caps = cm.getNetworkCapabilities(network)
+                        val isWifi = caps?.hasTransport(android.net.ConnectivityManager.TRANSPORT_WIFI) == true
+                        if (!isWifi) return@post
+                        val state = _uiState.value.streamState
+                        if ((state == StreamState.Error || state == StreamState.Idle) && canAutoReconnect()) {
+                            Logger.i("AudioStreamViewModel", "Network available, triggering immediate reconnect")
+                            resetAutoReconnect()
+                            startStream()
+                        }
+                    }
+                }
+            }
+            cm.registerDefaultNetworkCallback(networkCallback!!)
+            Logger.i("AudioStreamViewModel", "Network availability callback registered")
+        } catch (e: Exception) {
+            Logger.w("AudioStreamViewModel", "Failed to register network callback: ${e.message}")
+            networkCallback = null
+        }
+    }
+
+    private fun unregisterNetworkCallback() {
+        try {
+            val context = ContextHelper.getContext() ?: return
+            val cm = context.getSystemService(android.content.Context.CONNECTIVITY_SERVICE)
+                as? android.net.ConnectivityManager ?: return
+            networkCallback?.let { cm.unregisterNetworkCallback(it) }
+        } catch (e: Exception) {
+            Logger.w("AudioStreamViewModel", "Failed to unregister network callback: ${e.message}")
+        }
+        networkCallback = null
     }
 
 }
