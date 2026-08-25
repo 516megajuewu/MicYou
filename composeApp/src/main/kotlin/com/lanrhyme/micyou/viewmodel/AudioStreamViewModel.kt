@@ -736,7 +736,7 @@ class AudioStreamViewModel : ViewModel() {
                     mainHandler.post {
                         if (closed.get()) return@post
                         val caps = cm.getNetworkCapabilities(network)
-                        val isWifi = caps?.hasTransport(android.net.ConnectivityManager.TRANSPORT_WIFI) == true
+                        val isWifi = caps?.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI) == true
                         if (!isWifi) return@post
                         val state = _uiState.value.streamState
                         if ((state == StreamState.Error || state == StreamState.Idle) && canAutoReconnect()) {
